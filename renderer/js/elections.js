@@ -2,6 +2,7 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const initials = (name) => String(name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
   const STATUS = { setup: ['pill-info', 'Setup'], voting: ['pill-success', 'Voting'], closed: ['pill', 'Closed'] };
 
@@ -364,26 +365,31 @@
 
     body.innerHTML = positions.map((p) => {
       const cands = candidates.filter((c) => c.position_id === p.id);
-      const rows = cands.length
+      const cards = cands.length
         ? cands.map((c) => `
-            <div class="ballot-cand">
-              <span class="ballot-badge">${esc(c.ballot_number)}</span>
-              <span class="ballot-cand-photo" data-photo="${esc(c.photo_path || '')}">${c.photo_path ? '' : ''}</span>
-              <span class="ballot-cand-name">${esc(c.name)}</span>
+            <div class="ballot-card">
+              <span class="ballot-avatar" data-photo="${esc(c.photo_path || '')}">${esc(initials(c.name))}</span>
+              <div class="ballot-card-info">
+                <span class="ballot-bn-num">${String(c.ballot_number || '').padStart(2, '0')}</span>
+                <span class="ballot-card-name">${esc(c.name)}</span>
+              </div>
             </div>`).join('')
         : '<div class="ballot-empty">No candidates in this category yet.</div>';
       return `
         <div class="ballot-section">
-          <div class="ballot-section-head">${esc(p.title)} <span class="text-muted" style="font-weight:400;text-transform:none;letter-spacing:0;">· vote for up to ${p.max_votes}</span></div>
-          ${rows}
+          <div class="ballot-section-head">
+            <span class="ballot-cat-title">${esc(p.title)}</span>
+            <span class="ballot-cat-max">vote for up to ${p.max_votes}</span>
+          </div>
+          <div class="ballot-grid">${cards}</div>
         </div>`;
     }).join('');
 
     // Resolve stored photo paths to usable file URLs.
-    body.querySelectorAll('span[data-photo]').forEach((el) => {
+    body.querySelectorAll('.ballot-avatar[data-photo]').forEach((el) => {
       if (!el.dataset.photo) return;
       const img = document.createElement('img');
-      img.className = 'ballot-cand-photo';
+      img.className = 'ballot-avatar';
       img.alt = '';
       window.pvh.candidatePhotoUrl(el.dataset.photo).then((url) => { if (url) img.src = url; });
       el.replaceWith(img);
