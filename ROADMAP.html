@@ -117,7 +117,9 @@
       <tr><th>Feature</th><th>Detail</th></tr>
       <tr><td>Election creation</td><td>Manual entry + CSV import + auto-generate candidates</td></tr>
       <tr><td>Voter management</td><td>CSV import + auto-generate IDs/passwords + print voter cards</td></tr>
-      <tr><td>Voter authentication</td><td>Voter ID + password (validated against local DB)</td></tr>
+      <tr><td>Officer management</td><td>Add officers (Coordinator + Assistant roles), assign to devices</td></tr>
+      <tr><td>Voter check-in</td><td>Officer verifies voter identity → marks as checked in → voter proceeds to vote</td></tr>
+      <tr><td>Voter authentication</td><td>Voter ID + password (must be checked in first)</td></tr>
       <tr><td>Voting</td><td>Select candidate → confirm → peep sound → "Your vote has been recorded" → next voter</td></tr>
       <tr><td>Duplicate prevention</td><td>Server-side SQLite checks — same voter ID can't vote twice across all devices</td></tr>
       <tr><td>LAN sync</td><td>Multiple devices at same location connect over local network — one server, multiple clients</td></tr>
@@ -135,17 +137,27 @@
       <tr><td>Dashboard</td><td>Overview — active election, total voters, votes cast, turnout %</td></tr>
       <tr><td>Election Setup</td><td>Create election: title, positions, candidates (manual or CSV)</td></tr>
       <tr><td>Voter Management</td><td>Import CSV, auto-generate voters, print voter cards</td></tr>
+      <tr><td>Officer Management</td><td>Add officers (Coordinator + Assistant roles), assign to devices</td></tr>
       <tr><td>Results</td><td>View results after voting ends, export to file, print</td></tr>
+    </table>
+
+    <h3>Check-In Desk (Officer)</h3>
+    <table class="screen-table">
+      <tr><th>Screen</th><th>Purpose</th></tr>
+      <tr><td>Officer Login</td><td>Officer enters ID + password to start check-in session</td></tr>
+      <tr><td>Check-In Screen</td><td>Officer enters voter ID → system verifies → marks voter as "checked in" → prints check-in slip</td></tr>
+      <tr><td>Checked-In List</td><td>Shows all voters checked in today, with timestamps</td></tr>
+      <tr><td>Already Checked In</td><td>If voter ID found → show "Already checked in" message</td></tr>
     </table>
 
     <h3>Voting Side (Polling Station)</h3>
     <table class="screen-table">
       <tr><th>Screen</th><th>Purpose</th></tr>
-      <tr><td>Station Login</td><td>Coordinator selects election, starts voting session</td></tr>
-      <tr><td>Voter Auth</td><td>Voter enters ID + password → validated → allowed to vote</td></tr>
+      <tr><td>Voter Auth</td><td>Voter enters ID + password → system verifies they're checked in → allowed to vote</td></tr>
       <tr><td>Ballot</td><td>Shows candidates for the position → voter selects → confirms</td></tr>
       <tr><td>Confirmation</td><td>Peep sound + "Your vote has been recorded, Thank you" → 2.5s → back to auth</td></tr>
-      <tr><td>Already Voted</td><td>If voter ID found in local DB → show "Already voted" message</td></tr>
+      <tr><td>Not Checked In</td><td>If voter ID not found in check-in list → show "Please check in first" message</td></tr>
+      <tr><td>Already Voted</td><td>If voter ID found in votes table → show "Already voted" message</td></tr>
     </table>
 
     <h3>Utility</h3>
@@ -177,6 +189,17 @@
 CREATE TABLE config (
   key TEXT PRIMARY KEY,
   value TEXT
+);
+
+-- Election officers (Coordinator + Assistant roles)
+CREATE TABLE officers (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  officer_id TEXT UNIQUE NOT NULL,
+  password TEXT NOT NULL,
+  role TEXT CHECK(role IN ('coordinator', 'assistant')) DEFAULT 'assistant',
+  assigned_device TEXT,
+  created_at INTEGER
 );
 
 -- Election definition
@@ -219,6 +242,17 @@ CREATE TABLE voters (
   position_voted TEXT
 );
 
+-- Check-in records
+CREATE TABLE checkins (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id TEXT,
+  voter_id TEXT NOT NULL,
+  officer_id TEXT,
+  device_id TEXT,
+  timestamp INTEGER,
+  UNIQUE(election_id, voter_id)
+);
+
 -- Cast votes
 CREATE TABLE votes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -250,6 +284,7 @@ CREATE TABLE audit_log (
 │   ├── preload.js                   # IPC bridge (contextBridge)
 │   ├── db.js                        # SQLite operations
 │   ├── auth.js                      # Coordinator + voter authentication
+│   ├── officer.js                   # Officer management + check-in
 │   ├── election.js                  # Election CRUD operations
 │   ├── voter.js                     # Voter management + CSV import
 │   ├── voting.js                    # Vote casting + duplicate check
@@ -267,6 +302,8 @@ CREATE TABLE audit_log (
 │   ├── dashboard.html               # Admin dashboard
 │   ├── election-setup.html          # Create election
 │   ├── voter-management.html        # Import/manage voters
+│   ├── officer-management.html      # Add/manage officers
+│   ├── checkin.html                 # Officer check-in desk
 │   ├── station.html                 # Voting kiosk (voter-facing)
 │   ├── results.html                 # View + export results
 │   ├── merge.html                   # Merge tool
@@ -345,26 +382,58 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 5: Voting Flow <span class="duration">— 3-4 days</span></h3>
-      <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter. Supports multiple devices via LAN.</p>
+      <h3>Phase 5: Officer Management <span class="duration">— 1-2 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Add election officers, assign roles, manage check-in devices.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
-        <tr><td>Station mode</td><td>Coordinator starts voting session for an election</td></tr>
-        <tr><td>Voter auth screen</td><td>Voter enters ID + password → validated against server DB</td></tr>
+        <tr><td>Officer CRUD</td><td>Add, edit, delete officers (Coordinator + Assistant roles)</td></tr>
+        <tr><td>Role permissions</td><td>Coordinator: full access. Assistant: check-in only, limited functions</td></tr>
+        <tr><td>Device assignment</td><td>Assign officers to specific devices (check-in desk or voting booth)</td></tr>
+        <tr><td>Officer login</td><td>Officer enters ID + password to start their session</td></tr>
+        <tr><td>CSV import</td><td>Import officers from CSV file</td></tr>
+        <tr><td>Auto-generate</td><td>Auto-generate officer IDs and passwords</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can manage officers and assign them to devices.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 6: Check-In Flow <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Officer check-in desk — verify voter identity before voting.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Check-in screen</td><td>Officer enters voter ID → system verifies → marks as checked in</td></tr>
+        <tr><td>Voter verification</td><td>Validate voter ID + password against voter database</td></tr>
+        <tr><td>Check-in slip</td><td>Print or display check-in confirmation with timestamp</td></tr>
+        <tr><td>Already checked in</td><td>If voter ID found → show "Already checked in" message</td></tr>
+        <tr><td>Checked-in list</td><td>Show all voters checked in today with timestamps</td></tr>
+        <tr><td>Not found</td><td>If voter ID not in database → show "Voter not found" message</td></tr>
+        <tr><td>LAN sync</td><td>Check-in data syncs to server in real-time</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete check-in flow — officer verifies voter → voter proceeds to vote.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 7: Voting Flow <span class="duration">— 3-4 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter. Supports multiple devices via LAN. Requires check-in first.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Voter auth screen</td><td>Voter enters ID + password → system verifies they're checked in</td></tr>
+        <tr><td>Check-in verification</td><td>Validate voter ID against checkins table — must be checked in to vote</td></tr>
+        <tr><td>Not checked in</td><td>If voter not in checkins table → show "Please check in first" → redirect to check-in desk</td></tr>
         <tr><td>Ballot screen</td><td>Shows candidates for current position → voter selects</td></tr>
         <tr><td>Confirm vote</td><td>"Are you sure?" → confirm → peep sound → "Your vote has been recorded"</td></tr>
-        <tr><td>Already voted</td><td>If voter ID found → show "Already voted" message</td></tr>
+        <tr><td>Already voted</td><td>If voter ID found in votes table → show "Already voted" message</td></tr>
         <tr><td>Duplicate prevention</td><td>Server-side SQLite transaction: check + write atomically (all devices share one DB)</td></tr>
         <tr><td>Multiple positions</td><td>If election has multiple positions → voter votes for each sequentially</td></tr>
         <tr><td>Session timeout</td><td>Auto-return to auth screen after 60s of inactivity</td></tr>
         <tr><td>Close voting</td><td>Coordinator can close voting → results become viewable</td></tr>
         <tr><td>Client fallback</td><td>If server goes down, client caches votes locally, syncs when server returns</td></tr>
       </table>
-      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete voting flow — auth → vote → confirm → next voter.</p>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete voting flow — check-in → auth → vote → confirm → next voter.</p>
     </div>
 
     <div class="phase-card">
-      <h3>Phase 6: Results & Reporting <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 8: Results & Reporting <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">View results, export to file, print.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -381,7 +450,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 7: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
+      <h3>Phase 9: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations with global duplicate detection.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -397,7 +466,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 8: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 10: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Kiosk lockdown, audio, printing, distribution.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -425,11 +494,15 @@ CREATE TABLE audit_log (
       </div>
       <div class="timeline-item">
         <div class="week">Week 3</div>
-        <p>Phase 5: Voting Flow + Phase 6: Results & Reporting</p>
+        <p>Phase 5: Officer Management + Phase 6: Check-In Flow</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 4</div>
-        <p>Phase 7: Multi-Location Merge + Phase 8: Polish & Packaging</p>
+        <p>Phase 7: Voting Flow + Phase 8: Results & Reporting</p>
+      </div>
+      <div class="timeline-item">
+        <div class="week">Week 5</div>
+        <p>Phase 9: Multi-Location Merge + Phase 10: Polish & Packaging</p>
       </div>
     </div>
 
@@ -456,9 +529,9 @@ CREATE TABLE audit_log (
       <tr><td><code>express</code></td><td>⏳ Install Phase 2</td><td>LAN server</td></tr>
       <tr><td><code>ws</code></td><td>⏳ Install Phase 2</td><td>WebSocket for real-time sync</td></tr>
       <tr><td><code>bonjour-service</code></td><td>⏳ Install Phase 2</td><td>mDNS auto-discovery</td></tr>
-      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 8</td><td>Packaging</td></tr>
+      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 10</td><td>Packaging</td></tr>
       <tr><td><code>csv-parse</code></td><td>⏳ Install Phase 4</td><td>CSV import</td></tr>
-      <tr><td><code>pdfkit</code></td><td>⏳ Install Phase 6</td><td>PDF export</td></tr>
+      <tr><td><code>pdfkit</code></td><td>⏳ Install Phase 8</td><td>PDF export</td></tr>
     </table>
 
     <div class="summary-box">
