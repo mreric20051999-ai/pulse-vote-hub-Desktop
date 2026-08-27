@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Station &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/station.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+      <span>Pulse Vote Hub</span>
+    </div>
+    <nav class="sidebar-nav" id="nav">
+      <a class="nav-item" href="dashboard.html" data-nav="dashboard"><span class="icon nav-ic" data-icon="dashboard"></span>Dashboard</a>
+      <a class="nav-item" href="elections.html" data-nav="elections"><span class="icon nav-ic" data-icon="elections"></span>Elections</a>
+      <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
+      <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
+      <a class="nav-item" href="#" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+    </nav>
+    <div class="sidebar-footer" id="sidebar-footer"></div>
+  </aside>
+
+  <main class="main">
+    <div class="station-shell">
+      <div id="station-unassigned" hidden>
+        <section class="card panel" style="max-width:560px;margin:60px auto;">
+          <div class="card-title">Station Portal</div>
+          <p class="text-muted" id="unassigned-msg">
+            Your account is not assigned to a polling station yet. Ask your administrator to assign you to a station for an election.
+          </p>
+          <div class="btn-row">
+            <a class="btn btn-secondary" href="dashboard.html">Back to dashboard</a>
+          </div>
+        </section>
+      </div>
+
+      <div id="station-dash" hidden>
+        <div class="station-banner card">
+          <div>
+            <div class="st-banner-title" id="election-tag">Station Election</div>
+            <div class="st-banner-meta"><i class="fa-solid fa-location-dot"></i> <span id="station-name">Unnamed Station</span> <code id="station-code"></code></div>
+          </div>
+          <div>
+            <span class="status-pill st-not_opened" id="statusPill"><span class="status-dot gray"></span><span id="statusText">Not opened</span></span>
+          </div>
+        </div>
+
+        <section class="stat-grid" style="margin-top:18px;">
+          <div class="card stat-card"><div class="stat-label">Registered</div><div class="stat-value" id="statRegistered">—</div></div>
+          <div class="card stat-card"><div class="stat-label">Checked In</div><div class="stat-value" id="statCheckedIn">—</div></div>
+          <div class="card stat-card"><div class="stat-label">In Queue</div><div class="stat-value" id="statInQueue">—</div></div>
+          <div class="card stat-card"><div class="stat-label">Ballots Cast</div><div class="stat-value" id="statBallots">—</div></div>
+          <div class="card stat-card"><div class="stat-label">Grace Votes</div><div class="stat-value" id="statGrace">—</div></div>
+        </section>
+
+        <div class="station-grid" style="margin-top:18px;">
+          <div style="display:flex;flex-direction:column;gap:18px;">
+            <section class="card panel">
+              <div class="card-title">Polls</div>
+              <div id="pollsBody"><p class="text-muted hint">Loading…</p></div>
+            </section>
+
+            <section class="card panel">
+              <div class="panel-head">
+                <div>
+                  <div class="card-title panel-title">E-pollbook — Check in voters</div>
+                  <p class="text-muted panel-sub">Verify each voter's identity in person before checking them in.</p>
+                </div>
+              </div>
+              <input class="input station-search" id="pollSearch" type="text" placeholder="Search by name, index or ID…" autocomplete="off">
+              <div class="station-list" id="pollbookBody" style="margin-top:12px;"><div class="empty">Loading…</div></div>
+            </section>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:18px;">
+            <section class="card panel">
+              <div class="card-title">Queue</div>
+              <div id="queueBody"><p class="text-muted hint">Queue statistics appear here once polls are open.</p></div>
+            </section>
+
+            <section class="card panel">
+              <div class="card-title">Incidents</div>
+              <input class="input" id="incMessage" type="text" placeholder="Describe the incident…" autocomplete="off">
+              <select class="input" id="incType" style="margin-top:8px;width:100%;max-width:200px;">
+                <option value="other">Other</option>
+                <option value="dispute">Dispute</option>
+                <option value="technical">Technical</option>
+                <option value="security">Security</option>
+              </select>
+              <div class="btn-row"><button class="btn btn-secondary" id="incSubmit">Log incident</button></div>
+              <div id="incidentsList" class="station-list" style="max-height:220px;"><div class="empty">No incidents logged.</div></div>
+            </section>
+
+            <section class="card panel">
+              <div class="card-title">Activity log</div>
+              <div id="logsList" class="station-list" style="max-height:220px;"><div class="empty">No activity yet.</div></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" id="modal-box" style="max-width:520px;"></div>
+  </div>
+
+  <script src="https://kit.fontawesome.com/ab2dfc59d2.js" crossorigin="anonymous"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/station.js"></script>
+</body>
+</html>

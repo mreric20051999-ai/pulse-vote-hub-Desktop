@@ -23,20 +23,29 @@ function decodeHash(stored) {
   return { salt: parts[1], hash: parts[2] };
 }
 
-// Is the coordinator configured?
+// Is any officer account configured? (Once set up, the app is configured.)
 function isConfigured() {
   const row = db.get()
-    .prepare("SELECT COUNT(*) AS c FROM officers WHERE role = 'coordinator'")
+    .prepare('SELECT COUNT(*) AS c FROM officers')
     .get();
   return row.c > 0;
 }
 
-// Set up the initial coordinator (first-run wizard)
-function setupCoordinator(name, officerId, password) {
-  if (isConfigured()) return { ok: false, error: 'Coordinator already configured' };
-  if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+// Is there at least one superuser (admin) account?
+function hasAdmin() {
+  const row = db.get()
+    .prepare("SELECT COUNT(*) AS c FROM officers WHERE role = 'admin'")
+    .get();
+  return row.c > 0;
+}
 
+function findByOfficerId(officerId) {
+  return db.get()
+    .prepare('SELECT * FROM officers WHERE officer_id = ?')
+    .get(String(officerId).trim().toUpperCase());
+}
+
+function insertOfficer(name, officerId, password, role, extra = {}) {
   const salt = generateSalt();
   const hash = hashPassword(String(password), salt);
   const stored = encodeHash(salt, hash);
@@ -46,35 +55,47 @@ function setupCoordinator(name, officerId, password) {
     name: String(name).trim(),
     officer_id: String(officerId).trim().toUpperCase(),
     password: stored,
-    role: 'coordinator',
-    assigned_device: null,
+    role,
+    assigned_device: extra.assigned_device != null ? extra.assigned_device : null,
+    assigned_election_id: extra.assigned_election_id != null ? extra.assigned_election_id : null,
+    assigned_station_id: extra.assigned_station_id != null ? extra.assigned_station_id : null,
+    suspended: extra.suspended ? 1 : 0,
     created_at: Date.now(),
   };
 
   db.get().prepare(`
-    INSERT INTO officers (id, name, officer_id, password, role, assigned_device, created_at)
-    VALUES (@id, @name, @officer_id, @password, @role, @assigned_device, @created_at)
-  `).run({
-    id: officer.id,
-    name: officer.name,
-    officer_id: officer.officer_id,
-    password: officer.password,
-    role: officer.role,
-    assigned_device: officer.assigned_device,
-    created_at: officer.created_at,
-  });
+    INSERT INTO officers (id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, suspended, created_at)
+    VALUES (@id, @name, @officer_id, @password, @role, @assigned_device, @assigned_election_id, @assigned_station_id, @suspended, @created_at)
+  `).run(officer);
 
+  return officer;
+}
+
+// Set up the initial superuser (admin) — first-run wizard
+function setupAdmin(name, officerId, password) {
+  if (hasAdmin()) return { ok: false, error: 'An admin account already exists' };
+  if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
+  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
+
+  const officer = insertOfficer(name, officerId, password, 'admin');
   db.setConfig('initialized_at', String(Date.now()));
-
   return { ok: true, officer: publicOfficer(officer) };
 }
 
-// Login an officer
-function login(officerId, password) {
-  const row = db.get()
-    .prepare('SELECT * FROM officers WHERE officer_id = ?')
-    .get(String(officerId).trim().toUpperCase());
+// Set up a coordinator (legacy / non-admin bootstrap)
+function setupCoordinator(name, officerId, password) {
+  if (isConfigured()) return { ok: false, error: 'Coordinator already configured' };
+  if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
+  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const officer = insertOfficer(name, officerId, password, 'coordinator');
+  db.setConfig('initialized_at', String(Date.now()));
+  return { ok: true, officer: publicOfficer(officer) };
+}
 
+// Login an officer (admin, coordinator or assistant)
+function login(officerId, password) {
+  const row = findByOfficerId(officerId);
   if (!row) return null;
 
   const decoded = decodeHash(row.password);
@@ -89,21 +110,91 @@ function login(officerId, password) {
   return publicOfficer(row);
 }
 
+// ---- Admin management (superuser operations) ----
+
+function listOfficers() {
+  return db.get()
+    .prepare('SELECT * FROM officers ORDER BY role DESC, created_at ASC')
+    .all()
+    .map(publicOfficer);
+}
+
+// Admin creates a coordinator or assistant account
+function addOfficer({ name, officerId, password, role = 'coordinator' }) {
+  if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
+  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (!['coordinator', 'assistant'].includes(role)) role = 'coordinator';
+  if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
+
+  const officer = insertOfficer(name, officerId, password, role);
+  return { ok: true, officer: publicOfficer(officer) };
+}
+
+// Remove a coordinator/assistant (cannot remove admins or yourself)
+function removeOfficer(id, actingId) {
+  const row = db.get().prepare('SELECT * FROM officers WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Account not found' };
+  if (row.role === 'admin') return { ok: false, error: 'Cannot remove an admin account' };
+  if (row.id === actingId) return { ok: false, error: 'You cannot remove your own account' };
+  db.get().prepare('DELETE FROM officers WHERE id = ?').run(id);
+  return { ok: true };
+}
+
+// Suspend or activate a coordinator/assistant (cannot suspend admins)
+function setSuspended(id, suspended) {
+  const row = db.get().prepare('SELECT * FROM officers WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Account not found' };
+  if (row.role === 'admin') return { ok: false, error: 'Cannot suspend an admin account' };
+  db.get().prepare('UPDATE officers SET suspended = ? WHERE id = ?').run(suspended ? 1 : 0, id);
+  return { ok: true, officer: publicOfficer(db.get().prepare('SELECT * FROM officers WHERE id = ?').get(id)) };
+}
+
+// Change an officer's password (admin for others, or any officer for themselves)
+function changePassword(id, newPassword) {
+  if (String(newPassword).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const salt = generateSalt();
+  const stored = encodeHash(salt, hashPassword(String(newPassword), salt));
+  db.get().prepare('UPDATE officers SET password = ? WHERE id = ?').run(stored, id);
+  return { ok: true };
+}
+
 function publicOfficer(row) {
   return {
     id: row.id,
     name: row.name,
     officer_id: row.officer_id,
     role: row.role,
+    suspended: !!row.suspended,
     assigned_device: row.assigned_device,
+    assigned_election_id: row.assigned_election_id || null,
+    assigned_station_id: row.assigned_station_id || null,
     created_at: row.created_at,
   };
+}
+
+// Link an assistant (station officer) account to a station for an election.
+// Passing stationId = null clears the assignment.
+function assignStationOfficer(officerId, stationId, electionId) {
+  const officer = db.get().prepare('SELECT * FROM officers WHERE id = ?').get(officerId);
+  if (!officer) return { ok: false, error: 'Account not found' };
+  if (officer.role === 'admin') return { ok: false, error: 'Admin accounts cannot serve as station officers' };
+  db.get().prepare('UPDATE officers SET assigned_station_id = ?, assigned_election_id = ? WHERE id = ?')
+    .run(stationId, stationId ? electionId : null, officerId);
+  return { ok: true, officer: publicOfficer(db.get().prepare('SELECT * FROM officers WHERE id = ?').get(officerId)) };
 }
 
 module.exports = {
   hashPassword,
   generateSalt,
   isConfigured,
+  hasAdmin,
+  setupAdmin,
   setupCoordinator,
   login,
+  listOfficers,
+  addOfficer,
+  removeOfficer,
+  setSuspended,
+  changePassword,
+  assignStationOfficer,
 };

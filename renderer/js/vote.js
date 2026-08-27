@@ -56,15 +56,15 @@
       return;
     }
 
-    const voting = elections.filter((e) => e.status === 'voting');
+    const voting = elections.filter((e) => e.status === 'active');
     const cards = (voting.length ? voting : elections).map((e) => `
       <div class="picker-card" data-id="${esc(e.id)}" role="button" tabindex="0">
         <div class="pk-icon" aria-hidden="true">🗳️</div>
         <div class="pk-body">
           <div class="pk-top">
             ${e.type ? `<span class="pk-type">${esc(e.type)}</span>` : ''}
-            <span class="pk-status ${e.status === 'voting' ? 'is-open' : 'is-closed'}">
-              ${e.status === 'voting' ? 'Open' : 'Not open'}
+            <span class="pk-status ${e.status === 'active' ? 'is-open' : 'is-closed'}">
+              ${e.status === 'active' ? 'Open' : 'Not open'}
             </span>
           </div>
           <div class="pk-title">${esc(e.title)}</div>
@@ -74,7 +74,7 @@
           </div>
         </div>
         <div class="pk-arrow" aria-hidden="true">
-          <span class="pk-go">${e.status === 'voting' ? 'Cast vote' : 'View'}</span>
+          <span class="pk-go">${e.status === 'active' ? 'Cast vote' : 'View'}</span>
           <span class="pk-chev">→</span>
         </div>
       </div>`).join('');
@@ -92,7 +92,7 @@
         const id = card.dataset.id;
         const e = elections.find((x) => x.id === id);
         if (!e) return;
-        if (e.status !== 'voting') return showBlocked('This election is not open for voting yet.', true);
+        if (e.status !== 'active') return showBlocked('This election is not open for voting yet.', true);
         election = e;
         showAccess();
       };
@@ -361,7 +361,7 @@
   }
 
   // ------------------------------------------------------------
-  // Screen 4: Thank you
+  // Screen 4: Thank you + celebration
   // ------------------------------------------------------------
   function showThanks() {
     setTitle(election.title);
@@ -371,9 +371,97 @@
         <div class="check-circle"><i>✓</i></div>
         <h2>Thank you!</h2>
         <p>Your vote has been recorded securely.</p>
-        <button class="btn btn-primary btn-lg" id="done-btn" style="margin-top:var(--space-8);">Finish</button>
+        <button class="btn btn-primary btn-lg" id="done-btn" style="margin-top:var(--space-8);">Next voter</button>
       </div>`;
-    $('done-btn').addEventListener('click', nextVoter);
+
+    playSuccessChime();
+    celebrate();
+
+    let done = false;
+    const nextSignIn = () => { if (done) return; done = true; $('done-btn').disabled = true; toSignIn(); };
+    // auto-advance once the beep + confetti have played
+    setTimeout(nextSignIn, 3200);
+    $('done-btn').addEventListener('click', nextSignIn);
+  }
+
+  // Back to the voter sign-in for the next voter (same election stays selected).
+  function toSignIn() {
+    voter = null; positions = []; candidates = []; selections = new Map();
+    showAccess();
+  }
+
+  // Short, pleasant two-tone chime via Web Audio (no asset file needed).
+  function playSuccessChime() {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const now = ctx.currentTime;
+      [660, 880].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const t = now + i * 0.15;
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      });
+      setTimeout(() => ctx.close().catch(() => {}), 1200);
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  // Dependency-free canvas confetti celebration.
+  function celebrate() {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'confetti-canvas';
+      content.appendChild(canvas);
+      const ctx = canvas.getContext('2d');
+      const W = (canvas.width = canvas.offsetWidth || 900);
+      const H = (canvas.height = canvas.offsetHeight || 600);
+      const colors = ['#ef4444', '#f87171', '#fbbf24', '#34d399', '#38bdf8', '#a78bfa', '#ffffff'];
+      const pieces = Array.from({ length: 160 }, () => ({
+        x: Math.random() * W,
+        y: -20 - Math.random() * H * 0.4,
+        w: 6 + Math.random() * 7,
+        h: 10 + Math.random() * 10,
+        color: colors[(Math.random() * colors.length) | 0],
+        vy: 2.2 + Math.random() * 3,
+        vx: (Math.random() - 0.5) * 1.6,
+        rot: Math.random() * Math.PI * 2,
+        vr: (Math.random() - 0.5) * 0.25,
+      }));
+      const started = performance.now();
+      const DURATION = 2400;
+      let raf;
+      const frame = (t) => {
+        const elapsed = t - started;
+        const ease = Math.max(0, 1 - elapsed / DURATION);
+        ctx.clearRect(0, 0, W, H);
+        for (const p of pieces) {
+          p.y += p.vy;
+          p.x += p.vx + Math.sin((elapsed + p.rot * 50) / 260) * 0.5;
+          p.rot += p.vr;
+          const alpha = Math.min(1, ease * 2.2);
+          if (alpha <= 0) continue;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+          ctx.restore();
+        }
+        if (elapsed < DURATION) raf = requestAnimationFrame(frame);
+        else { cancelAnimationFrame(raf); canvas.remove(); }
+      };
+      raf = requestAnimationFrame(frame);
+    } catch (e) { /* confetti unavailable */ }
   }
 
   // ------------------------------------------------------------
@@ -390,11 +478,6 @@
         <button class="btn btn-primary btn-lg" id="blocked-back">${withBack ? 'Back to elections' : 'OK'}</button>
       </div>`;
     $('blocked-back').addEventListener('click', () => { election = null; voter = null; showPicker(); });
-  }
-
-  function nextVoter() {
-    election = null; voter = null; positions = []; candidates = []; selections = new Map();
-    showPicker();
   }
 
   const backBtn = $('kiosk-back');
@@ -417,5 +500,19 @@
   // Inline SVG-free check glyphs: replace ✓ with an icon if icons available.
   if (window.pvhIcons) window.pvhIcons.inject('.icon, .pick-icon');
 
-  showPicker();
+  // Deep-link support: ?election=<id> skips the picker and opens that election
+  // directly (used by the dashboard's active-election "Run voting" buttons).
+  async function deepLink() {
+    const deepId = new URLSearchParams(window.location.search).get('election');
+    if (!deepId) return;
+    let elections = [];
+    try { elections = await window.pvh.listElections(); } catch (e) { elections = []; }
+    const e = elections.find((x) => x.id === deepId);
+    if (!e) return;
+    if (e.status !== 'active') { showBlocked('This election is not open for voting yet.', true); return; }
+    election = e;
+    showAccess();
+  }
+
+  (async () => { await showPicker(); deepLink(); })();
 })();

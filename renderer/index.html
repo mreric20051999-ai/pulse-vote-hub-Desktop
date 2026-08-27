@@ -40,6 +40,7 @@
         <button type="submit" class="btn btn-primary btn-lg btn-block" id="setup-btn">Create Coordinator</button>
       </form>
       <p class="auth-error" id="setup-error"></p>
+      <button class="btn btn-ghost btn-block admin-toggle" id="setup-admin-link">Set up as an Administrator</button>
     </div>
 
     <!-- Login -->
@@ -58,6 +59,49 @@
         <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-btn">Sign in</button>
       </form>
       <p class="auth-error" id="login-error"></p>
+      <button class="btn btn-ghost btn-block admin-toggle" id="login-admin-link">Administrator sign in</button>
+    </div>
+
+    <!-- Administrator setup (superuser) -->
+    <div id="admin-setup-view" class="auth-view" hidden>
+      <h2 class="auth-heading">Set up your administrator</h2>
+      <p class="auth-hint">Create the superuser account. This account manages coordinators, and can back up the election database.</p>
+      <form id="admin-setup-form">
+        <div class="field">
+          <label class="label" for="admin-setup-name">Full name</label>
+          <input class="input" id="admin-setup-name" type="text" autocomplete="name" placeholder="e.g. Alex Admin">
+        </div>
+        <div class="field">
+          <label class="label" for="admin-setup-id">Admin ID</label>
+          <input class="input" id="admin-setup-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
+        </div>
+        <div class="field">
+          <label class="label" for="admin-setup-pass">Password</label>
+          <input class="input" id="admin-setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="admin-setup-btn">Create Administrator</button>
+      </form>
+      <p class="auth-error" id="admin-setup-error"></p>
+      <button class="btn btn-ghost btn-block admin-toggle" id="admin-setup-back">Back to sign in</button>
+    </div>
+
+    <!-- Administrator login (superuser) -->
+    <div id="admin-login-view" class="auth-view" hidden>
+      <h2 class="auth-heading">Administrator sign in</h2>
+      <p class="auth-hint">Enter your administrator ID and password.</p>
+      <form id="admin-login-form">
+        <div class="field">
+          <label class="label" for="admin-login-id">Admin ID</label>
+          <input class="input" id="admin-login-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
+        </div>
+        <div class="field">
+          <label class="label" for="admin-login-pass">Password</label>
+          <input class="input" id="admin-login-pass" type="password" autocomplete="current-password" placeholder="Your password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="admin-login-btn">Sign in</button>
+      </form>
+      <p class="auth-error" id="admin-login-error"></p>
+      <button class="btn btn-ghost btn-block admin-toggle" id="admin-login-back">Back to officer sign in</button>
     </div>
 
     <div class="auth-footer">Secure Offline Voting &middot; <span id="auth-version"></span></div>

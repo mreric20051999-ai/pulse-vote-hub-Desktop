@@ -30,8 +30,11 @@ CREATE TABLE IF NOT EXISTS officers (
   name TEXT NOT NULL,
   officer_id TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
-  role TEXT CHECK(role IN ('coordinator', 'assistant')) DEFAULT 'assistant',
+  role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant')) DEFAULT 'assistant',
   assigned_device TEXT,
+  assigned_election_id TEXT,
+  assigned_station_id TEXT,
+  suspended INTEGER DEFAULT 0,
   created_at INTEGER
 );
 
@@ -39,8 +42,13 @@ CREATE TABLE IF NOT EXISTS elections (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   type TEXT CHECK(type IN ('school', 'station')),
-  status TEXT CHECK(status IN ('setup', 'voting', 'closed')) DEFAULT 'setup',
+  status TEXT CHECK(status IN ('draft', 'upcoming', 'active', 'closed')) DEFAULT 'draft',
   election_date INTEGER,
+  start_date INTEGER,
+  end_date INTEGER,
+  station_mode INTEGER DEFAULT 0,
+  close_grace_minutes INTEGER DEFAULT 30,
+  max_close_grace_minutes INTEGER DEFAULT 120,
   created_at INTEGER,
   closed_at INTEGER
 );
@@ -70,9 +78,34 @@ CREATE TABLE IF NOT EXISTS voters (
   password_hash TEXT NOT NULL,
   password_salt TEXT NOT NULL,
   assigned_station TEXT,
+  station_id TEXT,
+  checked_in INTEGER DEFAULT 0,
+  checked_in_at INTEGER,
+  checked_in_by TEXT,
+  ballot_cast INTEGER DEFAULT 0,
+  grace_period INTEGER DEFAULT 0,
   has_voted INTEGER DEFAULT 0,
   voted_at INTEGER,
   position_voted TEXT
+);
+
+CREATE TABLE IF NOT EXISTS stations (
+  id TEXT PRIMARY KEY,
+  election_id TEXT REFERENCES elections(id),
+  name TEXT NOT NULL,
+  location TEXT,
+  code TEXT,
+  status TEXT CHECK(status IN ('not_opened', 'open', 'queuing', 'counted', 'submitted')) DEFAULT 'not_opened',
+  opened_at INTEGER,
+  zero_report INTEGER DEFAULT 0,
+  opened_by_name TEXT,
+  closed_at INTEGER,
+  closed_by_name TEXT,
+  grace_minutes INTEGER,
+  grace_ends_at INTEGER,
+  queue_closed_at INTEGER,
+  final_submit_json TEXT,
+  created_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS checkins (
@@ -134,10 +167,151 @@ function migrate() {
     }
   };
   addColumn('elections', 'election_date', 'INTEGER');
+  addColumn('elections', 'start_date', 'INTEGER');
+  addColumn('elections', 'end_date', 'INTEGER');
+  addColumn('elections', 'station_mode', 'INTEGER DEFAULT 0');
+  addColumn('elections', 'close_grace_minutes', 'INTEGER DEFAULT 30');
+  addColumn('elections', 'max_close_grace_minutes', 'INTEGER DEFAULT 120');
   addColumn('candidates', 'ballot_number', 'INTEGER');
+  addColumn('officers', 'suspended', 'INTEGER DEFAULT 0');
+
+  // Station-runtime columns (faithful to the web station flow).
+  addColumn('officers', 'assigned_election_id', 'TEXT');
+  addColumn('officers', 'assigned_station_id', 'TEXT');
+  addColumn('voters', 'station_id', 'TEXT');
+  addColumn('voters', 'checked_in', 'INTEGER DEFAULT 0');
+  addColumn('voters', 'checked_in_at', 'INTEGER');
+  addColumn('voters', 'checked_in_by', 'TEXT');
+  addColumn('voters', 'ballot_cast', 'INTEGER DEFAULT 0');
+  addColumn('voters', 'grace_period', 'INTEGER DEFAULT 0');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS stations (
+      id TEXT PRIMARY KEY,
+      election_id TEXT REFERENCES elections(id),
+      name TEXT NOT NULL,
+      location TEXT,
+      code TEXT,
+      status TEXT CHECK(status IN ('not_opened', 'open', 'queuing', 'counted', 'submitted')) DEFAULT 'not_opened',
+      opened_at INTEGER,
+      zero_report INTEGER DEFAULT 0,
+      opened_by_name TEXT,
+      closed_at INTEGER,
+      closed_by_name TEXT,
+      grace_minutes INTEGER,
+      grace_ends_at INTEGER,
+      queue_closed_at INTEGER,
+      final_submit_json TEXT,
+      created_at INTEGER
+    );
+  `);
+
+  // Older databases had a role CHECK constraint without 'admin'. SQLite cannot
+  // ALTER a CHECK constraint, so rebuild the officers table to allow the role.
+  const hasAdminRole = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='officers'"
+  ).get();
+  if (hasAdminRole && !/role IN \('admin'/.test(hasAdminRole.sql)) {
+    db.exec(`
+      ALTER TABLE officers RENAME TO officers_old;
+      CREATE TABLE officers (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        officer_id TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant')) DEFAULT 'assistant',
+        assigned_device TEXT,
+        assigned_election_id TEXT,
+        assigned_station_id TEXT,
+        suspended INTEGER DEFAULT 0,
+        created_at INTEGER
+      );
+      INSERT INTO officers (id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, suspended, created_at)
+        SELECT id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, COALESCE(suspended, 0), created_at
+        FROM officers_old;
+      DROP TABLE officers_old;
+    `);
+  }
+
+  // Migrate legacy statuses to the web-app model:
+  //   setup -> draft, voting -> active (closed stays closed). Rebuild the
+  //   elections table so the status CHECK accepts the new status values.
+  const elecSql = db.prepare(
+    "SELECT sql FROM sqlite_master WHERE type='table' AND name='elections'"
+  ).get();
+  const statusCol = db.prepare("SELECT name FROM pragma_table_info('elections') WHERE name='status'").get();
+  const statusIsLegacy = statusCol && /setup.*voting.*closed/.test(elecSql.sql);
+  if (statusIsLegacy) {
+    db.prepare("UPDATE elections SET status = CASE status WHEN 'setup' THEN 'draft' WHEN 'voting' THEN 'active' ELSE status END").run();
+    db.exec(`
+      ALTER TABLE elections RENAME TO elections_old;
+      CREATE TABLE elections (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        type TEXT CHECK(type IN ('school', 'station')),
+        status TEXT CHECK(status IN ('draft', 'upcoming', 'active', 'closed')) DEFAULT 'draft',
+        election_date INTEGER,
+        start_date INTEGER,
+        end_date INTEGER,
+        station_mode INTEGER DEFAULT 0,
+        close_grace_minutes INTEGER DEFAULT 30,
+        max_close_grace_minutes INTEGER DEFAULT 120,
+        created_at INTEGER,
+        closed_at INTEGER
+      );
+      INSERT INTO elections (
+        id, title, type, status, election_date, start_date, end_date,
+        station_mode, close_grace_minutes, max_close_grace_minutes, created_at, closed_at
+      )
+        SELECT id, title, type, status, election_date, start_date, end_date,
+               COALESCE(station_mode, 0), COALESCE(close_grace_minutes, 30),
+               COALESCE(max_close_grace_minutes, 120), created_at, closed_at
+        FROM elections_old;
+      DROP TABLE elections_old;
+    `);
+  }
+
+  // Older databases had stale child-table foreign keys left over from an early
+  // rebuild of the elections table: positions/candidates/voters.election_id
+  // still REFERENCES "elections_old" (a table that no longer exists). SQLite
+  // cannot ALTER a FK, so rebuild those tables to point at "elections" again.
+  // Each scene is pristine (it also repairs tables that lost their PRIMARY KEY
+  // annotations from an earlier naive rebuild). FK enforcement is toggled off
+  // during the structural changes to avoid "foreign key mismatch" errors, and
+  // any leftover '*_old' tables from interrupted runs are dropped.
+  const STALE = { name: 'elections_old', ddl: /\belections_old\b/ };
+  const childDdl = {
+    positions: `id TEXT PRIMARY KEY, election_id TEXT REFERENCES elections(id), title TEXT NOT NULL, max_votes INTEGER DEFAULT 1`,
+    candidates: `id TEXT PRIMARY KEY, election_id TEXT REFERENCES elections(id), position_id TEXT REFERENCES positions(id), name TEXT NOT NULL, photo_path TEXT, ballot_number INTEGER, sort_order INTEGER`,
+    voters: `id TEXT PRIMARY KEY, election_id TEXT REFERENCES elections(id), voter_id TEXT NOT NULL, name TEXT, password_hash TEXT NOT NULL, password_salt TEXT NOT NULL, assigned_station TEXT, station_id TEXT, checked_in INTEGER DEFAULT 0, checked_in_at INTEGER, checked_in_by TEXT, ballot_cast INTEGER DEFAULT 0, grace_period INTEGER DEFAULT 0, has_voted INTEGER DEFAULT 0, voted_at INTEGER, position_voted TEXT`,
+  };
+  const staleRef = db.prepare(
+    "SELECT name, sql FROM sqlite_master WHERE type='table'"
+  ).all().filter((t) => childDdl[t.name] && STALE.ddl.test(t.sql));
+  if (staleRef.length) {
+    db.pragma('foreign_keys = OFF');
+    const tx = db.transaction(() => {
+      for (const name of ['positions', 'candidates', 'voters']) {
+        db.exec(`DROP TABLE IF EXISTS ${name}_old`);
+        if (!staleRef.some((x) => x.name === name)) continue;
+        const cols = db.prepare(`SELECT name FROM pragma_table_info('${name}')`).all().map((c) => c.name);
+        const colList = cols.join(', ');
+        db.exec(`
+          ALTER TABLE ${name} RENAME TO ${name}_old;
+          CREATE TABLE ${name} (${childDdl[name]});
+          INSERT INTO ${name} (${colList}) SELECT ${colList} FROM ${name}_old;
+          DROP TABLE ${name}_old;
+        `);
+      }
+    });
+    tx();
+    db.pragma('foreign_keys = ON');
+  }
 
   // Backfill ballot numbers for candidates that predate the column.
   backfillBallotNumbers();
+
+  // Backfill election start_date from the legacy single election_date.
+  db.prepare('UPDATE elections SET start_date = election_date WHERE start_date IS NULL AND election_date IS NOT NULL').run();
 }
 
 // Assign sequential ballot numbers (per category) to any candidates that

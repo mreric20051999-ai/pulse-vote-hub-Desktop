@@ -1,0 +1,132 @@
+/* ============================================================
+   Pulse Vote Hub — Station Portal styles
+   Station serving runtime (open/queuing/counted cycle)
+   ============================================================ */
+
+.station-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 8px 24px 48px;
+}
+
+/* Station header banner */
+.station-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-radius: var(--radius-lg);
+}
+
+.st-banner-title { font-family: var(--font-heading); font-weight: var(--fw-semibold); font-size: 1.35rem; }
+.st-banner-meta { color: var(--text-muted); font-size: var(--fs-sm); margin-top: 6px; }
+.st-banner-meta code { background: var(--surface-2); padding: 2px 7px; border-radius: var(--radius-sm); font-size: 11px; }
+
+/* Station status pill (mirrors web st-* classes) */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px; border-radius: var(--radius-full);
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+}
+.st-not_opened { background: var(--surface-2); color: var(--text-muted); }
+.st-open        { background: var(--success-soft); color: var(--success); }
+.st-queuing     { background: var(--warning-soft); color: var(--warning); }
+.st-counted     { background: var(--info-soft); color: var(--info); }
+.st-submitted   { background: var(--accent-soft); color: var(--accent); }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.status-dot.gray { background: var(--text-dim); }
+.status-dot.green { background: var(--success); }
+.status-dot.amber { background: var(--warning); }
+.status-dot.blue { background: var(--info); }
+.status-dot.red { background: var(--accent); }
+
+/* Polls control + countdowns */
+.poll-actions { display: flex; flex-direction: column; gap: 12px; }
+.btn-block { width: 100%; justify-content: center; }
+.btn-green { background: var(--success); color: #04120b; border-color: transparent; }
+.btn-green:hover { background: #34d399; }
+.btn-amber { background: var(--warning); color: #1a1204; border-color: transparent; }
+.btn-amber:hover { background: #fbbf24; }
+.btn-purple { background: var(--info); color: #0a1526; border-color: transparent; }
+.btn-purple:hover { background: #93c5fd; }
+
+.countdown {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 12px 16px; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.cd-num { font-family: var(--font-heading); font-weight: var(--fw-bold); font-size: 1.6rem; line-height: 1; min-width: 8ch; }
+.cd-live { color: var(--text); }
+.cd-warn { color: var(--warning); }
+.cd-end { color: var(--accent); }
+.cd-lbl { color: var(--text-muted); font-size: var(--fs-sm); }
+
+.hint { display: flex; gap: 8px; color: var(--text-muted); font-size: var(--fs-sm); align-items: flex-start; }
+
+.action-btn {
+  display: flex; align-items: center; gap: 12px; text-align: left;
+  padding: 14px 16px; border-radius: var(--radius-md);
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); cursor: pointer; font-family: var(--font-body);
+  transition: border-color .15s, background .15s;
+}
+.action-btn:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.action-btn .ab-sub { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 3px; display: block; }
+
+/* E-pollbook */
+.voter-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: var(--radius-md);
+  border: 1px solid var(--border); margin-bottom: 8px;
+  background: var(--surface);
+}
+.voter-avatar {
+  width: 36px; height: 36px; border-radius: var(--radius-full);
+  background: var(--info-soft); color: var(--info);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-heading); font-weight: var(--fw-semibold); flex-shrink: 0;
+}
+.voter-info { flex: 1; min-width: 0; }
+.v-name { font-weight: var(--fw-semibold); }
+.v-sub { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 2px; }
+.v-sub code { background: var(--surface-2); padding: 1px 6px; border-radius: var(--radius-sm); font-size: 10px; }
+
+.voter-badge { font-size: var(--fs-xs); font-weight: var(--fw-semibold); padding: 4px 9px; border-radius: var(--radius-full); white-space: nowrap; }
+.vb-done { background: var(--success-soft); color: var(--success); }
+.vb-in   { background: var(--warning-soft); color: var(--warning); }
+.vb-none { background: var(--surface-2); color: var(--text-muted); }
+
+.btn-checkin { background: var(--success); color: #04120b; border: none; border-radius: var(--radius-sm); padding: 8px 12px; font-weight: var(--fw-semibold); cursor: pointer; }
+.btn-checkin:hover { background: #34d399; }
+.btn-checkin:disabled { opacity: .5; cursor: default; }
+
+.empty { color: var(--text-muted); padding: 18px; text-align: center; font-size: var(--fs-sm); }
+
+/* List section (e-pollbook, incidents, logs) */
+.station-list { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; padding-right: 4px; }
+.station-search { width: 100%; max-width: 380px; }
+
+/* Incidents + logs */
+.inc-item { padding: 9px 12px; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 8px; background: var(--surface); }
+.inc-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+.inc-type { font-size: var(--fs-xs); font-weight: var(--fw-semibold); text-transform: capitalize; color: var(--warning); }
+.inc-time { font-size: var(--fs-xs); color: var(--text-dim); }
+.inc-msg { font-size: var(--fs-sm); color: var(--text); white-space: pre-wrap; }
+.inc-item.inc-resolved { opacity: .55; }
+
+/* Grace / packet figure grid */
+.figure-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.figure-card { padding: 12px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); }
+.figure-card .f-num { font-family: var(--font-heading); font-weight: var(--fw-bold); font-size: 1.5rem; }
+.figure-card .f-lbl { color: var(--text-muted); font-size: var(--fs-xs); margin-top: 2px; }
+
+.checks-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.check-row { display: flex; align-items: center; gap: 10px; font-size: var(--fs-sm); padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--border); }
+.check-row .ck-ok { color: var(--success); font-weight: var(--fw-semibold); }
+.check-row .ck-bad { color: var(--danger); font-weight: var(--fw-semibold); }
+
+/* Two/three column dashboard grid */
+.station-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 860px) { .station-grid { grid-template-columns: 1fr; } }

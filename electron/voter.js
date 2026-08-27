@@ -3,6 +3,8 @@ const crypto = require('crypto');
 const { parse } = require('csv-parse/sync');
 const db = require('./db');
 const auth = require('./auth');
+const { computedStatus } = require('./election');
+const station = require('./station');
 
 // ---- Voter management ----
 
@@ -206,7 +208,7 @@ function unvoteVoter(electionId, voterId) {
 
 function verifyVoter(electionId, voterId, password) {
   const row = db.get().prepare(
-    'SELECT id, voter_id, name, password_hash, assigned_station, has_voted, voted_at FROM voters WHERE election_id = ? AND voter_id = ?'
+    'SELECT id, voter_id, name, password_hash, assigned_station, station_id, checked_in, ballot_cast, has_voted, voted_at FROM voters WHERE election_id = ? AND voter_id = ?'
   ).get(electionId, String(voterId || '').trim().toUpperCase());
   if (!row) return { ok: false, error: 'Voter not found', code: 'not-found' };
   if (row.has_voted) return { ok: false, error: 'This voter has already cast a ballot.', code: 'already-voted' };
@@ -222,6 +224,8 @@ function verifyVoter(electionId, voterId, password) {
       voter_id: row.voter_id,
       name: row.name,
       assigned_station: row.assigned_station,
+      station_id: row.station_id || null,
+      checked_in: !!row.checked_in,
     },
   };
 }
@@ -231,15 +235,29 @@ function verifyVoter(electionId, voterId, password) {
 function castVote(electionId, voterId, selection) {
   const d = db.get();
 
-  const election = d.prepare('SELECT id, title, status FROM elections WHERE id = ?').get(electionId);
+  const election = d.prepare('SELECT id, title, type, status, start_date, end_date FROM elections WHERE id = ?').get(electionId);
   if (!election) return { ok: false, error: 'Election not found', code: 'no-election' };
-  if (election.status !== 'voting') return { ok: false, error: 'This election is not open for voting.', code: 'not-open' };
+  if (computedStatus(election) !== 'active') return { ok: false, error: 'This election is not open for voting.', code: 'not-open' };
 
   const voterRow = d.prepare(
-    'SELECT id, voter_id FROM voters WHERE election_id = ? AND voter_id = ?'
+    'SELECT * FROM voters WHERE election_id = ? AND voter_id = ?'
   ).get(electionId, String(voterId || '').trim().toUpperCase());
   if (!voterRow) return { ok: false, error: 'Voter not found', code: 'not-found' };
   if (voterRow.has_voted) return { ok: false, error: 'This voter has already cast a ballot.', code: 'already-voted' };
+
+  // Station elections: the voter must be casting at a poll whose effective
+  // status is open or queuing (web model). A queuing (grace-window) ballot is
+  // recorded as a grace-period vote.
+  let gracePeriod = false;
+  if (election.type === 'station') {
+    const st = station.resolveVoterStation(voterRow);
+    if (!st) return { ok: false, error: 'This voter is not assigned to a polling station.', code: 'no-station' };
+    const eff = station.effectiveStatus(st);
+    if (eff !== 'open' && eff !== 'queuing') {
+      return { ok: false, error: 'Polls at this station are not accepting ballots.', code: 'station-not-open' };
+    }
+    gracePeriod = eff === 'queuing';
+  }
 
   if (!selection || !selection.length) {
     return { ok: false, error: 'No selections made.', code: 'empty' };
@@ -284,8 +302,8 @@ function castVote(electionId, voterId, selection) {
     }
 
     const positionLabel = [...votedPositions].map((id) => titleByPos.get(id) || '').filter(Boolean).join(', ');
-    d.prepare('UPDATE voters SET has_voted = 1, voted_at = ?, position_voted = ? WHERE id = ?')
-      .run(now, positionLabel || null, voterRow.id);
+    d.prepare('UPDATE voters SET has_voted = 1, voted_at = ?, position_voted = ?, ballot_cast = 1, grace_period = ? WHERE id = ?')
+      .run(now, positionLabel || null, gracePeriod ? 1 : 0, voterRow.id);
     return { ok: true, count: selection.length };
   });
 

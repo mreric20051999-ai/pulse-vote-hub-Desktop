@@ -21,6 +21,7 @@
       <a class="nav-item" href="dashboard.html" data-nav="dashboard"><span class="icon nav-ic" data-icon="dashboard"></span>Dashboard</a>
       <a class="nav-item active" href="elections.html" data-nav="elections"><span class="icon nav-ic" data-icon="elections"></span>Elections</a>
       <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
+      <a class="nav-item" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
       <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
       <a class="nav-item" href="#" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
       <a class="nav-item" href="#" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
@@ -61,6 +62,13 @@
     </div>
 
     <div class="setup-stack">
+      <!-- Locked ballot notice -->
+      <div class="lock-note" id="builder-lock-note" hidden>
+        <span class="icon" data-icon="lock"></span>
+        This election is voting or closed, so its ballot is locked.
+        You can still change its status, or export/back it up from the dashboard.
+      </div>
+
       <!-- Step 1: Election details -->
       <section class="card">
         <div class="step-head">
@@ -85,24 +93,47 @@
           <div class="field">
             <label class="label">Status</label>
             <select class="select" id="estatus">
-              <option value="setup">Setup</option>
-              <option value="voting">Voting</option>
+              <option value="draft">Draft</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="active">Active</option>
               <option value="closed">Closed</option>
             </select>
           </div>
         </div>
         <div class="row two">
           <div class="field">
-            <label class="label">Election date</label>
-            <input class="input" id="edate" type="date">
+            <label class="label">Start date</label>
+            <input class="input" id="start-date" type="date">
           </div>
           <div class="field">
-            <label class="label">Election time</label>
-            <input class="input" id="etime" type="time">
+            <label class="label">Start time</label>
+            <input class="input" id="start-time" type="time">
+          </div>
+        </div>
+        <div class="row two">
+          <div class="field">
+            <label class="label">End date</label>
+            <input class="input" id="end-date" type="date">
+          </div>
+          <div class="field">
+            <label class="label">End time</label>
+            <input class="input" id="end-time" type="time">
+          </div>
+        </div>
+        <div class="row two" id="station-grace-row" hidden>
+          <div class="field">
+            <label class="label">Close grace (minutes)</label>
+            <input class="input" id="close-grace" type="number" min="0" value="30">
+          </div>
+          <div class="field">
+            <label class="label">Max close grace (minutes)</label>
+            <input class="input" id="max-close-grace" type="number" min="1" value="120">
           </div>
         </div>
         <div class="row actions-row">
           <button class="btn btn-secondary" id="preview-ballot">Preview Ballot</button>
+          <button class="btn btn-danger" id="delete-election" hidden>Delete Election</button>
+          <button class="btn btn-primary" id="publish-election">Publish</button>
           <button class="btn btn-primary" id="save-election">Save Election</button>
         </div>
       </section>

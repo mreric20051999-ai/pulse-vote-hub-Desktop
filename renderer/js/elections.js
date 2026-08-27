@@ -4,7 +4,14 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const initials = (name) => String(name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
-  const STATUS = { setup: ['pill-info', 'Setup'], voting: ['pill-success', 'Voting'], closed: ['pill', 'Closed'] };
+  const STATUS = {
+    draft: ['pill', 'Draft'],
+    upcoming: ['pill-info', 'Upcoming'],
+    active: ['pill-success', 'Active'],
+    closed: ['pill', 'Closed'],
+  };
+
+  const isLocked = (status) => status === 'active' || status === 'closed';
 
   let currentElection = null;
 
@@ -22,12 +29,51 @@
     el.textContent = label;
   }
 
-  function fmtDate(ts) {
-    if (!ts) return 'No date set';
+  // Lock the ballot configuration when the election is voting or closed, but
+  // keep the status control available so an admin can close/reopen it.
+  function applyLock() {
+    const locked = currentElection ? isLocked(currentElection.status) : false;
+    const lockEl = (el, on) => { if (el) { el.disabled = on; el.classList.toggle('is-locked', on); } };
+    lockEl($('etitle'), locked);
+    lockEl($('start-date'), locked);
+    lockEl($('start-time'), locked);
+    lockEl($('end-date'), locked);
+    lockEl($('end-time'), locked);
+    lockEl($('close-grace'), locked);
+    lockEl($('max-close-grace'), locked);
+    etypeDD.setDisabled(locked);
+
+    const addPosWrap = $('ptitle') ? $('ptitle').closest('.add-position-row') || null : null;
+    if (addPosWrap) addPosWrap.classList.toggle('is-locked', locked);
+    lockEl($('ptitle'), locked);
+    lockEl($('pmax'), locked);
+    lockEl($('add-position'), locked);
+
+    const lockBanner = $('builder-lock-note');
+    if (lockBanner) lockBanner.hidden = !locked;
+  }
+
+  function fmtDT(ts) {
+    if (!ts) return 'Not set';
     const d = new Date(ts);
     const date = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
     const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
     return `${date} · ${time}`;
+  }
+
+  function fmtRange(e) {
+    const s = e && e.start_date != null ? new Date(e.start_date) : null;
+    const en = e && e.end_date != null ? new Date(e.end_date) : null;
+    if (s && en) {
+      const sameDay = s.toDateString() === en.toDateString();
+      const sd = s.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+      const ed = en.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+      const st = s.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      const et = en.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+      return sameDay ? `${sd} · ${st} – ${et}` : `${sd} ${st} – ${ed} ${et}`;
+    }
+    if (s) return fmtDT(s.getTime());
+    return 'No schedule set';
   }
 
   // ---- List view ----
@@ -42,7 +88,7 @@
             <h3>${esc(e.title)}</h3>
             <div class="election-date">
               <span class="icon" data-icon="calendar"></span>
-              ${fmtDate(e.election_date)}
+              ${fmtRange(e)}
             </div>
             <div class="election-meta">${esc(e.type === 'school' ? 'School' : 'Station')} election &middot; ${e.position_count} categories &middot; ${e.candidate_count} candidates &middot; ${e.voter_count} voters</div>
           </div>
@@ -70,27 +116,51 @@
   }
 
   // ---- Builder view ----
-  function setDateFields(election) {
-    const ts = election && election.election_date ? new Date(election.election_date) : null;
-    $('edate').value = ts ? ts.toISOString().slice(0, 10) : '';
-    $('etime').value = ts
+  function setFieldValue(dateEl, timeEl, ts) {
+    dateEl.value = ts ? ts.toISOString().slice(0, 10) : '';
+    timeEl.value = ts
       ? `${String(ts.getHours()).padStart(2, '0')}:${String(ts.getMinutes()).padStart(2, '0')}`
       : '';
   }
 
-  function readDateValue() {
-    const date = $('edate').value;
-    const time = $('etime').value;
+  function setDateFields(election) {
+    const start = election && election.start_date != null ? new Date(election.start_date) : null;
+    const end = election && election.end_date != null ? new Date(election.end_date) : null;
+    setFieldValue($('start-date'), $('start-time'), start);
+    setFieldValue($('end-date'), $('end-time'), end);
+  }
+
+  function setStationFields(election) {
+    const grace = $('close-grace');
+    const maxGrace = $('max-close-grace');
+    if (grace) grace.value = election && election.close_grace_minutes != null ? election.close_grace_minutes : 30;
+    if (maxGrace) maxGrace.value = election && election.max_close_grace_minutes != null ? election.max_close_grace_minutes : 120;
+  }
+
+  // Read a single date+time pair; returns null if the date is blank.
+  function readDateTime(dateEl, timeEl) {
+    const date = dateEl.value;
+    const time = timeEl.value;
     if (!date) return null;
     const [y, m, d] = date.split('-').map(Number);
     const [hh = 0, mm = 0] = time ? time.split(':').map(Number) : [0, 0];
     return new Date(y, m - 1, d, hh, mm).getTime();
   }
 
+  function readSchedule() {
+    return {
+      start_date: readDateTime($('start-date'), $('start-time')),
+      end_date: readDateTime($('end-date'), $('end-time')),
+      station_mode: etypeDD.get() === 'station' ? 1 : 0,
+      close_grace_minutes: $('close-grace') ? (Number($('close-grace').value) || 30) : 30,
+      max_close_grace_minutes: $('max-close-grace') ? (Number($('max-close-grace').value) || 120) : 120,
+    };
+  }
+
   async function openBuilder(id) {
     const e = id ? await window.pvh.getElection(id) : null;
     currentElection = e || {
-      id: null, title: '', type: 'school', status: 'setup',
+      id: null, title: '', type: 'school', status: 'draft',
       positions: [], candidates: [],
     };
     $('list-view').hidden = true;
@@ -99,14 +169,17 @@
     $('builder-subtitle').textContent = e ? `Editing ${e.type} election` : 'Configure the ballot.';
     $('etitle').value = e ? e.title : '';
     etypeDD.set(e ? e.type : 'school');
-    estatusDD.set(e ? e.status : 'setup');
+    estatusDD.set(e ? e.status : 'draft');
     setDateFields(e);
-    renderStatusPill(e ? e.status : 'setup');
+    setStationFields(e);
+    renderStatusPill(e ? e.status : 'draft');
+    $('delete-election').hidden = !currentElection.id;
     if (currentElection.id) {
       await refreshBuilderData();
     } else {
       renderPositions();
     }
+    applyLock();
   }
 
   function renderPositions() {
@@ -119,8 +192,9 @@
 
     currentElection.positions.forEach((p) => {
       const cands = currentElection.candidates.filter((c) => c.position_id === p.id);
+      const locked = isLocked(currentElection.status);
       const block = document.createElement('div');
-      block.className = 'position-block';
+      block.className = 'position-block' + (locked ? ' is-locked' : '');
       block.innerHTML = `
         <div class="position-head">
           <div>
@@ -128,9 +202,10 @@
             <span class="position-max">max ${p.max_votes} vote${p.max_votes > 1 ? 's' : ''}</span>
             <span class="position-count">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
           </div>
-          <button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove Category</button>
+          ${locked ? '' : `<button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove Category</button>`}
         </div>
         <div class="cand-list"></div>
+        ${locked ? '' : `
         <div class="cand-add">
           <button class="btn btn-secondary btn-sm cand-photo-btn" title="Add photo">
             <span class="icon" data-icon="camera"></span>
@@ -139,6 +214,7 @@
           <input class="input cand-name" placeholder="Candidate name (ballot #${(cands.length + 1)} auto-assigned)">
           <button class="btn btn-secondary btn-sm cand-add-btn">Add</button>
         </div>
+        `}
       `;
       let selectedPhoto = null;
 
@@ -152,7 +228,7 @@
                   <span class="cand-photo-thumb">${c.photo_path ? `<img src="#" data-photo="${esc(c.photo_path)}" alt="">` : ''}</span>
                   ${esc(c.name)}
                 </span>
-                <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
+                ${locked ? '' : `<button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>`}
               </div>
             `).join('')
           : '<div class="candidate-row text-dim">No candidates in this category yet.</div>';
@@ -215,7 +291,7 @@
   // ---- Actions ----
 
   // ---- Generic dropdown for native <select>s (opens downward) ----
-  function buildSelectDropdown(select) {
+  function buildSelectDropdown(select, onChange) {
     const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
     let value = select.value;
     const root = document.createElement('div');
@@ -250,9 +326,11 @@
     menu.addEventListener('click', (e) => {
       const o = e.target.closest('.pdd-option');
       if (!o) return;
+      const prev = value;
       value = o.dataset.value;
       render();
       close();
+      if (onChange) onChange(value, prev);
     });
     document.addEventListener('click', (e) => {
       if (!root.contains(e.target)) close();
@@ -263,25 +341,39 @@
     }
 
     select.replaceWith(root);
-    return { get: () => value, set: (v) => { value = v; render(); }, root };
+    return {
+      get: () => value,
+      set: (v) => { value = v; render(); },
+      setDisabled: (disable) => { trigger.disabled = !!disable; root.classList.toggle('disabled', !!disable); },
+      root,
+    };
   }
 
-  const etypeDD = buildSelectDropdown($('etype'));
+  function toggleStationFields() {
+    const row = $('station-grace-row');
+    if (row) row.hidden = etypeDD.get() !== 'station';
+  }
+
+  const etypeDD = buildSelectDropdown($('etype'), toggleStationFields);
   const estatusDD = buildSelectDropdown($('estatus'));
+  toggleStationFields();
 
   // ---- Actions ----
   $('new-election-btn').addEventListener('click', () => {
-    currentElection = { id: null, title: '', type: 'school', status: 'setup', positions: [], candidates: [] };
+    currentElection = { id: null, title: '', type: 'school', status: 'draft', positions: [], candidates: [] };
     $('list-view').hidden = true;
     $('builder-view').hidden = false;
     $('builder-title').textContent = 'New Election';
     $('builder-subtitle').textContent = 'Configure the ballot.';
     $('etitle').value = '';
     etypeDD.set('school');
-    estatusDD.set('setup');
+    estatusDD.set('draft');
     setDateFields(null);
-    renderStatusPill('setup');
+    setStationFields(null);
+    renderStatusPill('draft');
     renderPositions();
+    $('delete-election').hidden = true;
+    applyLock();
   });
 
   $('builder-back').addEventListener('click', () => {
@@ -312,7 +404,11 @@
     const type = etypeDD.get();
     const status = estatusDD.get();
     if (!title) { alert('Set an election title first.'); return false; }
-    const res = await window.pvh.createElection({ title, type, election_date: readDateValue() });
+    const schedule = readSchedule();
+    if (schedule.start_date != null && schedule.end_date != null && schedule.end_date < schedule.start_date) {
+      alert('End date/time must be after start date/time.'); return false;
+    }
+    const res = await window.pvh.createElection({ title, type, ...schedule });
     if (!res.ok) { alert(res.error || 'Failed to create election'); return false; }
     currentElection = res.election;
     await window.pvh.setElectionStatus(currentElection.id, status);
@@ -326,12 +422,15 @@
     const type = etypeDD.get();
     const status = estatusDD.get();
     if (!title) return alert('Title is required');
-    const election_date = readDateValue();
+    const schedule = readSchedule();
+    if (schedule.start_date != null && schedule.end_date != null && schedule.end_date < schedule.start_date) {
+      return alert('End date/time must be after start date/time.');
+    }
     if (currentElection.id) {
-      await window.pvh.updateElection(currentElection.id, { title, type, election_date });
+      await window.pvh.updateElection(currentElection.id, { title, type, ...schedule });
       await window.pvh.setElectionStatus(currentElection.id, status);
     } else {
-      const res = await window.pvh.createElection({ title, type, election_date });
+      const res = await window.pvh.createElection({ title, type, ...schedule });
       if (!res.ok) return alert(res.error || 'Failed to create');
       currentElection = res.election;
       await window.pvh.setElectionStatus(currentElection.id, status);
@@ -339,6 +438,63 @@
     await refreshBuilderData();
     $('builder-title').textContent = currentElection.title;
     renderStatusPill(currentElection.status);
+  });
+
+  // Publish: compute status from the schedule (web-app model). A school
+  // election with no voters is kept in Draft.
+  $('publish-election').addEventListener('click', async () => {
+    if (!currentElection || !currentElection.id) {
+      const saved = await ensureElectionSaved();
+      if (!saved) return;
+    }
+    const schedule = readSchedule();
+    if (schedule.start_date == null || schedule.end_date == null) {
+      return alert('Set both a Start and End date/time before publishing.');
+    }
+    if (schedule.end_date < schedule.start_date) return alert('End date/time must be after start date/time.');
+    await window.pvh.updateElection(currentElection.id, { ...schedule });
+    const voterCount = (currentElection.voters != null) ? currentElection.voters : undefined;
+    const res = await window.pvh.publishElection(currentElection.id, voterCount != null ? { schoolVoterCount: voterCount } : {});
+    if (!res.ok) { alert(res.error || 'Failed to publish'); return; }
+    currentElection = res.election;
+    estatusDD.set(currentElection.status);
+    await refreshBuilderData();
+  });
+
+  // Re-apply the config lock whenever the status changes (e.g. admin closes or
+  // reopens an election) so the editable state stays in sync.
+  estatusDD.root.addEventListener('click', () => {
+    currentElection.status = estatusDD.get();
+    applyLock();
+    renderStatusPill(currentElection.status);
+  });
+
+  // Poll the schedule every 30s so status pills auto-transition
+  // (upcoming -> active -> closed) without needing a full reload.
+  setInterval(async () => {
+    const res = await window.pvh.applySchedule();
+    if (res && res.changed && res.changed.length && currentElection && currentElection.id
+        && res.changed.includes(currentElection.id)) {
+      currentElection.status = (await window.pvh.getElection(currentElection.id)).status;
+      estatusDD.set(currentElection.status);
+      applyLock();
+      renderStatusPill(currentElection.status);
+    }
+    if (res && res.changed && res.changed.length) await loadList();
+  }, 30000);
+
+  // Delete an election from the builder — works for Active/Closed/Setup alike.
+  $('delete-election').addEventListener('click', async () => {
+    if (!currentElection || !currentElection.id) return;
+    if (!confirm(`Delete "${currentElection.title}" and all its categories, candidates and votes? This cannot be undone.`)) return;
+    $('delete-election').disabled = true;
+    const res = await window.pvh.deleteElection(currentElection.id);
+    $('delete-election').disabled = false;
+    if (!res.ok) { alert(res.error || 'Failed to delete election'); return; }
+    $('list-view').hidden = false;
+    $('builder-view').hidden = true;
+    currentElection = null;
+    loadList();
   });
 
   function openPreviewModal() {
@@ -413,7 +569,13 @@
     $('builder-title').textContent = currentElection.title;
     renderStatusPill(currentElection.status);
     renderPositions();
+    applyLock();
   }
 
   loadList();
+
+  // Deep-link support: ?election=<id> opens that election's builder directly
+  // (used by the dashboard's active-election "Configure" buttons).
+  const deepId = new URLSearchParams(window.location.search).get('election');
+  if (deepId) openBuilder(deepId);
 })();

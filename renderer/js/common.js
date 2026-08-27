@@ -34,8 +34,19 @@
         e.preventDefault();
         const navName = a.getAttribute('data-nav');
         // Navigate to the matching page if it exists
-        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html' };
-        if (map[navName]) window.location.assign(map[navName]);
+        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', admin: 'dashboard.html', officers: 'dashboard.html' };
+        const target = map[navName];
+        if (!target) return;
+        // If we're already on the target page, don't reload — scroll to the
+        // relevant section (e.g. Administration/Officers -> coordinator panel).
+        if (window.location.pathname.split('/').pop() === target) {
+          const anchor = (navName === 'admin' || navName === 'officers')
+            ? document.getElementById('coordinators-panel')
+            : null;
+          if (anchor) { anchor.scrollIntoView({ behavior: 'auto', block: 'start' }); }
+          return;
+        }
+        window.location.assign(target);
       });
     });
   }
