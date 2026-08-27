@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS elections (
   title TEXT NOT NULL,
   type TEXT CHECK(type IN ('school', 'station')),
   status TEXT CHECK(status IN ('setup', 'voting', 'closed')) DEFAULT 'setup',
+  election_date INTEGER,
   created_at INTEGER,
   closed_at INTEGER
 );
@@ -119,7 +120,19 @@ function init() {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate();
   return db;
+}
+
+// Idempotent migrations for existing databases (safe to run every start).
+function migrate() {
+  const addColumn = (table, column, ddl) => {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes(column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
+    }
+  };
+  addColumn('elections', 'election_date', 'INTEGER');
 }
 
 function get() {

@@ -6,7 +6,7 @@ const ELECTION_STATUSES = ['setup', 'voting', 'closed'];
 
 // ---- Elections ----
 
-function createElection({ title, type }) {
+function createElection({ title, type, election_date }) {
   if (!title || !String(title).trim()) return { ok: false, error: 'Title is required' };
   if (!ELECTION_TYPES.includes(type)) return { ok: false, error: 'Invalid election type' };
 
@@ -16,18 +16,20 @@ function createElection({ title, type }) {
     title: String(title).trim(),
     type,
     status: 'setup',
+    election_date: election_date ? Number(election_date) : null,
     created_at: now,
     closed_at: null,
   };
 
   db.get().prepare(`
-    INSERT INTO elections (id, title, type, status, created_at, closed_at)
-    VALUES (@id, @title, @type, @status, @created_at, @closed_at)
+    INSERT INTO elections (id, title, type, status, election_date, created_at, closed_at)
+    VALUES (@id, @title, @type, @status, @election_date, @created_at, @closed_at)
   `).run({
     id: election.id,
     title: election.title,
     type: election.type,
     status: election.status,
+    election_date: election.election_date,
     created_at: election.created_at,
     closed_at: election.closed_at,
   });
@@ -51,14 +53,18 @@ function getElection(id) {
   return db.get().prepare('SELECT * FROM elections WHERE id = ?').get(id) || null;
 }
 
-function updateElection(id, { title, type }) {
+function updateElection(id, { title, type, election_date }) {
   const exists = getElection(id);
   if (!exists) return { ok: false, error: 'Election not found' };
   if (title && !String(title).trim()) return { ok: false, error: 'Title is required' };
   if (type && !ELECTION_TYPES.includes(type)) return { ok: false, error: 'Invalid election type' };
 
-  db.get().prepare('UPDATE elections SET title = ?, type = ? WHERE id = ?')
-    .run(title ? String(title).trim() : exists.title, type || exists.type, id);
+  const newDate = election_date !== undefined
+    ? (election_date ? Number(election_date) : null)
+    : exists.election_date;
+
+  db.get().prepare('UPDATE elections SET title = ?, type = ?, election_date = ? WHERE id = ?')
+    .run(title ? String(title).trim() : exists.title, type || exists.type, newDate, id);
 
   audit('elections', `Updated election "${id}"`);
   return { ok: true, election: getElection(id) };

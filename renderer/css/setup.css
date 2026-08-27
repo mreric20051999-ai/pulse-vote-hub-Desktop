@@ -117,14 +117,24 @@
 }
 
 /* Election cards on list view */
+#elections-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
 .election-card {
-  margin-bottom: var(--space-4);
-  padding: var(--space-5) var(--space-6);
+  width: 100%;
+  padding: var(--space-6);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-5);
   cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.election-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
 }
 .election-main {
   display: flex;
@@ -133,7 +143,26 @@
   min-width: 0;
 }
 .election-info h3 {
-  margin-bottom: 2px;
+  margin-bottom: 8px;
+  font-size: var(--fs-lg);
+}
+.election-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  margin-bottom: 4px;
+}
+.election-date .icon {
+  color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+.election-date .icon svg {
+  width: 16px;
+  height: 16px;
 }
 .election-meta {
   color: var(--text-muted);

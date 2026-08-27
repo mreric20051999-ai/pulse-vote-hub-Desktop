@@ -12,6 +12,14 @@
     return `<span class="pill ${cls}">${label}</span>`;
   }
 
+  function fmtDate(ts) {
+    if (!ts) return 'No date set';
+    const d = new Date(ts);
+    const date = d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `${date} · ${time}`;
+  }
+
   // ---- List view ----
   async function loadList() {
     const elections = await window.pvh.listElections();
@@ -22,7 +30,11 @@
         <div class="election-main">
           <div class="election-info">
             <h3>${esc(e.title)}</h3>
-            <div class="election-meta">${esc(e.type)} &middot; ${e.position_count} positions &middot; ${e.candidate_count} candidates &middot; ${e.voter_count} voters</div>
+            <div class="election-date">
+              <span class="icon" data-icon="calendar"></span>
+              ${fmtDate(e.election_date)}
+            </div>
+            <div class="election-meta">${esc(e.type === 'school' ? 'School' : 'Station')} election &middot; ${e.position_count} categories &middot; ${e.candidate_count} candidates &middot; ${e.voter_count} voters</div>
           </div>
         </div>
         <div class="election-actions">
@@ -32,6 +44,7 @@
         </div>
       </div>
     `).join('');
+    if (window.pvhIcons) window.pvhIcons.inject('.election-card .icon');
 
     list.querySelectorAll('.open').forEach((b) =>
       b.addEventListener('click', (ev) => { ev.stopPropagation(); openBuilder(b.dataset.id); }));
@@ -47,6 +60,23 @@
   }
 
   // ---- Builder view ----
+  function setDateFields(election) {
+    const ts = election && election.election_date ? new Date(election.election_date) : null;
+    $('edate').value = ts ? ts.toISOString().slice(0, 10) : '';
+    $('etime').value = ts
+      ? `${String(ts.getHours()).padStart(2, '0')}:${String(ts.getMinutes()).padStart(2, '0')}`
+      : '';
+  }
+
+  function readDateValue() {
+    const date = $('edate').value;
+    const time = $('etime').value;
+    if (!date) return null;
+    const [y, m, d] = date.split('-').map(Number);
+    const [hh = 0, mm = 0] = time ? time.split(':').map(Number) : [0, 0];
+    return new Date(y, m - 1, d, hh, mm).getTime();
+  }
+
   async function openBuilder(id) {
     const e = id ? await window.pvh.getElection(id) : null;
     currentElection = e || {
@@ -60,6 +90,7 @@
     $('etitle').value = e ? e.title : '';
     $('etype').value = e ? e.type : 'school';
     $('estatus').value = e ? e.status : 'setup';
+    setDateFields(e);
     $('builder-status').outerHTML = statusPill(e ? e.status : 'setup');
     renderPositions();
   }
@@ -146,6 +177,7 @@
     $('etitle').value = '';
     $('etype').value = 'school';
     $('estatus').value = 'setup';
+    setDateFields(null);
     $('builder-status').outerHTML = statusPill('setup');
     renderPositions();
   });
@@ -193,7 +225,7 @@
     const type = $('etype').value;
     const status = $('estatus').value;
     if (!title) { alert('Set an election title first.'); return false; }
-    const res = await window.pvh.createElection({ title, type });
+    const res = await window.pvh.createElection({ title, type, election_date: readDateValue() });
     if (!res.ok) { alert(res.error || 'Failed to create election'); return false; }
     currentElection = res.election;
     await window.pvh.setElectionStatus(currentElection.id, status);
@@ -207,11 +239,12 @@
     const type = $('etype').value;
     const status = $('estatus').value;
     if (!title) return alert('Title is required');
+    const election_date = readDateValue();
     if (currentElection.id) {
-      await window.pvh.updateElection(currentElection.id, { title, type });
+      await window.pvh.updateElection(currentElection.id, { title, type, election_date });
       await window.pvh.setElectionStatus(currentElection.id, status);
     } else {
-      const res = await window.pvh.createElection({ title, type });
+      const res = await window.pvh.createElection({ title, type, election_date });
       if (!res.ok) return alert(res.error || 'Failed to create');
       currentElection = res.election;
       await window.pvh.setElectionStatus(currentElection.id, status);
