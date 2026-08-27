@@ -1,0 +1,33 @@
+{
+  "name": "pulse-vote-hub-desktop",
+  "version": "1.0.0",
+  "description": "Offline Desktop Election App — School & Station Elections",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder --win --mac",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "election",
+    "voting",
+    "offline",
+    "desktop",
+    "electron"
+  ],
+  "author": "Pulse Vote Hub",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "csv-parse": "^7.0.2",
+    "electron": "^44.0.0",
+    "pdfkit": "^0.20.1",
+    "uuid": "^14.0.2"
+  },
+  "devDependencies": {
+    "electron-builder": "^26.15.3"
+  }
+}

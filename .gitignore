@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Electron build output
+dist/
+out/
+build/
+
+# Electron caches
+.firebase/
+*.cache
+
+# Local database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+temp/
+tmp/

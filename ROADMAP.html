@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulse Vote Hub Desktop — Roadmap</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; line-height: 1.6; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 2.2rem; font-weight: 800; color: #f8fafc; margin-bottom: 8px; }
+    h2 { font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin: 40px 0 16px; border-bottom: 2px solid #334155; padding-bottom: 8px; }
+    h3 { font-size: 1.1rem; font-weight: 600; color: #94a3b8; margin: 24px 0 12px; }
+    .subtitle { color: #94a3b8; font-size: 1.1rem; margin-bottom: 32px; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; margin-right: 8px; }
+    .badge-blue { background: #1e40af; color: #dbeafe; }
+    .badge-green { background: #166534; color: #dcfce7; }
+    .badge-yellow { background: #854d0e; color: #fef9c3; }
+    .badge-red { background: #991b1b; color: #fee2e2; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #1e293b; }
+    th { background: #1e293b; color: #94a3b8; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    td { color: #cbd5e1; }
+    tr:hover td { background: #1e293b; }
+    .phase-card { background: #1e293b; border-radius: 12px; padding: 24px; margin: 16px 0; border-left: 4px solid #3b82f6; }
+    .phase-card h3 { color: #f1f5f9; margin-top: 0; }
+    .phase-card .duration { color: #60a5fa; font-weight: 600; }
+    ul { padding-left: 20px; margin: 8px 0; }
+    li { color: #cbd5e1; margin: 4px 0; }
+    code { background: #334155; padding: 2px 8px; border-radius: 4px; font-size: 0.9rem; color: #fbbf24; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+    .grid-item { background: #1e293b; border-radius: 8px; padding: 16px; }
+    .grid-item h4 { color: #f1f5f9; margin-bottom: 8px; }
+    .grid-item p { color: #94a3b8; font-size: 0.9rem; }
+    .screen-table td:first-child { font-weight: 600; color: #60a5fa; }
+    .timeline { position: relative; padding-left: 24px; margin: 16px 0; }
+    .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #334155; }
+    .timeline-item { position: relative; margin: 16px 0; }
+    .timeline-item::before { content: ''; position: absolute; left: -20px; top: 8px; width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; border: 2px solid #1e293b; }
+    .timeline-item .week { color: #60a5fa; font-weight: 600; font-size: 0.85rem; }
+    .summary-box { background: linear-gradient(135deg, #1e3a5f, #1e293b); border-radius: 12px; padding: 24px; margin: 24px 0; border: 1px solid #334155; }
+    .summary-box h3 { color: #f8fafc; margin-top: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pulse Vote Hub Desktop</h1>
+    <p class="subtitle">Offline Desktop Election App — School & Station Elections Only</p>
+
+    <div style="margin-bottom: 24px;">
+      <span class="badge badge-blue">Electron</span>
+      <span class="badge badge-green">Offline-First</span>
+      <span class="badge badge-yellow">SQLite</span>
+      <span class="badge badge-red">Windows + macOS</span>
+    </div>
+
+    <h2>What This Is</h2>
+    <p>A <strong>standalone Electron desktop app</strong> for running school and station elections <strong>completely offline</strong>. No internet required. No Firebase required. Each polling station runs independently on its own PC. Results are exported as files and manually combined later.</p>
+
+    <h2>Core Features</h2>
+    <table>
+      <tr><th>Feature</th><th>Detail</th></tr>
+      <tr><td>Election creation</td><td>Manual entry + CSV import + auto-generate candidates</td></tr>
+      <tr><td>Voter management</td><td>CSV import + auto-generate IDs/passwords + print voter cards</td></tr>
+      <tr><td>Voter authentication</td><td>Voter ID + password (validated against local DB)</td></tr>
+      <tr><td>Voting</td><td>Select candidate → confirm → peep sound → "Your vote has been recorded" → next voter</td></tr>
+      <tr><td>Duplicate prevention</td><td>Local SQLite checks — same voter ID can't vote twice</td></tr>
+      <tr><td>Results</td><td>In-app screen + export to JSON/CSV/PDF + print</td></tr>
+      <tr><td>Multi-location</td><td>Each station exports JSON file → someone manually merges on one PC</td></tr>
+      <tr><td>Platforms</td><td>Windows + macOS</td></tr>
+    </table>
+
+    <h2>App Screens</h2>
+
+    <h3>Admin Side (Coordinator)</h3>
+    <table class="screen-table">
+      <tr><th>Screen</th><th>Purpose</th></tr>
+      <tr><td>Login</td><td>Coordinator enters credentials (set on first run)</td></tr>
+      <tr><td>Dashboard</td><td>Overview — active election, total voters, votes cast, turnout %</td></tr>
+      <tr><td>Election Setup</td><td>Create election: title, positions, candidates (manual or CSV)</td></tr>
+      <tr><td>Voter Management</td><td>Import CSV, auto-generate voters, print voter cards</td></tr>
+      <tr><td>Results</td><td>View results after voting ends, export to file, print</td></tr>
+    </table>
+
+    <h3>Voting Side (Polling Station)</h3>
+    <table class="screen-table">
+      <tr><th>Screen</th><th>Purpose</th></tr>
+      <tr><td>Station Login</td><td>Coordinator selects election, starts voting session</td></tr>
+      <tr><td>Voter Auth</td><td>Voter enters ID + password → validated → allowed to vote</td></tr>
+      <tr><td>Ballot</td><td>Shows candidates for the position → voter selects → confirms</td></tr>
+      <tr><td>Confirmation</td><td>Peep sound + "Your vote has been recorded, Thank you" → 2.5s → back to auth</td></tr>
+      <tr><td>Already Voted</td><td>If voter ID found in local DB → show "Already voted" message</td></tr>
+    </table>
+
+    <h3>Utility</h3>
+    <table class="screen-table">
+      <tr><th>Screen</th><th>Purpose</th></tr>
+      <tr><td>Merge Tool</td><td>Standalone tool to combine JSON exports from multiple locations</td></tr>
+      <tr><td>First-Run Setup</td><td>Guided setup: set coordinator credentials, test audio, configure station name</td></tr>
+    </table>
+
+    <h2>Tech Stack</h2>
+    <table>
+      <tr><th>Component</th><th>Technology</th><th>Why</th></tr>
+      <tr><td>Runtime</td><td>Electron 30+</td><td>Cross-platform desktop, mature ecosystem</td></tr>
+      <tr><td>Frontend</td><td>HTML/CSS/JS (vanilla)</td><td>Same style as existing Pulse Vote Hub web app</td></tr>
+      <tr><td>Local DB</td><td>SQLite via <code>better-sqlite3</code></td><td>Fast, relational, ACID transactions, secure</td></tr>
+      <tr><td>IPC</td><td>Electron <code>contextBridge</code> + <code>ipcRenderer</code></td><td>Secure bridge between renderer and main</td></tr>
+      <tr><td>Packaging</td><td><code>electron-builder</code></td><td>Builds .exe (Windows) and .dmg (macOS)</td></tr>
+      <tr><td>Audio</td><td>Web Audio API</td><td>Peep sound on vote confirmation</td></tr>
+      <tr><td>PDF</td><td><code>pdfkit</code></td><td>Export results and print voter cards</td></tr>
+      <tr><td>CSV</td><td><code>csv-parse</code> / <code>csv-stringify</code></td><td>Import/export voter lists and results</td></tr>
+      <tr><td>Auto-update</td><td><code>electron-updater</code></td><td>Seamless updates without reinstall</td></tr>
+    </table>
+
+    <h2>Database Schema (SQLite)</h2>
+    <div style="background: #1e293b; border-radius: 8px; padding: 20px; overflow-x: auto;">
+      <pre style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5;"><code>-- Coordinator credentials (set on first run)
+CREATE TABLE config (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+-- Election definition
+CREATE TABLE elections (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  type TEXT CHECK(type IN ('school', 'station')),
+  status TEXT CHECK(status IN ('setup', 'voting', 'closed')) DEFAULT 'setup',
+  created_at INTEGER,
+  closed_at INTEGER
+);
+
+-- Positions within an election
+CREATE TABLE positions (
+  id TEXT PRIMARY KEY,
+  election_id TEXT REFERENCES elections(id),
+  title TEXT NOT NULL,
+  max_votes INTEGER DEFAULT 1
+);
+
+-- Candidates
+CREATE TABLE candidates (
+  id TEXT PRIMARY KEY,
+  election_id TEXT REFERENCES elections(id),
+  position_id TEXT REFERENCES positions(id),
+  name TEXT NOT NULL,
+  photo_path TEXT,
+  sort_order INTEGER
+);
+
+-- Voters
+CREATE TABLE voters (
+  id TEXT PRIMARY KEY,
+  election_id TEXT REFERENCES elections(id),
+  voter_id TEXT NOT NULL,
+  name TEXT,
+  password TEXT NOT NULL,
+  has_voted INTEGER DEFAULT 0,
+  voted_at INTEGER,
+  position_voted TEXT
+);
+
+-- Cast votes
+CREATE TABLE votes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id TEXT,
+  position_id TEXT,
+  candidate_id TEXT,
+  voter_id TEXT,
+  device_id TEXT,
+  timestamp INTEGER,
+  synced INTEGER DEFAULT 0
+);
+
+-- Audit log
+CREATE TABLE audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  election_id TEXT,
+  action TEXT,
+  details TEXT,
+  timestamp INTEGER
+);</code></pre>
+    </div>
+
+    <h2>Project Structure</h2>
+    <div style="background: #1e293b; border-radius: 8px; padding: 20px; overflow-x: auto;">
+      <pre style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5;"><code>pulse-vote-hub-desktop/
+├── electron/                        # Electron main process
+│   ├── main.js                      # App entry, window creation
+│   ├── preload.js                   # IPC bridge (contextBridge)
+│   ├── db.js                        # SQLite operations
+│   ├── auth.js                      # Coordinator + voter authentication
+│   ├── election.js                  # Election CRUD operations
+│   ├── voter.js                     # Voter management + CSV import
+│   ├── voting.js                    # Vote casting + duplicate check
+│   ├── results.js                   # Results calculation + export
+│   ├── merge.js                     # Multi-location merge tool
+│   ├── export.js                    # JSON/CSV/PDF export
+│   ├── printer.js                   # Voter card + results printing
+│   ├── audio.js                     # Peep sound + audio feedback
+│   └── kiosk.js                     # Kiosk lockdown
+├── renderer/                        # Frontend (HTML/CSS/JS)
+│   ├── index.html                   # Login / first-run setup
+│   ├── dashboard.html               # Admin dashboard
+│   ├── election-setup.html          # Create election
+│   ├── voter-management.html        # Import/manage voters
+│   ├── station.html                 # Voting kiosk (voter-facing)
+│   ├── results.html                 # View + export results
+│   ├── merge.html                   # Merge tool
+│   ├── css/styles.css               # App styles
+│   ├── js/                          # Renderer scripts
+│   └── assets/                      # Sounds, images
+├── data/                            # Sample data / templates
+├── package.json
+├── electron-builder.yml
+└── README.md</code></pre>
+    </div>
+
+    <h2>Development Roadmap</h2>
+
+    <div class="phase-card">
+      <h3>Phase 1: Project Foundation <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Scaffold Electron app with SQLite, login, and basic navigation.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Initialize project</td><td><code>package.json</code>, install Electron + <code>better-sqlite3</code></td></tr>
+        <tr><td>Main process</td><td><code>electron/main.js</code> — create BrowserWindow, load renderer</td></tr>
+        <tr><td>Preload bridge</td><td><code>electron/preload.js</code> — expose IPC APIs to renderer</td></tr>
+        <tr><td>SQLite setup</td><td><code>electron/db.js</code> — create tables, migrations</td></tr>
+        <tr><td>First-run wizard</td><td>Coordinator sets username + password on first launch</td></tr>
+        <tr><td>Login screen</td><td>Coordinator authenticates with credentials</td></tr>
+        <tr><td>Dashboard shell</td><td>Navigation sidebar, placeholder panels</td></tr>
+        <tr><td>Styles</td><td>CSS matching Pulse Vote Hub design (navy/slate palette)</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> App boots → first-run setup → login → empty dashboard.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 2: Election Management <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Create elections, add positions, add candidates.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Election CRUD</td><td>Create, edit, close, delete elections</td></tr>
+        <tr><td>Position management</td><td>Add positions (President, Secretary, etc.)</td></tr>
+        <tr><td>Candidate management</td><td>Add candidates manually, assign to positions</td></tr>
+        <tr><td>CSV import</td><td>Import candidates from CSV file</td></tr>
+        <tr><td>Auto-generate</td><td>Auto-generate candidate list from position template</td></tr>
+        <tr><td>Election lifecycle</td><td>Setup → Voting → Closed status transitions</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can create a full election with positions and candidates.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 3: Voter Management <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Import voters, auto-generate credentials, print voter cards.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>CSV import</td><td>Import voters from CSV (VoterID, Name, Password)</td></tr>
+        <tr><td>Auto-generate</td><td>Generate VoterIDs + passwords for N voters</td></tr>
+        <tr><td>Voter list view</td><td>Table with search, filter, edit, delete</td></tr>
+        <tr><td>Print voter cards</td><td>Generate printable voter cards (ID + password + QR code)</td></tr>
+        <tr><td>Duplicate detection</td><td>Prevent duplicate voter IDs within same election</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can import/generate voters and print voter cards.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 4: Voting Flow <span class="duration">— 3-4 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Station mode</td><td>Coordinator starts voting session for an election</td></tr>
+        <tr><td>Voter auth screen</td><td>Voter enters ID + password → validated against local DB</td></tr>
+        <tr><td>Ballot screen</td><td>Shows candidates for current position → voter selects</td></tr>
+        <tr><td>Confirm vote</td><td>"Are you sure?" → confirm → peep sound → "Your vote has been recorded"</td></tr>
+        <tr><td>Already voted</td><td>If voter ID found → show "Already voted" message</td></tr>
+        <tr><td>Duplicate prevention</td><td>SQLite transaction: check + write atomically</td></tr>
+        <tr><td>Multiple positions</td><td>If election has multiple positions → voter votes for each sequentially</td></tr>
+        <tr><td>Session timeout</td><td>Auto-return to auth screen after 60s of inactivity</td></tr>
+        <tr><td>Close voting</td><td>Coordinator can close voting → results become viewable</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete voting flow — auth → vote → confirm → next voter.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 5: Results & Reporting <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">View results, export to file, print.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Results screen</td><td>Bar charts / table showing votes per candidate</td></tr>
+        <tr><td>Position results</td><td>Results broken down by position</td></tr>
+        <tr><td>Turnout stats</td><td>Total voters, votes cast, turnout percentage</td></tr>
+        <tr><td>Export to JSON</td><td>Full election data as JSON file</td></tr>
+        <tr><td>Export to CSV</td><td>Results as CSV spreadsheet</td></tr>
+        <tr><td>Export to PDF</td><td>Formatted results document</td></tr>
+        <tr><td>Print results</td><td>Print results slip / certificate</td></tr>
+        <tr><td>Audit log</td><td>Timestamped log of all actions</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can view, export, and print election results.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 6: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Export format</td><td>Standardized JSON format for cross-location merge</td></tr>
+        <tr><td>Merge tool</td><td>Standalone screen: select multiple JSON files → combine</td></tr>
+        <tr><td>Conflict detection</td><td>Detect duplicate voter IDs across locations</td></tr>
+        <tr><td>Merged results</td><td>Show combined results after merge</td></tr>
+        <tr><td>Export merged</td><td>Export merged results to JSON/CSV/PDF</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can combine results from Location A + B + C into one report.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 7: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Kiosk lockdown, audio, printing, distribution.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Kiosk mode</td><td>Fullscreen, disable keyboard shortcuts, hide cursor</td></tr>
+        <tr><td>Audio feedback</td><td>Peep sound on vote confirmation, error sounds</td></tr>
+        <tr><td>Voter card printing</td><td>Format and print voter ID cards</td></tr>
+        <tr><td>Results printing</td><td>Format and print results certificates</td></tr>
+        <tr><td>Auto-update</td><td><code>electron-updater</code> for seamless updates</td></tr>
+        <tr><td>First-run wizard</td><td>Guided setup: station name, audio test, credentials</td></tr>
+        <tr><td>Windows build</td><td><code>.exe</code> installer via <code>electron-builder</code></td></tr>
+        <tr><td>macOS build</td><td><code>.dmg</code> via <code>electron-builder</code></td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Packaged app ready for distribution to polling stations.</p>
+    </div>
+
+    <h2>Timeline</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="week">Week 1</div>
+        <p>Phase 1: Foundation + Phase 2: Election Management</p>
+      </div>
+      <div class="timeline-item">
+        <div class="week">Week 2</div>
+        <p>Phase 3: Voter Management + Phase 4: Voting Flow (start)</p>
+      </div>
+      <div class="timeline-item">
+        <div class="week">Week 3</div>
+        <p>Phase 4: Voting Flow (finish) + Phase 5: Results & Reporting</p>
+      </div>
+      <div class="timeline-item">
+        <div class="week">Week 4</div>
+        <p>Phase 6: Multi-Location Merge + Phase 7: Polish & Packaging</p>
+      </div>
+    </div>
+
+    <h2>Decision Summary</h2>
+    <table>
+      <tr><th>Decision</th><th>Choice</th></tr>
+      <tr><td>App name</td><td>Pulse Vote Hub Desktop</td></tr>
+      <tr><td>Election creation</td><td>Manual + CSV import + auto-generate</td></tr>
+      <tr><td>Voter auth</td><td>Voter ID + password</td></tr>
+      <tr><td>Data storage</td><td>SQLite (local)</td></tr>
+      <tr><td>Multi-station</td><td>Independent stations, merge via file export</td></tr>
+      <tr><td>Reporting</td><td>In-app + file export + print</td></tr>
+      <tr><td>Platforms</td><td>Windows + macOS</td></tr>
+      <tr><td>Internet required</td><td><strong>No</strong> — fully offline</td></tr>
+    </table>
+
+    <h2>Dependencies</h2>
+    <table>
+      <tr><th>Dependency</th><th>Status</th><th>Purpose</th></tr>
+      <tr><td>Node.js</td><td>✅ Installed</td><td>Runtime</td></tr>
+      <tr><td>npm</td><td>✅ Installed</td><td>Package manager</td></tr>
+      <tr><td>Electron</td><td>⏳ Install Phase 1</td><td>Desktop runtime</td></tr>
+      <tr><td><code>better-sqlite3</code></td><td>⏳ Install Phase 1</td><td>Local database</td></tr>
+      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 7</td><td>Packaging</td></tr>
+      <tr><td><code>csv-parse</code></td><td>⏳ Install Phase 3</td><td>CSV import</td></tr>
+      <tr><td><code>pdfkit</code></td><td>⏳ Install Phase 5</td><td>PDF export</td></tr>
+    </table>
+
+    <div class="summary-box">
+      <h3>Ready to Build</h3>
+      <p>When you're ready, say <strong>"Start Phase 1"</strong> and I'll scaffold the Electron project, install dependencies, create the main process, preload bridge, SQLite schema, login screen, and dashboard shell.</p>
+    </div>
+  </div>
+</body>
+</html>
