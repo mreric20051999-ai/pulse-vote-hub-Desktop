@@ -69,3 +69,17 @@
   display: flex;
   gap: var(--space-2);
 }
+
+.autogen .row {
+  margin-bottom: var(--space-3);
+}
+.autogen .hint {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  margin-top: 0;
+  margin-bottom: var(--space-2);
+}
+.autogen textarea {
+  font-family: var(--font-body);
+  font-size: var(--fs-sm);
+}

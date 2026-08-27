@@ -107,11 +107,33 @@
     refresh();
   });
 
+  // Auto-generate scheme label updates
+  const schemeLabels = {
+    'name-index': 'Paste names — one per line (or CSV: name,index)',
+    'index-only': 'Paste index numbers — one per line (or CSV: index)',
+    'index-phone': 'Paste rows — one per line: name,index,phone',
+  };
+  $('autogen-scheme').addEventListener('change', (e) => {
+    $('autogen-list-label').textContent = schemeLabels[e.target.value] || schemeLabels['name-index'];
+  });
+
+  // Auto-generate button
   $('autogen-btn').addEventListener('click', async () => {
-    const count = Number($('autogen-count').value) || 10;
-    if (!confirm(`Auto-generate ${count} voters?`)) return;
-    const res = await window.pvh.autoGenerateVoters(currentElectionId, count);
-    alert(`Generated ${res.count} voters`);
+    if (!confirm('Auto-generate voters with the selected scheme?')) return;
+    const btn = $('autogen-btn');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    const opts = {
+      count: Number($('autogen-count').value) || 10,
+      scheme: $('autogen-scheme').value,
+      list: $('autogen-list').value,
+    };
+    const res = await window.pvh.autoGenerateVoters(currentElectionId, opts);
+    btn.disabled = false;
+    btn.textContent = 'Auto-generate';
+    if (!res.ok) { alert(res.error || 'Generation failed'); return; }
+    alert(`Generated ${res.count} voter(s)`);
+    $('autogen-list').value = '';
     refresh();
   });
 

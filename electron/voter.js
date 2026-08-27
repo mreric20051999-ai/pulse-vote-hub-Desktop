@@ -89,10 +89,29 @@ function importCsv(electionId, csvText) {
   return { ok: true, ...tx(records) };
 }
 
-// Auto-generate N voters with sequential IDs and random passwords
-function autoGenerate(electionId, count) {
+// Auto-generate voters from a pasted list, per scheme.
+// scheme: 'name-index' | 'index-only' | 'index-phone'
+// list: newline-separated; each line is "name" or CSV "name,index,phone" parts.
+function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = '' } = {}) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
-  count = Math.min(Math.max(1, Number(count) || 1), 1000);
+  if (!['name-index', 'index-only', 'index-phone'].includes(scheme)) {
+    return { ok: false, error: 'Invalid generation scheme' };
+  }
+  list = String(list || '');
+
+  // Parse the pasted list into rows.
+  const rows = [];
+  for (const rawLine of list.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    // Support comma-separated "name,index,phone"
+    const parts = line.split(',').map((s) => s.trim());
+    rows.push({
+      name: parts[0] || '',
+      index: parts[1] || '',
+      phone: parts[2] || '',
+    });
+  }
 
   const d = db.get();
   const insert = d.prepare(`
@@ -102,22 +121,62 @@ function autoGenerate(electionId, count) {
   const existing = new Set(d.prepare('SELECT voter_id FROM voters WHERE election_id = ?').all(electionId).map((r) => r.voter_id));
 
   let added = 0;
-  let n = 1;
-  while (added < count) {
-    const voterId = generateVoterId(n);
-    if (existing.has(voterId)) { n++; continue; }
+  let usedIndexes = new Set();
+
+  function nextAutoId() {
+    let n = 1;
+    let id;
+    do {
+      id = generateVoterId(n);
+      n++;
+    } while (existing.has(id) || usedIndexes.has(id));
+    usedIndexes.add(id);
+    return id;
+  }
+
+  // number of voters wanted; if a list is provided use its length (or count cap)
+  const target = rows.length ? Math.min(rows.length, count || rows.length) : Math.max(1, Number(count) || 1);
+
+  for (let i = 0; i < target; i++) {
+    let voterId;
+    let name = null;
+
+    if (scheme === 'index-only') {
+      // Each line is an index number -> used directly as the voter ID.
+      const idx = rows[i] ? (rows[i].index || rows[i].name) : '';
+      voterId = idx ? String(idx).trim().toUpperCase() : nextAutoId();
+      name = null;
+    } else if (scheme === 'index-phone') {
+      const idx = rows[i] ? rows[i].index : '';
+      const phone = rows[i] ? rows[i].phone : '';
+      voterId = idx ? String(idx).trim().toUpperCase() : nextAutoId();
+      name = phone || null; // phone shown as the identifier/name column
+    } else {
+      // name-index
+      const rowName = rows[i] ? rows[i].name : '';
+      const idx = rows[i] ? rows[i].index : '';
+      voterId = idx ? String(idx).trim().toUpperCase() : nextAutoId();
+      name = rowName || null;
+    }
+
+    if (!voterId || existing.has(voterId)) {
+      usedIndexes.add(voterId);
+      continue;
+    }
+
     const password = generatePassword();
     insert.run({
       id: uuidv4(),
       election_id: electionId,
       voter_id: voterId,
-      name: null,
+      name,
       password_hash: auth.hashPassword(password, fallbackSalt()),
       password_salt: '',
       assigned_station: null,
     });
     existing.add(voterId);
-    added++; n++;
+    usedIndexes.add(voterId);
+    added++;
   }
 
   return { ok: true, count: added };

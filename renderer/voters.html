@@ -71,9 +71,19 @@
           <textarea class="textarea" id="csv-input" rows="5" placeholder="voter_id,name,assigned_station&#10;V0001,John Doe,Station A"></textarea>
           <button class="btn btn-secondary btn-block" id="import-btn">Import CSV</button>
           <hr class="divider">
-          <div class="row">
-            <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10">
-            <button class="btn btn-secondary" id="autogen-btn" style="flex:1;">Auto-generate voters</button>
+          <div class="autogen">
+            <label class="label">Auto-generate voters</label>
+            <div class="row">
+              <select class="select" id="autogen-scheme">
+                <option value="name-index">Name + Index</option>
+                <option value="index-only">Index only</option>
+                <option value="index-phone">Index + Phone</option>
+              </select>
+              <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
+            </div>
+            <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index,phone)</label>
+            <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
+            <button class="btn btn-secondary btn-block" id="autogen-btn">Auto-generate</button>
           </div>
         </section>
       </div>

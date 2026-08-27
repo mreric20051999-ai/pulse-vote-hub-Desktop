@@ -118,11 +118,19 @@
   function populateCandidatePositionSelect() {
     const sel = $('candidate-position');
     const current = sel.value;
-    sel.innerHTML = '<option value="">— Select a position —</option>' +
-      currentElection.positions.map((p) =>
-        `<option value="${p.id}">${esc(p.title)}</option>`).join('');
-    if (currentElection.positions.some((p) => p.id === current)) sel.value = current;
-    $('candidate-position').disabled = currentElection.positions.length === 0;
+    // Only rebuild if the set of positions changed, so the user's selection
+    // isn't wiped on every candidate add/remove.
+    const ids = currentElection.positions.map((p) => p.id).join(',');
+    if (sel.dataset.posIds !== ids || ids === '') {
+      sel.innerHTML = '<option value="">— Select a position —</option>' +
+        currentElection.positions.map((p) =>
+          `<option value="${p.id}">${esc(p.title)}</option>`).join('');
+      sel.dataset.posIds = ids;
+      if (ids !== '' && currentElection.positions.some((p) => p.id === current)) {
+        sel.value = current;
+      }
+    }
+    sel.disabled = currentElection.positions.length === 0;
   }
 
   // ---- Actions ----
