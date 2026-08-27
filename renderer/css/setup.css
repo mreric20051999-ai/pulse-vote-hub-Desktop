@@ -41,6 +41,13 @@
   font-size: var(--fs-sm);
   margin-left: var(--space-3);
 }
+.position-time {
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+.hint {
+  font-size: var(--fs-sm);
+}
 .candidate-row {
   display: flex;
   align-items: center;

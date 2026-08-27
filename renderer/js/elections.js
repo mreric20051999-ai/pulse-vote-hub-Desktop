@@ -67,46 +67,45 @@
   function renderPositions() {
     if (!currentElection) return;
     $('positions').innerHTML = '';
+
+    if (!currentElection.positions.length) {
+      $('positions').innerHTML = '<p class="text-muted hint">No positions yet. Add a position above.</p>';
+    }
+
+    // Populate the candidate position dropdown
+    populateCandidatePositionSelect();
+
     currentElection.positions.forEach((p) => {
+      const cands = currentElection.candidates.filter((c) => c.position_id === p.id);
       const block = document.createElement('div');
       block.className = 'position-block';
-      const cands = currentElection.candidates.filter((c) => c.position_id === p.id);
       block.innerHTML = `
         <div class="position-head">
           <div>
             <span class="position-title">${esc(p.title)}</span>
             <span class="position-max">max ${p.max_votes} vote${p.max_votes > 1 ? 's' : ''}</span>
+            <span class="position-time">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
           </div>
           <button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove</button>
         </div>
         <div class="cand-list"></div>
-        <div class="candidate-add">
-          <input class="input" data-add-name="${p.id}" placeholder="Candidate name">
-          <button class="btn btn-primary add-cand" data-id="${p.id}">Add</button>
-        </div>
       `;
       const candList = block.querySelector('.cand-list');
-      candList.innerHTML = cands.map((c) => `
-        <div class="candidate-row">
-          <span>${esc(c.name)}</span>
-          <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}">Remove</button>
-        </div>
-      `).join('');
+      candList.innerHTML = cands.length
+        ? cands.map((c) => `
+            <div class="candidate-row">
+              <span>${esc(c.name)}</span>
+              <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
+            </div>
+          `).join('')
+        : '<div class="candidate-row text-dim">No candidates yet.</div>';
+
       candList.querySelectorAll('.rm-cand').forEach((b) =>
         b.addEventListener('click', async () => {
           await window.pvh.removeCandidate(b.dataset.id);
           currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
           renderPositions();
         }));
-      block.querySelector('.add-cand').addEventListener('click', async () => {
-        const inp = block.querySelector(`[data-add-name="${p.id}"]`);
-        const name = inp.value.trim();
-        if (!name) return;
-        await window.pvh.addCandidate({ electionId: currentElection.id, positionId: p.id, name });
-        inp.value = '';
-        currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
-        renderPositions();
-      });
       block.querySelector('.rm-pos').addEventListener('click', async () => {
         await window.pvh.removePosition(p.id);
         await refreshBuilderData();
@@ -114,6 +113,16 @@
       });
       $('positions').appendChild(block);
     });
+  }
+
+  function populateCandidatePositionSelect() {
+    const sel = $('candidate-position');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— Select a position —</option>' +
+      currentElection.positions.map((p) =>
+        `<option value="${p.id}">${esc(p.title)}</option>`).join('');
+    if (currentElection.positions.some((p) => p.id === current)) sel.value = current;
+    $('candidate-position').disabled = currentElection.positions.length === 0;
   }
 
   // ---- Actions ----
@@ -135,6 +144,24 @@
     $('builder-view').hidden = true;
     loadList();
   });
+
+  // ---- Single candidate input (position auto-assigned from dropdown) ----
+  $('add-candidate').addEventListener('click', () => submitCandidate());
+  $('candidate-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') submitCandidate();
+  });
+
+  async function submitCandidate() {
+    const name = $('candidate-name').value.trim();
+    const positionId = $('candidate-position').value;
+    if (!currentElection.id) return alert('Save the election first.');
+    if (!positionId) return alert('Select a position for this candidate.');
+    if (!name) return alert('Enter the candidate name.');
+    await window.pvh.addCandidate({ electionId: currentElection.id, positionId, name });
+    $('candidate-name').value = '';
+    currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
+    renderPositions();
+  }
 
   $('add-position').addEventListener('click', async () => {
     const title = $('ptitle').value.trim();
