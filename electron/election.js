@@ -145,20 +145,24 @@ function addCandidate({ electionId, positionId, name }) {
   const position = db.get().prepare('SELECT * FROM positions WHERE id = ? AND election_id = ?').get(positionId, electionId);
   if (!position) return { ok: false, error: 'Position not found in election' };
 
-  const sortOrder = db.get().prepare('SELECT COUNT(*) AS c FROM candidates WHERE position_id = ?').get(positionId).c;
+  const d = db.get();
+  const sortOrder = d.prepare('SELECT COUNT(*) AS c FROM candidates WHERE position_id = ?').get(positionId).c;
+  // Auto-assign next ballot number within this category (never reused).
+  const ballotNumber = (d.prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(positionId).m || 0) + 1;
   const candidate = {
     id: uuidv4(),
     election_id: electionId,
     position_id: positionId,
     name: String(name).trim(),
     photo_path: null,
+    ballot_number: ballotNumber,
     sort_order: sortOrder,
   };
 
-  db.get().prepare('INSERT INTO candidates (id, election_id, position_id, name, photo_path, sort_order) VALUES (@id, @election_id, @position_id, @name, @photo_path, @sort_order)')
+  d.prepare('INSERT INTO candidates (id, election_id, position_id, name, photo_path, ballot_number, sort_order) VALUES (@id, @election_id, @position_id, @name, @photo_path, @ballot_number, @sort_order)')
     .run(candidate);
 
-  audit('elections', `Added candidate "${candidate.name}"`);
+  audit('elections', `Added candidate "${candidate.name}" (ballot #${ballotNumber})`);
   return { ok: true, candidate };
 }
 

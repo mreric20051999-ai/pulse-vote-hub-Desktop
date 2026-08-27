@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS candidates (
   position_id TEXT REFERENCES positions(id),
   name TEXT NOT NULL,
   photo_path TEXT,
+  ballot_number INTEGER,
   sort_order INTEGER
 );
 
@@ -133,6 +134,7 @@ function migrate() {
     }
   };
   addColumn('elections', 'election_date', 'INTEGER');
+  addColumn('candidates', 'ballot_number', 'INTEGER');
 }
 
 function get() {

@@ -127,7 +127,7 @@
         </div>
         <div class="cand-list"></div>
         <div class="cand-add">
-          <input class="input cand-name" placeholder="Add candidate, e.g. Ada Lovelace">
+          <input class="input cand-name" placeholder="Candidate name (ballot #${(cands.length + 1)} auto-assigned)">
           <button class="btn btn-secondary btn-sm cand-add-btn">Add</button>
         </div>
       `;
@@ -135,7 +135,7 @@
       candList.innerHTML = cands.length
         ? cands.map((c) => `
             <div class="candidate-row">
-              <span>${esc(c.name)}</span>
+              <span class="cand-name-line"><span class="ballot-badge">${c.ballot_number}</span>${esc(c.name)}</span>
               <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
             </div>
           `).join('')
