@@ -22,6 +22,8 @@
     }
 
     .splash {
+      position: relative;
+      z-index: 1;
       text-align: center;
       display: flex;
       flex-direction: column;
@@ -90,12 +92,48 @@
     .splash-footer {
       position: fixed;
       bottom: var(--space-6);
+      z-index: 1;
       font-family: var(--font-body);
       font-size: var(--fs-xs);
       font-weight: var(--fw-medium);
       color: var(--text-dim);
       letter-spacing: 0.1em;
       text-transform: uppercase;
+    }
+
+    /* ---------- Premium background ---------- */
+    .bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(1200px 800px at 15% -10%, rgba(37, 99, 235, 0.28), transparent 55%),
+        radial-gradient(1000px 700px at 100% 110%, rgba(185, 28, 28, 0.20), transparent 55%),
+        radial-gradient(900px 600px at 85% -10%, rgba(30, 64, 175, 0.32), transparent 60%),
+        var(--bg);
+    }
+    /* subtle grid texture — Swiss/geometric */
+    .bg::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border-strong) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border-strong) 1px, transparent 1px);
+      background-size: 64px 64px;
+      opacity: 0.14;
+      -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 20%, transparent 78%);
+      mask-image: radial-gradient(circle at 50% 40%, #000 20%, transparent 78%);
+    }
+    /* heartbeat pulse line — echoes the red logo */
+    .bg svg {
+      position: absolute;
+      left: 50%;
+      bottom: 16%;
+      width: 620px;
+      transform: translateX(-50%);
+      opacity: 0.10;
     }
 
     @keyframes splashIn {
@@ -109,9 +147,20 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    @keyframes traceLine {
+      from { stroke-dashoffset: 340; }
+      to { stroke-dashoffset: 0; }
+    }
   </style>
 </head>
 <body>
+  <div class="bg" aria-hidden="true">
+    <svg viewBox="0 0 600 120" fill="none" preserveAspectRatio="xMidYMid meet">
+      <path d="M0 60 H120 L140 60 L158 28 L178 92 L196 40 L208 60 H260 L282 60 L298 34 L318 86 L336 42 L348 60 H420 L442 60 L458 26 L478 96 L496 38 L512 60 H600"
+        stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+        stroke-dasharray="340" style="animation: traceLine 2.6s ease-in-out infinite;"/>
+    </svg>
+  </div>
   <div class="splash">
     <div class="splash-logo">
       <img src="assets/images/logo.png" alt="Pulse Vote Hub">
