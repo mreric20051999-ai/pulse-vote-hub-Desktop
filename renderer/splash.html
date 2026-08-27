@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulse Vote Hub Desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    /* Splash screen specific styles */
+    body {
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .splash {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-6);
+      animation: splashIn 600ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .splash-logo {
+      width: 96px;
+      height: 96px;
+      border-radius: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      box-shadow: var(--shadow-lg);
+      animation: logoFloat 2s ease-in-out infinite;
+    }
+    .splash-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .splash-title {
+      font-family: var(--font-heading);
+      font-size: 1.75rem;
+      font-weight: var(--fw-bold);
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+    .splash-tagline {
+      font-family: var(--font-body);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-medium);
+      color: var(--text-muted);
+      margin-top: -8px;
+      letter-spacing: 0.02em;
+    }
+
+    .splash-loader {
+      margin-top: var(--space-2);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .splash-loader span {
+      font-family: var(--font-body);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-medium);
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+    }
+
+    .splash-footer {
+      position: fixed;
+      bottom: var(--space-6);
+      font-family: var(--font-body);
+      font-size: var(--fs-xs);
+      font-weight: var(--fw-medium);
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    @keyframes splashIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="splash">
+    <div class="splash-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+    </div>
+    <div>
+      <div class="splash-title">Pulse Vote Hub</div>
+      <div class="splash-tagline">Desktop Election System</div>
+    </div>
+    <div class="splash-loader">
+      <div class="spinner"></div>
+      <span>Initializing...</span>
+    </div>
+  </div>
+
+  <div class="splash-footer">Secure Offline Voting</div>
+</body>
+</html>
