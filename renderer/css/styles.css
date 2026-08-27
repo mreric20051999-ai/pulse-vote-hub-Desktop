@@ -22,10 +22,10 @@
   --text-muted: #94a3b8;
   --text-dim: #64748b;
 
-  /* Brand / accents — trustworthy navy + service green */
-  --accent: #1e40af;
-  --accent-hover: #2547c9;
-  --accent-soft: rgba(30, 64, 175, 0.18);
+  /* Brand / accents — civic red (matches heartbeat logo) */
+  --accent: #ef4444;
+  --accent-hover: #f87171;
+  --accent-soft: rgba(239, 68, 68, 0.18);
   --accent-contrast: #ffffff;
 
   /* Semantic — accessible status colors */
@@ -109,9 +109,9 @@
   --text-dim: #64748b;
 
   /* Brand / accents */
-  --accent: #1e40af;
-  --accent-hover: #1d4ed8;
-  --accent-soft: rgba(30, 64, 175, 0.08);
+  --accent: #dc2626;
+  --accent-hover: #b91c1c;
+  --accent-soft: rgba(220, 38, 38, 0.10);
   --accent-contrast: #ffffff;
 
   /* Semantic */
@@ -517,6 +517,7 @@ tbody tr:hover {
   font-weight: var(--fw-medium);
   cursor: pointer;
   transition: var(--transition);
+  text-decoration: none;
 }
 .nav-item:hover {
   background: var(--accent-soft);
