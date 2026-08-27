@@ -202,6 +202,23 @@
   border-bottom: none;
 }
 
+/* Inline add-candidate row under each category */
+.cand-add {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.cand-add .cand-name {
+  flex: 1;
+  min-width: 0;
+}
+.cand-add .btn {
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
 .btn-icon {
   width: 34px;
   height: 34px;

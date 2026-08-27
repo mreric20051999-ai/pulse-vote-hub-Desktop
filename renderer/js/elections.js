@@ -83,7 +83,6 @@
       id: null, title: '', type: 'school', status: 'setup',
       positions: [], candidates: [],
     };
-    selectedCategoryId = '';
     $('list-view').hidden = true;
     $('builder-view').hidden = false;
     $('builder-title').textContent = e ? e.title : 'New Election';
@@ -100,15 +99,9 @@
     if (!currentElection) return;
     $('positions').innerHTML = '';
 
-    // Reveal Step 3 (add candidates) once categories exist
-    $('candidates-card').hidden = currentElection.positions.length === 0;
-
     if (!currentElection.positions.length) {
       $('positions').innerHTML = '<p class="text-muted hint">No categories yet. Add a category above.</p>';
     }
-
-    // Populate the candidate position dropdown
-    populateCandidatePositionSelect();
 
     currentElection.positions.forEach((p) => {
       const cands = currentElection.candidates.filter((c) => c.position_id === p.id);
@@ -121,9 +114,13 @@
             <span class="position-max">max ${p.max_votes} vote${p.max_votes > 1 ? 's' : ''}</span>
             <span class="position-count">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
           </div>
-          <button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove</button>
+          <button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove Category</button>
         </div>
         <div class="cand-list"></div>
+        <div class="cand-add">
+          <input class="input cand-name" placeholder="Add candidate, e.g. Ada Lovelace">
+          <button class="btn btn-secondary btn-sm cand-add-btn">Add</button>
+        </div>
       `;
       const candList = block.querySelector('.cand-list');
       candList.innerHTML = cands.length
@@ -133,7 +130,18 @@
               <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
             </div>
           `).join('')
-        : '<div class="candidate-row text-dim">No candidates yet.</div>';
+        : '<div class="candidate-row text-dim">No candidates in this category yet.</div>';
+
+      const addCandidate = async () => {
+        if (!(await ensureElectionSaved())) return;
+        const input = block.querySelector('.cand-name');
+        const name = input.value.trim();
+        if (!name) { alert('Enter a candidate name.'); return; }
+        await window.pvh.addCandidate({ electionId: currentElection.id, positionId: p.id, name });
+        input.value = '';
+        currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
+        renderPositions();
+      };
 
       candList.querySelectorAll('.rm-cand').forEach((b) =>
         b.addEventListener('click', async () => {
@@ -142,83 +150,20 @@
           renderPositions();
         }));
       block.querySelector('.rm-pos').addEventListener('click', async () => {
+        if (!confirm(`Remove category "${p.title}" and its candidates?`)) return;
         await window.pvh.removePosition(p.id);
         await refreshBuilderData();
         renderPositions();
+      });
+      block.querySelector('.cand-add-btn').addEventListener('click', addCandidate);
+      block.querySelector('.cand-name').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addCandidate();
       });
       $('positions').appendChild(block);
     });
   }
 
-  let selectedCategoryId = '';
-
-  function selectedCategoryTitle() {
-    const p = currentElection.positions.find((x) => x.id === selectedCategoryId);
-    return p ? p.title : '';
-  }
-
-  function renderCandidatePosition() {
-    const label = $('candidate-position-label');
-    const menu = $('candidate-position-menu');
-    const disabled = currentElection.positions.length === 0;
-
-    label.textContent = selectedCategoryTitle() || '— Select a category —';
-    label.classList.toggle('placeholder', !selectedCategoryTitle());
-
-    if (disabled || !currentElection.positions.length) {
-      menu.innerHTML = '<div class="pdd-empty">Add a category first.</div>';
-      menu.hidden = false;
-    } else {
-      menu.innerHTML = currentElection.positions.map((p) =>
-        `<div class="pdd-option${p.id === selectedCategoryId ? ' selected' : ''}" data-id="${p.id}">${esc(p.title)}</div>`
-      ).join('');
-      menu.hidden = true;
-    }
-
-    const t = $('candidate-position');
-    t.classList.toggle('disabled', disabled);
-    t.dataset.posIds = currentElection.positions.map((p) => p.id).join(',');
-  }
-
-  // ---- Custom dropdown (opens downward below the box) ----
-  function initCategoryDropdown() {
-    const root = $('candidate-position');
-    const trigger = $('candidate-position-trigger');
-    const menu = $('candidate-position-menu');
-
-    trigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (root.classList.contains('disabled')) return;
-      const willOpen = root.classList.toggle('open');
-      if (willOpen) {
-        renderCandidatePosition();
-        menu.hidden = false;
-      } else {
-        menu.hidden = true;
-      }
-    });
-
-    menu.addEventListener('click', (e) => {
-      const opt = e.target.closest('.pdd-option');
-      if (!opt) return;
-      selectedCategoryId = opt.dataset.id;
-      renderCandidatePosition();
-      menu.hidden = true;
-      root.classList.remove('open');
-      $('candidate-name').focus();
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!root.contains(e.target)) {
-        root.classList.remove('open');
-        menu.hidden = true;
-      }
-    });
-  }
-
-  function populateCandidatePositionSelect() {
-    renderCandidatePosition();
-  }
+  // ---- Actions ----
 
   // ---- Generic dropdown for native <select>s (opens downward) ----
   function buildSelectDropdown(select) {
@@ -278,7 +223,6 @@
   // ---- Actions ----
   $('new-election-btn').addEventListener('click', () => {
     currentElection = { id: null, title: '', type: 'school', status: 'setup', positions: [], candidates: [] };
-    selectedCategoryId = '';
     $('list-view').hidden = true;
     $('builder-view').hidden = false;
     $('builder-title').textContent = 'New Election';
@@ -297,27 +241,7 @@
     loadList();
   });
 
-  // ---- Single candidate input (position auto-assigned from dropdown) ----
-  $('add-candidate').addEventListener('click', () => submitCandidate());
-  $('candidate-name').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submitCandidate();
-  });
-
-  async function submitCandidate() {
-    const name = $('candidate-name').value.trim();
-    const positionId = selectedCategoryId;
-    if (!(await ensureElectionSaved())) return;
-    if (!positionId) return alert('Select a category for this candidate.');
-    if (!name) return alert('Enter the candidate name.');
-    if (!(await ensureElectionSaved())) return;
-    if (!positionId) return alert('Select a category for this candidate.');
-    if (!name) return alert('Enter the candidate name.');
-    await window.pvh.addCandidate({ electionId: currentElection.id, positionId, name });
-    $('candidate-name').value = '';
-    currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
-    renderPositions();
-  }
-
+  // ---- Add category ----
   $('add-position').addEventListener('click', async () => {
     const title = $('ptitle').value.trim();
     const maxVotes = Number($('pmax').value) || 1;
@@ -373,6 +297,5 @@
     $('builder-status').outerHTML = statusPill(currentElection.status);
   }
 
-  initCategoryDropdown();
   loadList();
 })();

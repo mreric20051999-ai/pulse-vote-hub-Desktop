@@ -103,13 +103,13 @@
         <button class="btn btn-primary" id="save-election">Save Election</button>
       </section>
 
-      <!-- Step 2: Add categories -->
+      <!-- Step 2: Add categories + candidates under each -->
       <section class="card">
         <div class="step-head">
           <span class="step-num">2</span>
           <div>
-            <div class="card-title" style="margin:0;">Add categories</div>
-            <p class="text-muted hint">Categories are the positions on the ballot (e.g. President, Treasurer).</p>
+            <div class="card-title" style="margin:0;">Categories &amp; candidates</div>
+            <p class="text-muted hint">Add a category, then add candidates to it.</p>
           </div>
         </div>
         <div class="row">
@@ -118,37 +118,6 @@
           <button class="btn btn-secondary" id="add-position">Add Category</button>
         </div>
         <div id="positions"></div>
-      </section>
-
-      <!-- Step 3: Add candidates under a category -->
-      <section class="card" id="candidates-card" hidden>
-        <div class="step-head">
-          <span class="step-num">3</span>
-          <div>
-            <div class="card-title" style="margin:0;">Add candidates</div>
-            <p class="text-muted hint">Select a category, then add candidates under it.</p>
-          </div>
-        </div>
-        <div class="row two">
-          <div class="field">
-            <label class="label">Category</label>
-            <div class="pdd" id="candidate-position">
-              <button type="button" class="pdd-trigger" id="candidate-position-trigger">
-                <span class="pdd-label">— Select a category —</span>
-                <span class="pdd-arrow"></span>
-              </button>
-              <div class="pdd-menu" id="candidate-position-menu" hidden></div>
-            </div>
-          </div>
-          <div class="field">
-            <label class="label">Candidate name</label>
-            <div class="row">
-              <input class="input" id="candidate-name" placeholder="Candidate name">
-              <button class="btn btn-primary" id="add-candidate">Add</button>
-            </div>
-          </div>
-        </div>
-        <div id="candidates-list"></div>
       </section>
     </div>
   </main>
