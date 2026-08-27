@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voters &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/voters.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+      <span>Pulse Vote Hub</span>
+    </div>
+    <nav class="sidebar-nav" id="nav">
+      <a class="nav-item" href="dashboard.html" data-nav="dashboard"><span class="icon nav-ic" data-icon="dashboard"></span>Dashboard</a>
+      <a class="nav-item" href="elections.html" data-nav="elections"><span class="icon nav-ic" data-icon="elections"></span>Elections</a>
+      <a class="nav-item active" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
+      <a class="nav-item" href="#" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="#" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+    </nav>
+    <div class="sidebar-footer" id="sidebar-footer"></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Voters</h1>
+        <p>Manage the voter roll for an election.</p>
+      </div>
+    </div>
+
+    <!-- Election picker -->
+    <section class="card picker-card">
+      <div class="picker-row">
+        <div class="field" style="flex:1;margin:0;">
+          <label class="label">Election</label>
+          <select class="select" id="election-select">
+            <option value="">— Select an election —</option>
+          </select>
+        </div>
+        <div class="picker-summary" id="picker-summary"></div>
+      </div>
+    </section>
+
+    <!-- Voter tools -->
+    <div id="tools" hidden>
+      <div class="tools-grid">
+        <section class="card">
+          <div class="card-title">Add voter</div>
+          <div class="row">
+            <input class="input" id="v-voter-id" placeholder="Voter ID (optional)">
+          </div>
+          <div class="row">
+            <input class="input" id="v-name" placeholder="Full name">
+          </div>
+          <div class="row">
+            <input class="input" id="v-station" placeholder="Assigned station (station elections only)">
+          </div>
+          <button class="btn btn-primary btn-block" id="add-voter-btn">Add Voter</button>
+        </section>
+
+        <section class="card">
+          <div class="card-title">Import &amp; generate</div>
+          <label class="label">CSV (columns: voter_id, name, assigned_station)</label>
+          <textarea class="textarea" id="csv-input" rows="5" placeholder="voter_id,name,assigned_station&#10;V0001,John Doe,Station A"></textarea>
+          <button class="btn btn-secondary btn-block" id="import-btn">Import CSV</button>
+          <hr class="divider">
+          <div class="row">
+            <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10">
+            <button class="btn btn-secondary" id="autogen-btn" style="flex:1;">Auto-generate voters</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- List -->
+      <section class="card panel">
+        <div class="list-header">
+          <h3 class="card-title" style="margin:0;">Voter roll</h3>
+          <div class="list-tools">
+            <div class="search-wrap">
+              <span class="icon search-ic" data-icon="search"></span>
+              <input class="input" id="voter-search" placeholder="Search voter ID or name">
+            </div>
+            <button class="btn btn-danger btn-sm" id="clear-btn">Clear all</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Voter ID</th>
+                <th>Name</th>
+                <th>Station</th>
+                <th>Status</th>
+                <th style="width:90px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="voter-rows">
+              <tr><td colspan="5" class="text-muted center">No voters yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/voters.js"></script>
+</body>
+</html>

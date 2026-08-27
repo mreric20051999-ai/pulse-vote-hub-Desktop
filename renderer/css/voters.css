@@ -1,0 +1,71 @@
+/* ---------- Voters page ---------- */
+
+.picker-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-5);
+}
+.picker-summary {
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+  padding-bottom: 10px;
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: var(--space-5) 0;
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.list-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-wrap input {
+  padding-left: 38px;
+  min-width: 220px;
+}
+.search-ic {
+  position: absolute;
+  left: 12px;
+  color: var(--text-dim);
+  display: inline-flex;
+}
+
+.center {
+  text-align: center;
+  padding: var(--space-6) !important;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.cell-actions {
+  display: flex;
+  gap: var(--space-2);
+}

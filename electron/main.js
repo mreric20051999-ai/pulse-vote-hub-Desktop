@@ -5,6 +5,7 @@ const fs = require('fs');
 const db = require('./db');
 const auth = require('./auth');
 const election = require('./election');
+const voter = require('./voter');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -179,3 +180,14 @@ ipcMain.handle('election:candidates', (_e, electionId) => election.listCandidate
 ipcMain.handle('election:candidates-by-position', (_e, positionId) => election.listCandidatesByPosition(positionId));
 ipcMain.handle('election:candidate-add', (_e, payload) => election.addCandidate(payload));
 ipcMain.handle('election:candidate-remove', (_e, id) => election.removeCandidate(id));
+
+// ---------- Voter IPC ----------
+
+ipcMain.handle('voter:list', (_e, electionId, opts) => voter.listVoters(electionId, opts || {}));
+ipcMain.handle('voter:get', (_e, electionId, voterId) => voter.getVoter(electionId, voterId));
+ipcMain.handle('voter:add', (_e, payload) => voter.addVoter(payload));
+ipcMain.handle('voter:import', (_e, electionId, csvText) => voter.importCsv(electionId, csvText));
+ipcMain.handle('voter:autogen', (_e, electionId, count) => voter.autoGenerate(electionId, count));
+ipcMain.handle('voter:delete', (_e, electionId, voterId) => voter.deleteVoter(electionId, voterId));
+ipcMain.handle('voter:clear', (_e, electionId) => voter.clearVoters(electionId));
+ipcMain.handle('voter:unvote', (_e, electionId, voterId) => voter.unvoteVoter(electionId, voterId));

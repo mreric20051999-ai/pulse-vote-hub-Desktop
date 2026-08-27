@@ -24,6 +24,15 @@ contextBridge.exposeInMainWorld('pvh', {
   addCandidate: (p) => ipcRenderer.invoke('election:candidate-add', p),
   removeCandidate: (id) => ipcRenderer.invoke('election:candidate-remove', id),
 
+  listVoters: (eid, opts) => ipcRenderer.invoke('voter:list', eid, opts),
+  getVoter: (eid, vid) => ipcRenderer.invoke('voter:get', eid, vid),
+  addVoter: (p) => ipcRenderer.invoke('voter:add', p),
+  importVoters: (eid, csv) => ipcRenderer.invoke('voter:import', eid, csv),
+  autoGenerateVoters: (eid, count) => ipcRenderer.invoke('voter:autogen', eid, count),
+  deleteVoter: (eid, vid) => ipcRenderer.invoke('voter:delete', eid, vid),
+  clearVoters: (eid) => ipcRenderer.invoke('voter:clear', eid),
+  unvoteVoter: (eid, vid) => ipcRenderer.invoke('voter:unvote', eid, vid),
+
   setupCheck: () => ipcRenderer.invoke('auth:setup-check'),
   setupCoordinator: (payload) => ipcRenderer.invoke('auth:setup', payload),
   login: (payload) => ipcRenderer.invoke('auth:login', payload),

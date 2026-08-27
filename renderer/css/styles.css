@@ -515,10 +515,17 @@ tbody tr:hover {
   color: var(--accent);
   border-left-color: var(--accent);
 }
-.nav-item i {
-  width: 20px;
+.nav-item i, .nav-item .nav-ic {
+  width: 22px;
   text-align: center;
-  font-size: var(--fs-lg);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.85;
+}
+.nav-item.active i, .nav-item.active .nav-ic {
+  opacity: 1;
 }
 
 .sidebar-footer {

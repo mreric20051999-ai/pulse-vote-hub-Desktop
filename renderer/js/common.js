@@ -12,10 +12,17 @@
       <div class="officer-chip">
         <div class="officer-name"></div>
         <div class="officer-role"></div>
+        <button class="btn btn-ghost btn-sm logout-btn" id="logout-btn">Sign out</button>
       </div>`;
     footer.querySelector('.officer-name').textContent = session.name;
     footer.querySelector('.officer-role').textContent = session.role;
+    footer.querySelector('#logout-btn').addEventListener('click', () => {
+      window.localStorage.removeItem('pvh_session');
+      window.location.assign('index.html');
+    });
   }
+
+  if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
   const nav = document.getElementById('nav');
   if (nav) {
