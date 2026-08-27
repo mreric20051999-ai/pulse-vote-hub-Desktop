@@ -551,6 +551,7 @@ tbody tr:hover {
   margin-left: var(--sidebar-width);
   padding: var(--space-8);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 .page-header {
   display: flex;
