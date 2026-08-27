@@ -10,6 +10,15 @@
   padding: var(--space-6);
 }
 
+/* Right-aligned action buttons (Preview + Save) in Step 1 */
+.actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  margin-bottom: 0;
+}
+
 .step-head {
   display: flex;
   align-items: center;
@@ -166,6 +175,29 @@
   border-radius: var(--radius-md);
   margin-bottom: var(--space-4);
   overflow: hidden;
+}
+
+/* Keep the Add Category row anchored; let the category list scroll below it */
+.step-fixed {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
+  z-index: 5;
+  border-bottom: 1px solid var(--border);
+}
+.positions-area {
+  max-height: 380px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+.positions-area > .hint {
+  padding: var(--space-4);
+}
+/* Give each category block its own inset so list remains readable while scrolling */
+.positions-area .position-block:last-child {
+  margin-bottom: 0;
 }
 .position-head {
   display: flex;

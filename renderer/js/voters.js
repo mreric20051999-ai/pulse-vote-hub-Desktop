@@ -11,15 +11,61 @@
 
   if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
-  async function loadElections() {
-    elections = await window.pvh.listElections();
-    const sel = $('election-select');
-    sel.innerHTML = '<option value="">— Select an election —</option>' +
-      elections.map((e) => `<option value="${e.id}">${esc(e.title)} (${esc(e.type)})</option>`).join('');
+  // ---- Reusable custom dropdown (opens downward, beneath the box) ----
+  function buildSelectDropdown(select, onChange) {
+    const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
+    let value = select.value;
+    const root = document.createElement('div');
+    root.className = 'pdd';
+    root.innerHTML = `
+      <button type="button" class="pdd-trigger">
+        <span class="pdd-label"></span>
+        <span class="pdd-arrow"></span>
+      </button>
+      <div class="pdd-menu" hidden></div>
+    `;
+    const labelEl = root.querySelector('.pdd-label');
+    const menu = root.querySelector('.pdd-menu');
+    const trigger = root.querySelector('.pdd-trigger');
+
+    function render() {
+      menu.innerHTML = opts.map((o) =>
+        `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
+      ).join('');
+      const cur = opts.find((o) => o.value === value);
+      labelEl.textContent = cur ? cur.label : '— Select —';
+      labelEl.classList.toggle('placeholder', !cur);
+    }
+    function close() { root.classList.remove('open'); menu.hidden = true; }
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) { close(); return; }
+      render();
+      menu.hidden = false;
+      root.classList.add('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('.pdd-option');
+      if (!o) return;
+      value = o.dataset.value;
+      render();
+      close();
+      if (onChange) onChange(value);
+    });
+    document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
+
+    select.replaceWith(root);
+    return {
+      get: () => value,
+      set: (v) => { value = v; render(); },
+      setOptions: (list) => { opts.length = 0; opts.push(...list); render(); },
+      root,
+    };
   }
 
-  $('election-select').addEventListener('change', async (e) => {
-    currentElectionId = e.target.value;
+  const electionDD = buildSelectDropdown($('election-select'), async (value) => {
+    currentElectionId = value;
     currentPage = 0;
     $('tools').hidden = !currentElectionId;
     if (currentElectionId) {
@@ -29,6 +75,15 @@
       $('picker-summary').textContent = '';
     }
   });
+
+  async function loadElections() {
+    elections = await window.pvh.listElections();
+    electionDD.setOptions(
+      [{ value: '', label: '— Select an election —' }].concat(
+        elections.map((e) => ({ value: e.id, label: `${e.title} (${e.type})` }))
+      )
+    );
+  }
 
   async function refresh() {
     const data = await window.pvh.listVoters(currentElectionId, { limit: PAGE, offset: currentPage * PAGE });

@@ -54,15 +54,24 @@
         <section class="card">
           <div class="card-title">Add voter</div>
           <div class="row">
-            <input class="input" id="v-voter-id" placeholder="Voter ID (optional)">
+            <div class="field" style="flex:1;margin:0;">
+              <label class="label">Voter name</label>
+              <input class="input" id="v-name" placeholder="Full name">
+            </div>
           </div>
-          <div class="row">
-            <input class="input" id="v-name" placeholder="Full name">
+          <div class="row two-add">
+            <div class="field" style="flex:1;margin:0;">
+              <label class="label">Voter ID <span class="text-dim">(optional)</span></label>
+              <input class="input" id="v-voter-id" placeholder="e.g. V0001">
+            </div>
+            <div class="field" style="flex:1;margin:0;">
+              <label class="label">Station <span class="text-dim">(optional)</span></label>
+              <input class="input" id="v-station" placeholder="e.g. Station A">
+            </div>
           </div>
-          <div class="row">
-            <input class="input" id="v-station" placeholder="Assigned station (station elections only)">
+          <div class="row actions-right">
+            <button class="btn btn-primary" id="add-voter-btn">Add Voter</button>
           </div>
-          <button class="btn btn-primary btn-block" id="add-voter-btn">Add Voter</button>
         </section>
 
         <section class="card">

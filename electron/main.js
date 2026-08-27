@@ -20,8 +20,8 @@ function rendererDir() {
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
-    width: 520,
-    height: 380,
+    width: 640,
+    height: 480,
     frame: false,
     transparent: false,
     resizable: false,

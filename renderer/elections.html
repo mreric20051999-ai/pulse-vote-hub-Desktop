@@ -100,24 +100,29 @@
             <input class="input" id="etime" type="time">
           </div>
         </div>
-        <button class="btn btn-primary" id="save-election">Save Election</button>
+        <div class="row actions-row">
+          <button class="btn btn-secondary" id="preview-ballot">Preview Ballot</button>
+          <button class="btn btn-primary" id="save-election">Save Election</button>
+        </div>
       </section>
 
       <!-- Step 2: Add categories + candidates under each -->
       <section class="card">
-        <div class="step-head">
-          <span class="step-num">2</span>
-          <div>
-            <div class="card-title" style="margin:0;">Categories &amp; candidates</div>
-            <p class="text-muted hint">Add a category, then add candidates to it.</p>
+        <div class="step-fixed">
+          <div class="step-head">
+            <span class="step-num">2</span>
+            <div>
+              <div class="card-title" style="margin:0;">Categories &amp; candidates</div>
+              <p class="text-muted hint">Add a category, then add candidates to it.</p>
+            </div>
+          </div>
+          <div class="row">
+            <input class="input" id="ptitle" placeholder="Category name, e.g. President">
+            <input class="input input-narrow" id="pmax" type="number" min="1" value="1" title="max votes per voter">
+            <button class="btn btn-secondary" id="add-position">Add Category</button>
           </div>
         </div>
-        <div class="row">
-          <input class="input" id="ptitle" placeholder="Category name, e.g. President">
-          <input class="input input-narrow" id="pmax" type="number" min="1" value="1" title="max votes per voter">
-          <button class="btn btn-secondary" id="add-position">Add Category</button>
-        </div>
-        <div id="positions"></div>
+        <div class="positions-area" id="positions"></div>
       </section>
     </div>
   </main>
