@@ -66,7 +66,7 @@
       <tr><td>Voting</td><td>Select candidate → confirm → peep sound → "Your vote has been recorded" → next voter</td></tr>
       <tr><td>Duplicate prevention</td><td>Local SQLite checks — same voter ID can't vote twice</td></tr>
       <tr><td>Results</td><td>In-app screen + export to JSON/CSV/PDF + print</td></tr>
-      <tr><td>Multi-location</td><td>Each station exports JSON file → someone manually merges on one PC</td></tr>
+      <tr><td>Multi-location</td><td>Each station exports JSON file → merge tool detects duplicate voters across stations → admin resolves → one final result</td></tr>
       <tr><td>Platforms</td><td>Windows + macOS</td></tr>
     </table>
 
@@ -169,6 +169,7 @@ CREATE TABLE votes (
   candidate_id TEXT,
   voter_id TEXT,
   device_id TEXT,
+  station_id TEXT,
   timestamp INTEGER,
   synced INTEGER DEFAULT 0
 );
@@ -302,13 +303,15 @@ CREATE TABLE audit_log (
 
     <div class="phase-card">
       <h3>Phase 6: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
-      <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations.</p>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations with global duplicate detection.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
         <tr><td>Export format</td><td>Standardized JSON format for cross-location merge</td></tr>
         <tr><td>Merge tool</td><td>Standalone screen: select multiple JSON files → combine</td></tr>
-        <tr><td>Conflict detection</td><td>Detect duplicate voter IDs across locations</td></tr>
-        <tr><td>Merged results</td><td>Show combined results after merge</td></tr>
+        <tr><td>Global duplicate detection</td><td>Detect voter IDs that appear in multiple stations</td></tr>
+        <tr><td>Duplicate resolution</td><td>Admin chooses: keep first vote, keep latest, or manual selection per duplicate</td></tr>
+        <tr><td>Duplicate report</td><td>Export list of all duplicates with resolution applied</td></tr>
+        <tr><td>Merged results</td><td>Show combined results after deduplication</td></tr>
         <tr><td>Export merged</td><td>Export merged results to JSON/CSV/PDF</td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can combine results from Location A + B + C into one report.</p>
@@ -358,7 +361,7 @@ CREATE TABLE audit_log (
       <tr><td>Election creation</td><td>Manual + CSV import + auto-generate</td></tr>
       <tr><td>Voter auth</td><td>Voter ID + password</td></tr>
       <tr><td>Data storage</td><td>SQLite (local)</td></tr>
-      <tr><td>Multi-station</td><td>Independent stations, merge via file export</td></tr>
+      <tr><td>Multi-station</td><td>Independent stations, merge via file export, global deduplication</td></tr>
       <tr><td>Reporting</td><td>In-app + file export + print</td></tr>
       <tr><td>Platforms</td><td>Windows + macOS</td></tr>
       <tr><td>Internet required</td><td><strong>No</strong> — fully offline</td></tr>
