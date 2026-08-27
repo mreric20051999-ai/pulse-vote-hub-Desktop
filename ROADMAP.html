@@ -55,7 +55,62 @@
     </div>
 
     <h2>What This Is</h2>
-    <p>A <strong>standalone Electron desktop app</strong> for running school and station elections <strong>completely offline</strong>. No internet required. No Firebase required. Each polling station runs independently on its own PC. Results are exported as files and manually combined later.</p>
+    <p>A <strong>standalone Electron desktop app</strong> for running school and station elections <strong>completely offline</strong>. No internet required. No Firebase required. Multiple devices at the same location connect over <strong>local network (LAN)</strong> with one device acting as the server. Results from different locations are exported as files and manually combined later.</p>
+
+    <h2>LAN Architecture</h2>
+    <div style="background: #1e293b; border-radius: 8px; padding: 20px; margin: 16px 0;">
+      <pre style="color: #94a3b8; font-size: 0.85rem; line-height: 1.5;"><code>┌─────────────────────────────────────────────────────────────────┐
+│                    SAME LOCATION (e.g., School)                  │
+│                                                                  │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐    │
+│  │  Device 1    │     │  Device 2    │     │  Device 3    │    │
+│  │  (SERVER)    │◄───►│  (CLIENT)    │◄───►│  (CLIENT)    │    │
+│  │              │     │              │     │              │    │
+│  │  SQLite DB   │     │  Cache DB    │     │  Cache DB    │    │
+│  │  Express     │     │  WebSocket   │     │  WebSocket   │    │
+│  │  WebSocket   │     │  Client      │     │  Client      │    │
+│  └──────────────┘     └──────────────┘     └──────────────┘    │
+│         │                    │                    │              │
+│         └────────────────────┴────────────────────┘              │
+│                        Local Network (LAN)                       │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                   DIFFERENT LOCATION (e.g., Another School)      │
+│                                                                  │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐    │
+│  │  Device 1    │     │  Device 2    │     │  Device 3    │    │
+│  │  (SERVER)    │◄───►│  (CLIENT)    │◄───►│  (CLIENT)    │    │
+│  │              │     │              │     │              │    │
+│  │  SQLite DB   │     │  Cache DB    │     │  Cache DB    │    │
+│  └──────────────┘     └──────────────┘     └──────────────┘    │
+│         │                    │                    │              │
+│         └────────────────────┴────────────────────┘              │
+│                        Local Network (LAN)                       │
+└─────────────────────────────────────────────────────────────────┘
+
+                     │ Export JSON │         │ Export JSON │
+                     ▼             ▼         ▼             ▼
+              ┌──────────────────────────────────────────────────┐
+              │              MERGE TOOL (one PC)                  │
+              │                                                   │
+              │  1. Import JSON from Location A + B              │
+              │  2. Detect duplicate voter IDs across locations  │
+              │  3. Admin resolves duplicates                    │
+              │  4. Export final clean results                   │
+              └──────────────────────────────────────────────────┘</code></pre>
+    </div>
+
+    <h2>How LAN Sync Works</h2>
+    <table>
+      <tr><th>Step</th><th>What Happens</th></tr>
+      <tr><td>1. Start app</td><td>First device to start becomes the SERVER (hosts Express + WebSocket)</td></tr>
+      <tr><td>2. Join network</td><td>Other devices auto-discover the server via mDNS and connect as CLIENTS</td></tr>
+      <tr><td>3. Cast vote</td><td>Client sends vote → Server validates (duplicate check) → Server stores in SQLite → Server broadcasts to all clients</td></tr>
+      <tr><td>4. Real-time update</td><td>All connected devices see the vote count update instantly</td></tr>
+      <tr><td>5. Server goes down</td><td>Clients cache votes locally in SQLite, auto-reconnect when server returns</td></tr>
+      <tr><td>6. Export results</td><td>Server exports full results as JSON → USB → Merge tool on admin PC</td></tr>
+    </table>
 
     <h2>Core Features</h2>
     <table>
@@ -64,9 +119,10 @@
       <tr><td>Voter management</td><td>CSV import + auto-generate IDs/passwords + print voter cards</td></tr>
       <tr><td>Voter authentication</td><td>Voter ID + password (validated against local DB)</td></tr>
       <tr><td>Voting</td><td>Select candidate → confirm → peep sound → "Your vote has been recorded" → next voter</td></tr>
-      <tr><td>Duplicate prevention</td><td>Local SQLite checks — same voter ID can't vote twice</td></tr>
+      <tr><td>Duplicate prevention</td><td>Server-side SQLite checks — same voter ID can't vote twice across all devices</td></tr>
+      <tr><td>LAN sync</td><td>Multiple devices at same location connect over local network — one server, multiple clients</td></tr>
       <tr><td>Results</td><td>In-app screen + export to JSON/CSV/PDF + print</td></tr>
-      <tr><td>Multi-location</td><td>Each station exports JSON file → merge tool detects duplicate voters across stations → admin resolves → one final result</td></tr>
+      <tr><td>Multi-location</td><td>Each location exports JSON file → merge tool detects duplicates across locations → admin resolves</td></tr>
       <tr><td>Platforms</td><td>Windows + macOS</td></tr>
     </table>
 
@@ -105,6 +161,8 @@
       <tr><td>Runtime</td><td>Electron 30+</td><td>Cross-platform desktop, mature ecosystem</td></tr>
       <tr><td>Frontend</td><td>HTML/CSS/JS (vanilla)</td><td>Same style as existing Pulse Vote Hub web app</td></tr>
       <tr><td>Local DB</td><td>SQLite via <code>better-sqlite3</code></td><td>Fast, relational, ACID transactions, secure</td></tr>
+      <tr><td>LAN Server</td><td><code>express</code> + <code>ws</code> (WebSocket)</td><td>Lightweight local server for device-to-device sync</td></tr>
+      <tr><td>LAN Discovery</td><td><code>bonjour-service</code> (mDNS)</td><td>Auto-discover server on local network — no manual IP entry</td></tr>
       <tr><td>IPC</td><td>Electron <code>contextBridge</code> + <code>ipcRenderer</code></td><td>Secure bridge between renderer and main</td></tr>
       <tr><td>Packaging</td><td><code>electron-builder</code></td><td>Builds .exe (Windows) and .dmg (macOS)</td></tr>
       <tr><td>Audio</td><td>Web Audio API</td><td>Peep sound on vote confirmation</td></tr>
@@ -200,7 +258,10 @@ CREATE TABLE audit_log (
 │   ├── export.js                    # JSON/CSV/PDF export
 │   ├── printer.js                   # Voter card + results printing
 │   ├── audio.js                     # Peep sound + audio feedback
-│   └── kiosk.js                     # Kiosk lockdown
+│   ├── kiosk.js                     # Kiosk lockdown
+│   ├── lan-server.js                # Express + WebSocket server (host device)
+│   ├── lan-client.js                # WebSocket client (joining devices)
+│   └── lan-discovery.js             # mDNS auto-discovery of server
 ├── renderer/                        # Frontend (HTML/CSS/JS)
 │   ├── index.html                   # Login / first-run setup
 │   ├── dashboard.html               # Admin dashboard
@@ -238,7 +299,24 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 2: Election Management <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 2: LAN Networking <span class="duration">— 3-4 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Multiple devices at the same location connect over local network.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>LAN server</td><td>Express + WebSocket server on host device — serves election data and accepts votes</td></tr>
+        <tr><td>LAN client</td><td>WebSocket client connects to server — sends votes, receives updates</td></tr>
+        <tr><td>mDNS discovery</td><td>Auto-discover server on local network — no manual IP entry required</td></tr>
+        <tr><td>Real-time sync</td><td>When a vote is cast on any device, server broadcasts update to all connected clients</td></tr>
+        <tr><td>Connection status</td><td>UI shows: 🟢 Connected to server / 🟡 Searching... / 🔴 Offline (caching locally)</td></tr>
+        <tr><td>Offline fallback</td><td>If server unavailable, client caches votes locally in SQLite, syncs when reconnected</td></tr>
+        <tr><td>Conflict resolution</td><td>Server is source of truth — client data is discarded if server has different state</td></tr>
+        <tr><td>Auto-reconnect</td><td>Client automatically reconnects if connection drops</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> 5-10 devices can vote simultaneously on same network, all sharing one database.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 3: Election Management <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Create elections, add positions, add candidates.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -253,7 +331,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 3: Voter Management <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 4: Voter Management <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Import voters, auto-generate credentials, print voter cards.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -267,25 +345,26 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 4: Voting Flow <span class="duration">— 3-4 days</span></h3>
-      <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter.</p>
+      <h3>Phase 5: Voting Flow <span class="duration">— 3-4 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter. Supports multiple devices via LAN.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
         <tr><td>Station mode</td><td>Coordinator starts voting session for an election</td></tr>
-        <tr><td>Voter auth screen</td><td>Voter enters ID + password → validated against local DB</td></tr>
+        <tr><td>Voter auth screen</td><td>Voter enters ID + password → validated against server DB</td></tr>
         <tr><td>Ballot screen</td><td>Shows candidates for current position → voter selects</td></tr>
         <tr><td>Confirm vote</td><td>"Are you sure?" → confirm → peep sound → "Your vote has been recorded"</td></tr>
         <tr><td>Already voted</td><td>If voter ID found → show "Already voted" message</td></tr>
-        <tr><td>Duplicate prevention</td><td>SQLite transaction: check + write atomically</td></tr>
+        <tr><td>Duplicate prevention</td><td>Server-side SQLite transaction: check + write atomically (all devices share one DB)</td></tr>
         <tr><td>Multiple positions</td><td>If election has multiple positions → voter votes for each sequentially</td></tr>
         <tr><td>Session timeout</td><td>Auto-return to auth screen after 60s of inactivity</td></tr>
         <tr><td>Close voting</td><td>Coordinator can close voting → results become viewable</td></tr>
+        <tr><td>Client fallback</td><td>If server goes down, client caches votes locally, syncs when server returns</td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete voting flow — auth → vote → confirm → next voter.</p>
     </div>
 
     <div class="phase-card">
-      <h3>Phase 5: Results & Reporting <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 6: Results & Reporting <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">View results, export to file, print.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -302,7 +381,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 6: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
+      <h3>Phase 7: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations with global duplicate detection.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -318,7 +397,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 7: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 8: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Kiosk lockdown, audio, printing, distribution.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -338,19 +417,19 @@ CREATE TABLE audit_log (
     <div class="timeline">
       <div class="timeline-item">
         <div class="week">Week 1</div>
-        <p>Phase 1: Foundation + Phase 2: Election Management</p>
+        <p>Phase 1: Foundation + Phase 2: LAN Networking</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 2</div>
-        <p>Phase 3: Voter Management + Phase 4: Voting Flow (start)</p>
+        <p>Phase 3: Election Management + Phase 4: Voter Management</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 3</div>
-        <p>Phase 4: Voting Flow (finish) + Phase 5: Results & Reporting</p>
+        <p>Phase 5: Voting Flow + Phase 6: Results & Reporting</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 4</div>
-        <p>Phase 6: Multi-Location Merge + Phase 7: Polish & Packaging</p>
+        <p>Phase 7: Multi-Location Merge + Phase 8: Polish & Packaging</p>
       </div>
     </div>
 
@@ -372,11 +451,14 @@ CREATE TABLE audit_log (
       <tr><th>Dependency</th><th>Status</th><th>Purpose</th></tr>
       <tr><td>Node.js</td><td>✅ Installed</td><td>Runtime</td></tr>
       <tr><td>npm</td><td>✅ Installed</td><td>Package manager</td></tr>
-      <tr><td>Electron</td><td>⏳ Install Phase 1</td><td>Desktop runtime</td></tr>
-      <tr><td><code>better-sqlite3</code></td><td>⏳ Install Phase 1</td><td>Local database</td></tr>
-      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 7</td><td>Packaging</td></tr>
-      <tr><td><code>csv-parse</code></td><td>⏳ Install Phase 3</td><td>CSV import</td></tr>
-      <tr><td><code>pdfkit</code></td><td>⏳ Install Phase 5</td><td>PDF export</td></tr>
+      <tr><td>Electron</td><td>✅ Installed</td><td>Desktop runtime</td></tr>
+      <tr><td><code>better-sqlite3</code></td><td>✅ Installed</td><td>Local database</td></tr>
+      <tr><td><code>express</code></td><td>⏳ Install Phase 2</td><td>LAN server</td></tr>
+      <tr><td><code>ws</code></td><td>⏳ Install Phase 2</td><td>WebSocket for real-time sync</td></tr>
+      <tr><td><code>bonjour-service</code></td><td>⏳ Install Phase 2</td><td>mDNS auto-discovery</td></tr>
+      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 8</td><td>Packaging</td></tr>
+      <tr><td><code>csv-parse</code></td><td>⏳ Install Phase 4</td><td>CSV import</td></tr>
+      <tr><td><code>pdfkit</code></td><td>⏳ Install Phase 6</td><td>PDF export</td></tr>
     </table>
 
     <div class="summary-box">
