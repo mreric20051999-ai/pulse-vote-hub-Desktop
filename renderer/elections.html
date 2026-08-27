@@ -132,9 +132,13 @@
         <div class="row two">
           <div class="field">
             <label class="label">Category</label>
-            <select class="select" id="candidate-position">
-              <option value="">— Select a category —</option>
-            </select>
+            <div class="pdd" id="candidate-position">
+              <button type="button" class="pdd-trigger" id="candidate-position-trigger">
+                <span class="pdd-label">— Select a category —</span>
+                <span class="pdd-arrow"></span>
+              </button>
+              <div class="pdd-menu" id="candidate-position-menu" hidden></div>
+            </div>
           </div>
           <div class="field">
             <label class="label">Candidate name</label>

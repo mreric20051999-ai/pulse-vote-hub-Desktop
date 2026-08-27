@@ -83,6 +83,7 @@
       id: null, title: '', type: 'school', status: 'setup',
       positions: [], candidates: [],
     };
+    selectedCategoryId = '';
     $('list-view').hidden = true;
     $('builder-view').hidden = false;
     $('builder-title').textContent = e ? e.title : 'New Election';
@@ -149,27 +150,80 @@
     });
   }
 
-  function populateCandidatePositionSelect() {
-    const sel = $('candidate-position');
-    const current = sel.value;
-    // Only rebuild if the set of positions changed, so the user's selection
-    // isn't wiped on every candidate add/remove.
-    const ids = currentElection.positions.map((p) => p.id).join(',');
-    if (sel.dataset.posIds !== ids || ids === '') {
-      sel.innerHTML = '<option value="">— Select a position —</option>' +
-        currentElection.positions.map((p) =>
-          `<option value="${p.id}">${esc(p.title)}</option>`).join('');
-      sel.dataset.posIds = ids;
-      if (ids !== '' && currentElection.positions.some((p) => p.id === current)) {
-        sel.value = current;
-      }
+  let selectedCategoryId = '';
+
+  function selectedCategoryTitle() {
+    const p = currentElection.positions.find((x) => x.id === selectedCategoryId);
+    return p ? p.title : '';
+  }
+
+  function renderCandidatePosition() {
+    const label = $('candidate-position-label');
+    const menu = $('candidate-position-menu');
+    const disabled = currentElection.positions.length === 0;
+
+    label.textContent = selectedCategoryTitle() || '— Select a category —';
+    label.classList.toggle('placeholder', !selectedCategoryTitle());
+
+    if (disabled || !currentElection.positions.length) {
+      menu.innerHTML = '<div class="pdd-empty">Add a category first.</div>';
+      menu.hidden = false;
+    } else {
+      menu.innerHTML = currentElection.positions.map((p) =>
+        `<div class="pdd-option${p.id === selectedCategoryId ? ' selected' : ''}" data-id="${p.id}">${esc(p.title)}</div>`
+      ).join('');
+      menu.hidden = true;
     }
-    sel.disabled = currentElection.positions.length === 0;
+
+    const t = $('candidate-position');
+    t.classList.toggle('disabled', disabled);
+    t.dataset.posIds = currentElection.positions.map((p) => p.id).join(',');
+  }
+
+  // ---- Custom dropdown (opens downward below the box) ----
+  function initCategoryDropdown() {
+    const root = $('candidate-position');
+    const trigger = $('candidate-position-trigger');
+    const menu = $('candidate-position-menu');
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('disabled')) return;
+      const willOpen = root.classList.toggle('open');
+      if (willOpen) {
+        renderCandidatePosition();
+        menu.hidden = false;
+      } else {
+        menu.hidden = true;
+      }
+    });
+
+    menu.addEventListener('click', (e) => {
+      const opt = e.target.closest('.pdd-option');
+      if (!opt) return;
+      selectedCategoryId = opt.dataset.id;
+      renderCandidatePosition();
+      menu.hidden = true;
+      root.classList.remove('open');
+      $('candidate-name').focus();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!root.contains(e.target)) {
+        root.classList.remove('open');
+        menu.hidden = true;
+      }
+    });
+  }
+
+  function populateCandidatePositionSelect() {
+    renderCandidatePosition();
   }
 
   // ---- Actions ----
   $('new-election-btn').addEventListener('click', () => {
     currentElection = { id: null, title: '', type: 'school', status: 'setup', positions: [], candidates: [] };
+    selectedCategoryId = '';
     $('list-view').hidden = true;
     $('builder-view').hidden = false;
     $('builder-title').textContent = 'New Election';
@@ -196,7 +250,10 @@
 
   async function submitCandidate() {
     const name = $('candidate-name').value.trim();
-    const positionId = $('candidate-position').value;
+    const positionId = selectedCategoryId;
+    if (!(await ensureElectionSaved())) return;
+    if (!positionId) return alert('Select a category for this candidate.');
+    if (!name) return alert('Enter the candidate name.');
     if (!(await ensureElectionSaved())) return;
     if (!positionId) return alert('Select a category for this candidate.');
     if (!name) return alert('Enter the candidate name.');
@@ -261,5 +318,6 @@
     $('builder-status').outerHTML = statusPill(currentElection.status);
   }
 
+  initCategoryDropdown();
   loadList();
 })();
