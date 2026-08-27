@@ -368,10 +368,14 @@
       const cards = cands.length
         ? cands.map((c) => `
             <div class="ballot-card">
-              <span class="ballot-avatar" data-photo="${esc(c.photo_path || '')}">${esc(initials(c.name))}</span>
+              <span class="ballot-avatar" data-photo="${esc(c.photo_path || '')}">${esc((c.name || '?').charAt(0).toUpperCase())}</span>
               <div class="ballot-card-info">
-                <span class="ballot-bn-num">${String(c.ballot_number || '').padStart(2, '0')}</span>
-                <span class="ballot-card-name">${esc(c.name)}</span>
+                <div class="ballot-bn">
+                  <span class="ballot-bn-num">${esc(c.ballot_number != null ? c.ballot_number : 1)}</span>
+                  <span class="ballot-bn-label">BALLOT</span>
+                </div>
+                <div class="ballot-card-name">${esc(c.name)}</div>
+                <div class="ballot-card-tagline">Candidate</div>
               </div>
             </div>`).join('')
         : '<div class="ballot-empty">No candidates in this category yet.</div>';
