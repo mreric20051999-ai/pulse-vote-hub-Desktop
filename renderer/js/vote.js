@@ -42,6 +42,7 @@
   // ------------------------------------------------------------
   async function showPicker() {
     setTitle('Select an election');
+    setBackVisible(false);
     let elections = [];
     try { elections = await window.pvh.listElections(); } catch (e) { elections = []; }
 
@@ -92,6 +93,7 @@
   // ------------------------------------------------------------
   function showAccess() {
     setTitle(election.title);
+    setBackVisible(true);
     content.innerHTML = `
       <div class="kiosk-panel">
         <div class="icon">🔐</div>
@@ -167,6 +169,7 @@
 
   function renderBallot() {
     setTitle(election.title);
+    setBackVisible(true);
 
     const sections = positions.map((p) => {
       const cands = candsFor(p.id);
@@ -263,6 +266,7 @@
   // Screen 3: Confirm modal
   // ------------------------------------------------------------
   function showConfirm() {
+    setBackVisible(true);
     const total = positions.reduce((n, p) => n + selectedFor(p.id).length, 0);
     // Block empty ballots
     const groups = positions.filter((p) => selectedFor(p.id).length);
@@ -338,6 +342,7 @@
   // ------------------------------------------------------------
   function showThanks() {
     setTitle(election.title);
+    setBackVisible(true);
     content.innerHTML = `
       <div class="thankyou">
         <div class="check-circle"><i>✓</i></div>
@@ -353,6 +358,7 @@
   // ------------------------------------------------------------
   function showBlocked(msg, withBack) {
     setTitle('Pulse Vote Hub');
+    setBackVisible(true);
     content.innerHTML = `
       <div class="blocked-box">
         <div class="icon"><i>⚠</i></div>
@@ -368,10 +374,21 @@
     showPicker();
   }
 
-  // Exit returns to the officer app when available, else back to the picker.
-  $('kiosk-home').addEventListener('click', () => {
+  const backBtn = $('kiosk-back');
+
+  // Back returns to the election picker (hidden while already there).
+  function setBackVisible(visible) {
+    if (backBtn) backBtn.style.display = visible ? '' : 'none';
+  }
+
+  backBtn.addEventListener('click', () => {
     election = null; voter = null; positions = []; candidates = []; selections = new Map();
     showPicker();
+  });
+
+  // Exit to Dashboard returns to the officer app.
+  $('kiosk-dashboard').addEventListener('click', () => {
+    window.location.assign('dashboard.html');
   });
 
   // Inline SVG-free check glyphs: replace ✓ with an icon if icons available.

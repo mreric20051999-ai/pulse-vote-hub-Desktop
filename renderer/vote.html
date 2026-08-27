@@ -14,12 +14,18 @@
   <div class="kiosk-screen" id="kiosk-root">
     <!-- Top bar -->
     <header class="kiosk-topbar">
-      <div class="brand">
-        <img src="assets/images/logo.png" alt="Pulse Vote Hub">
-        <span>Pulse Vote Hub</span>
+      <div class="kiosk-brand">
+        <div class="brand">
+          <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+          <span>Pulse Vote Hub</span>
+        </div>
+        <span class="kiosk-badge">VOTING</span>
       </div>
-      <div class="election-title" id="election-title">Secure Offline Voting</div>
-      <button class="btn btn-ghost" id="kiosk-home" title="Back to elections">Exit</button>
+      <div class="kiosk-title" id="election-title">Secure Offline Voting</div>
+      <div class="kiosk-actions">
+        <button class="btn btn-ghost kiosk-back" id="kiosk-back" title="Back to election selection">Back</button>
+        <button class="btn btn-primary" id="kiosk-dashboard" title="Return to the dashboard">Exit to Dashboard</button>
+      </div>
     </header>
 
     <!-- Center content switches between screens -->
