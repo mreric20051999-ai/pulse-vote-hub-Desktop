@@ -89,8 +89,8 @@
     $('builder-title').textContent = e ? e.title : 'New Election';
     $('builder-subtitle').textContent = e ? `Editing ${e.type} election` : 'Configure the ballot.';
     $('etitle').value = e ? e.title : '';
-    $('etype').value = e ? e.type : 'school';
-    $('estatus').value = e ? e.status : 'setup';
+    etypeDD.set(e ? e.type : 'school');
+    estatusDD.set(e ? e.status : 'setup');
     setDateFields(e);
     $('builder-status').outerHTML = statusPill(e ? e.status : 'setup');
     renderPositions();
@@ -220,6 +220,61 @@
     renderCandidatePosition();
   }
 
+  // ---- Generic dropdown for native <select>s (opens downward) ----
+  function buildSelectDropdown(select) {
+    const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
+    let value = select.value;
+    const root = document.createElement('div');
+    root.className = 'pdd';
+    root.innerHTML = `
+      <button type="button" class="pdd-trigger">
+        <span class="pdd-label"></span>
+        <span class="pdd-arrow"></span>
+      </button>
+      <div class="pdd-menu" hidden></div>
+    `;
+    const labelEl = root.querySelector('.pdd-label');
+    const menu = root.querySelector('.pdd-menu');
+    const trigger = root.querySelector('.pdd-trigger');
+
+    function render() {
+      menu.innerHTML = opts.map((o) =>
+        `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
+      ).join('');
+      const cur = opts.find((o) => o.value === value);
+      labelEl.textContent = cur ? cur.label : '— Select —';
+      labelEl.classList.toggle('placeholder', !cur);
+    }
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) { close(); return; }
+      render();
+      menu.hidden = false;
+      root.classList.add('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('.pdd-option');
+      if (!o) return;
+      value = o.dataset.value;
+      render();
+      close();
+    });
+    document.addEventListener('click', (e) => {
+      if (!root.contains(e.target)) close();
+    });
+    function close() {
+      root.classList.remove('open');
+      menu.hidden = true;
+    }
+
+    select.replaceWith(root);
+    return { get: () => value, set: (v) => { value = v; render(); }, root };
+  }
+
+  const etypeDD = buildSelectDropdown($('etype'));
+  const estatusDD = buildSelectDropdown($('estatus'));
+
   // ---- Actions ----
   $('new-election-btn').addEventListener('click', () => {
     currentElection = { id: null, title: '', type: 'school', status: 'setup', positions: [], candidates: [] };
@@ -229,8 +284,8 @@
     $('builder-title').textContent = 'New Election';
     $('builder-subtitle').textContent = 'Configure the ballot.';
     $('etitle').value = '';
-    $('etype').value = 'school';
-    $('estatus').value = 'setup';
+    etypeDD.set('school');
+    estatusDD.set('setup');
     setDateFields(null);
     $('builder-status').outerHTML = statusPill('setup');
     renderPositions();
@@ -279,8 +334,8 @@
   async function ensureElectionSaved() {
     if (currentElection.id) return true;
     const title = $('etitle').value.trim();
-    const type = $('etype').value;
-    const status = $('estatus').value;
+    const type = etypeDD.get();
+    const status = estatusDD.get();
     if (!title) { alert('Set an election title first.'); return false; }
     const res = await window.pvh.createElection({ title, type, election_date: readDateValue() });
     if (!res.ok) { alert(res.error || 'Failed to create election'); return false; }
@@ -293,8 +348,8 @@
 
   $('save-election').addEventListener('click', async () => {
     const title = $('etitle').value.trim();
-    const type = $('etype').value;
-    const status = $('estatus').value;
+    const type = etypeDD.get();
+    const status = estatusDD.get();
     if (!title) return alert('Title is required');
     const election_date = readDateValue();
     if (currentElection.id) {
