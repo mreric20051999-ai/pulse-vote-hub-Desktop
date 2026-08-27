@@ -517,16 +517,14 @@ tbody tr:hover {
   font-weight: var(--fw-medium);
   cursor: pointer;
   transition: var(--transition);
-  border-left: 3px solid transparent;
 }
 .nav-item:hover {
-  background: var(--surface-2);
-  color: var(--text);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .nav-item.active {
   background: var(--accent-soft);
   color: var(--accent);
-  border-left-color: var(--accent);
 }
 .nav-item i, .nav-item .nav-ic {
   width: 22px;
