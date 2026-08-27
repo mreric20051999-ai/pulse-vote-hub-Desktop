@@ -58,14 +58,25 @@
 
     const voting = elections.filter((e) => e.status === 'voting');
     const cards = (voting.length ? voting : elections).map((e) => `
-      <div class="picker-card" data-id="${esc(e.id)}">
-        <div class="pk-title">${esc(e.title)}</div>
-        <div class="pk-meta">
-          ${e.type ? `<span>${esc(e.type)}</span>` : ''}
-          ${e.election_date ? `<span>${esc(fmtDate(e.election_date))}</span>` : ''}
-          ${e.candidate_count != null ? `<span>${e.candidate_count} candidate${e.candidate_count === 1 ? '' : 's'}</span>` : ''}
+      <div class="picker-card" data-id="${esc(e.id)}" role="button" tabindex="0">
+        <div class="pk-icon" aria-hidden="true">🗳️</div>
+        <div class="pk-body">
+          <div class="pk-top">
+            ${e.type ? `<span class="pk-type">${esc(e.type)}</span>` : ''}
+            <span class="pk-status ${e.status === 'voting' ? 'is-open' : 'is-closed'}">
+              ${e.status === 'voting' ? 'Open' : 'Not open'}
+            </span>
+          </div>
+          <div class="pk-title">${esc(e.title)}</div>
+          <div class="pk-meta">
+            ${e.election_date ? `<span>${esc(fmtDate(e.election_date))}</span>` : ''}
+            ${e.candidate_count != null ? `<span>${e.candidate_count} candidate${e.candidate_count === 1 ? '' : 's'}</span>` : ''}
+          </div>
         </div>
-        <div class="pk-go">${e.status === 'voting' ? 'Cast your vote' : 'Not open yet'}</div>
+        <div class="pk-arrow" aria-hidden="true">
+          <span class="pk-go">${e.status === 'voting' ? 'Cast vote' : 'View'}</span>
+          <span class="pk-chev">→</span>
+        </div>
       </div>`).join('');
 
     content.innerHTML = `
@@ -77,13 +88,17 @@
       <div class="picker-grid">${cards}</div>`;
 
     content.querySelectorAll('.picker-card').forEach((card) => {
-      card.addEventListener('click', async () => {
+      const open = async () => {
         const id = card.dataset.id;
         const e = elections.find((x) => x.id === id);
         if (!e) return;
         if (e.status !== 'voting') return showBlocked('This election is not open for voting yet.', true);
         election = e;
         showAccess();
+      };
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); }
       });
     });
   }
@@ -96,13 +111,20 @@
     setBackVisible(true);
     content.innerHTML = `
       <div class="kiosk-panel">
-        <div class="icon">🔐</div>
+        <div class="icon auth-icon">🔐</div>
         <h2>Voter sign in</h2>
         <p class="subtitle">Enter the voter ID and password you were issued for this election.</p>
-        <input class="input" id="vk-voter-id" type="text" placeholder="Voter ID" autocomplete="off" spellcheck="false">
-        <input class="input" id="vk-password" type="password" placeholder="Password">
-        <button class="btn btn-primary btn-xl" id="vk-submit">Continue</button>
-        <p class="kiosk-form-error" id="vk-error" style="display:none;color:var(--danger);margin-top:16px;"></p>
+        <div class="vk-field">
+          <label for="vk-voter-id">Voter ID</label>
+          <input class="input" id="vk-voter-id" type="text" placeholder="e.g. STUDENT2026" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="vk-field">
+          <label for="vk-password">Password</label>
+          <input class="input" id="vk-password" type="password" placeholder="Your password" autocomplete="off">
+        </div>
+        <button class="btn btn-primary btn-xl" id="vk-submit"><span>Continue</span></button>
+        <p class="kiosk-form-error" id="vk-error" style="display:none;color:var(--danger);margin-top:14px;"></p>
+        <p class="auth-secure"><span>🔒</span> Your vote is private and never linked to who you are.</p>
       </div>`;
 
     const idInput = $('vk-voter-id');
@@ -208,6 +230,7 @@
       <div class="ballot-scroll">
         <div class="ballot-head">
           <h1>${esc(election.title)}</h1>
+          <div class="ballot-rule"></div>
           <div class="voter-chip">Voting as <strong>${esc(voter.name || voter.voter_id)}</strong></div>
         </div>
         ${sections}
