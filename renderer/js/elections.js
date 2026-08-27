@@ -68,8 +68,11 @@
     if (!currentElection) return;
     $('positions').innerHTML = '';
 
+    // Reveal Step 3 (add candidates) once categories exist
+    $('candidates-card').hidden = currentElection.positions.length === 0;
+
     if (!currentElection.positions.length) {
-      $('positions').innerHTML = '<p class="text-muted hint">No positions yet. Add a position above.</p>';
+      $('positions').innerHTML = '<p class="text-muted hint">No categories yet. Add a category above.</p>';
     }
 
     // Populate the candidate position dropdown
@@ -84,7 +87,7 @@
           <div>
             <span class="position-title">${esc(p.title)}</span>
             <span class="position-max">max ${p.max_votes} vote${p.max_votes > 1 ? 's' : ''}</span>
-            <span class="position-time">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
+            <span class="position-count">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
           </div>
           <button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove</button>
         </div>
@@ -162,8 +165,8 @@
   async function submitCandidate() {
     const name = $('candidate-name').value.trim();
     const positionId = $('candidate-position').value;
-    if (!currentElection.id) return alert('Save the election first.');
-    if (!positionId) return alert('Select a position for this candidate.');
+    if (!(await ensureElectionSaved())) return;
+    if (!positionId) return alert('Select a category for this candidate.');
     if (!name) return alert('Enter the candidate name.');
     await window.pvh.addCandidate({ electionId: currentElection.id, positionId, name });
     $('candidate-name').value = '';
@@ -174,13 +177,30 @@
   $('add-position').addEventListener('click', async () => {
     const title = $('ptitle').value.trim();
     const maxVotes = Number($('pmax').value) || 1;
-    if (!title) return;
-    if (!currentElection.id) return alert('Save the election first.');
+    if (!title) { alert('Enter a category name.'); return; }
+    if (!(await ensureElectionSaved())) return;
     await window.pvh.addPosition(currentElection.id, title, maxVotes);
     $('ptitle').value = '';
     await refreshBuilderData();
     renderPositions();
   });
+
+  // Creates the election from the form if it doesn't exist yet, so the user
+  // can set title/type/status then immediately add categories & candidates.
+  async function ensureElectionSaved() {
+    if (currentElection.id) return true;
+    const title = $('etitle').value.trim();
+    const type = $('etype').value;
+    const status = $('estatus').value;
+    if (!title) { alert('Set an election title first.'); return false; }
+    const res = await window.pvh.createElection({ title, type });
+    if (!res.ok) { alert(res.error || 'Failed to create election'); return false; }
+    currentElection = res.election;
+    await window.pvh.setElectionStatus(currentElection.id, status);
+    await refreshBuilderData();
+    renderPositions();
+    return true;
+  }
 
   $('save-election').addEventListener('click', async () => {
     const title = $('etitle').value.trim();

@@ -59,56 +59,81 @@
       </div>
     </div>
 
-    <div class="setup-grid">
+    <div class="setup-stack">
+      <!-- Step 1: Election details -->
       <section class="card">
-        <div class="card-title">Election details</div>
+        <div class="step-head">
+          <span class="step-num">1</span>
+          <div>
+            <div class="card-title" style="margin:0;">Election details</div>
+            <p class="text-muted hint">Set the title, type and status.</p>
+          </div>
+        </div>
         <div class="field">
           <label class="label">Title</label>
           <input class="input" id="etitle" placeholder="e.g. SUG President Elections 2026">
         </div>
-        <div class="field">
-          <label class="label">Type</label>
-          <select class="select" id="etype">
-            <option value="school">School</option>
-            <option value="station">Station</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="label">Status</label>
-          <select class="select" id="estatus">
-            <option value="setup">Setup</option>
-            <option value="voting">Voting</option>
-            <option value="closed">Closed</option>
-          </select>
+        <div class="row two">
+          <div class="field">
+            <label class="label">Election type</label>
+            <select class="select" id="etype">
+              <option value="school">School</option>
+              <option value="station">Station</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">Status</label>
+            <select class="select" id="estatus">
+              <option value="setup">Setup</option>
+              <option value="voting">Voting</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
         </div>
         <button class="btn btn-primary" id="save-election">Save Election</button>
       </section>
 
+      <!-- Step 2: Add categories -->
       <section class="card">
-        <div class="card-title">Positions</div>
-        <div class="field">
-          <div class="row">
-            <input class="input" id="ptitle" placeholder="e.g. President">
-            <input class="input input-narrow" id="pmax" type="number" min="1" value="1" title="max votes per voter">
+        <div class="step-head">
+          <span class="step-num">2</span>
+          <div>
+            <div class="card-title" style="margin:0;">Add categories</div>
+            <p class="text-muted hint">Categories are the positions on the ballot (e.g. President, Treasurer).</p>
           </div>
-          <button class="btn btn-secondary" id="add-position">Add Position</button>
+        </div>
+        <div class="row">
+          <input class="input" id="ptitle" placeholder="Category name, e.g. President">
+          <input class="input input-narrow" id="pmax" type="number" min="1" value="1" title="max votes per voter">
+          <button class="btn btn-secondary" id="add-position">Add Category</button>
         </div>
         <div id="positions"></div>
       </section>
 
-      <section class="card" id="candidates-card">
-        <div class="card-title">Add candidate</div>
-        <div class="field">
-          <label class="label">Position</label>
-          <select class="select" id="candidate-position">
-            <option value="">— Select a position —</option>
-          </select>
+      <!-- Step 3: Add candidates under a category -->
+      <section class="card" id="candidates-card" hidden>
+        <div class="step-head">
+          <span class="step-num">3</span>
+          <div>
+            <div class="card-title" style="margin:0;">Add candidates</div>
+            <p class="text-muted hint">Select a category, then add candidates under it.</p>
+          </div>
         </div>
-        <div class="row">
-          <input class="input" id="candidate-name" placeholder="Candidate name">
-          <button class="btn btn-primary" id="add-candidate">Add</button>
+        <div class="row two">
+          <div class="field">
+            <label class="label">Category</label>
+            <select class="select" id="candidate-position">
+              <option value="">— Select a category —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label">Candidate name</label>
+            <div class="row">
+              <input class="input" id="candidate-name" placeholder="Candidate name">
+              <button class="btn btn-primary" id="add-candidate">Add</button>
+            </div>
+          </div>
         </div>
-        <p class="text-dim hint" id="candidate-hint">Candidates are grouped automatically under their selected position below.</p>
         <div id="candidates-list"></div>
       </section>
     </div>

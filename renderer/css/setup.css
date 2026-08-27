@@ -1,10 +1,37 @@
-/* ---------- Setup / builder layout ---------- */
+/* ---------- Setup / builder layout (vertical stack steps) ---------- */
 
-.setup-grid {
-  display: grid;
-  grid-template-columns: 380px 1fr;
+.setup-stack {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-6);
-  align-items: start;
+  max-width: 760px;
+}
+.setup-stack .card {
+  padding: var(--space-6);
+}
+
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.step-num {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-heading);
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-md);
+}
+.hint {
+  font-size: var(--fs-sm);
 }
 
 .row {
@@ -12,9 +39,20 @@
   gap: var(--space-3);
   margin-bottom: var(--space-3);
 }
+.row.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+.row.two .field {
+  margin-bottom: 0;
+}
+.row.two .row {
+  display: flex;
+}
+
 .input-narrow {
-  max-width: 90px;
-  text-align: center;
+  max-width: 100px;
 }
 
 .position-block {
@@ -41,12 +79,10 @@
   font-size: var(--fs-sm);
   margin-left: var(--space-3);
 }
-.position-time {
-  color: var(--text);
+.position-count {
+  color: var(--text-muted);
   font-size: var(--fs-sm);
-}
-.hint {
-  font-size: var(--fs-sm);
+  margin-left: var(--space-2);
 }
 .candidate-row {
   display: flex;
@@ -58,14 +94,6 @@
 }
 .candidate-row:last-child {
   border-bottom: none;
-}
-.candidate-add {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-}
-.candidate-add input {
-  flex: 1;
 }
 
 .btn-icon {
@@ -80,6 +108,12 @@
   justify-content: center;
   font-size: var(--fs-lg);
   line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .row.two {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Election cards on list view */
@@ -113,7 +147,7 @@
 }
 
 @media (max-width: 900px) {
-  .setup-grid {
-    grid-template-columns: 1fr;
+  .setup-stack {
+    max-width: 100%;
   }
 }
