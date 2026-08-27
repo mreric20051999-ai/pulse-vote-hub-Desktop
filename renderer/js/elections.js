@@ -202,6 +202,9 @@
       });
       $('positions').appendChild(block);
     });
+
+    // Inject SVG icons into dynamically-rendered buttons (e.g. camera).
+    if (window.pvhIcons) window.pvhIcons.inject('.position-block .icon');
   }
 
   // ---- Actions ----
