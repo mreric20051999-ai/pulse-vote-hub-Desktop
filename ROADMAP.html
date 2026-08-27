@@ -120,6 +120,7 @@
       <tr><td>Officer management</td><td>Add officers (Coordinator + Assistant roles), assign to devices</td></tr>
       <tr><td>Voter check-in</td><td>Officer verifies voter identity → marks as checked in → voter proceeds to vote</td></tr>
       <tr><td>Voter authentication</td><td>Voter ID + password (must be checked in first)</td></tr>
+      <tr><td>Election type rules</td><td>School: vote at any device. Station: vote only at assigned station</td></tr>
       <tr><td>Voting</td><td>Select candidate → confirm → peep sound → "Your vote has been recorded" → next voter</td></tr>
       <tr><td>Duplicate prevention</td><td>Server-side SQLite checks — same voter ID can't vote twice across all devices</td></tr>
       <tr><td>LAN sync</td><td>Multiple devices at same location connect over local network — one server, multiple clients</td></tr>
@@ -236,7 +237,9 @@ CREATE TABLE voters (
   election_id TEXT REFERENCES elections(id),
   voter_id TEXT NOT NULL,
   name TEXT,
-  password TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  assigned_station TEXT,
   has_voted INTEGER DEFAULT 0,
   voted_at INTEGER,
   position_voted TEXT
@@ -250,10 +253,11 @@ CREATE TABLE checkins (
   officer_id TEXT,
   device_id TEXT,
   timestamp INTEGER,
+  hash TEXT,
   UNIQUE(election_id, voter_id)
 );
 
--- Cast votes
+-- Cast votes (hash-chained, append-only)
 CREATE TABLE votes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   election_id TEXT,
@@ -263,16 +267,22 @@ CREATE TABLE votes (
   device_id TEXT,
   station_id TEXT,
   timestamp INTEGER,
+  prev_hash TEXT,          -- hash of previous vote (hash chain)
+  vote_hash TEXT,          -- hash of this vote's data
+  signature TEXT,          -- digital signature (if enabled)
   synced INTEGER DEFAULT 0
 );
 
--- Audit log
+-- Immutable audit log (hash-chained)
 CREATE TABLE audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   election_id TEXT,
+  officer_id TEXT,
   action TEXT,
   details TEXT,
-  timestamp INTEGER
+  timestamp INTEGER,
+  prev_hash TEXT,
+  entry_hash TEXT
 );</code></pre>
     </div>
 
@@ -282,20 +292,26 @@ CREATE TABLE audit_log (
 ├── electron/                        # Electron main process
 │   ├── main.js                      # App entry, window creation
 │   ├── preload.js                   # IPC bridge (contextBridge)
-│   ├── db.js                        # SQLite operations
-│   ├── auth.js                      # Coordinator + voter authentication
+│   ├── db.js                        # SQLite operations (encrypted)
+│   ├── auth.js                      # Coordinator + voter authentication (bcrypt)
+│   ├── security/
+│   │   ├── crypto.js                # Hashing, signatures, encryption
+│   │   ├── hashchain.js             # Vote + audit hash chain
+│   │   ├── integrity.js             # Tamper detection verification
+│   │   ├── ratelimit.js             # Login lockout + brute force protection
+│   │   └── deviceauth.js            # Device registration + whitelist
 │   ├── officer.js                   # Officer management + check-in
 │   ├── election.js                  # Election CRUD operations
 │   ├── voter.js                     # Voter management + CSV import
 │   ├── voting.js                    # Vote casting + duplicate check
 │   ├── results.js                   # Results calculation + export
 │   ├── merge.js                     # Multi-location merge tool
-│   ├── export.js                    # JSON/CSV/PDF export
+│   ├── export.js                    # JSON/CSV/PDF export (signed)
 │   ├── printer.js                   # Voter card + results printing
 │   ├── audio.js                     # Peep sound + audio feedback
 │   ├── kiosk.js                     # Kiosk lockdown
-│   ├── lan-server.js                # Express + WebSocket server (host device)
-│   ├── lan-client.js                # WebSocket client (joining devices)
+│   ├── lan-server.js                # Secure Express + WSS server
+│   ├── lan-client.js                # Secure WebSocket client
 │   └── lan-discovery.js             # mDNS auto-discovery of server
 ├── renderer/                        # Frontend (HTML/CSS/JS)
 │   ├── index.html                   # Login / first-run setup
@@ -307,6 +323,7 @@ CREATE TABLE audit_log (
 │   ├── station.html                 # Voting kiosk (voter-facing)
 │   ├── results.html                 # View + export results
 │   ├── merge.html                   # Merge tool
+│   ├── integrity.html               # Vote integrity verification report
 │   ├── css/styles.css               # App styles
 │   ├── js/                          # Renderer scripts
 │   └── assets/                      # Sounds, images
@@ -353,7 +370,26 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 3: Election Management <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 3: Security & Integrity <span class="duration">— 4-5 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Core security layer — protect votes, credentials, database, network, and audit trail.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Password hashing</td><td>bcrypt/argon2 for all officer + voter passwords — never plaintext</td></tr>
+        <tr><td>Vote hash chain</td><td>Each vote stores hash of previous vote + salt — tampering breaks chain and is detected</td></tr>
+        <tr><td>Audit hash chain</td><td>Immutable audit log — each entry hash-chained, append-only, can't be modified</td></tr>
+        <tr><td>DB encryption</td><td>Encrypt SQLite file with <code>sqlcipher</code> (AES-256) — stolen file is unreadable</td></tr>
+        <tr><td>Atomic vote transaction</td><td>Duplicate check + vote write in one SQLite transaction — can't be interrupted</td></tr>
+        <tr><td>Vote signatures</td><td>Each vote digitally signed with app key (HSM/OS keychain)</td></tr>
+        <tr><td>Integrity verification</td><td>On start/close, verify full hash chain + <code>PRAGMA integrity_check</code> — detects tampering</td></tr>
+        <tr><td>Login lockout</td><td>5 failed attempts → 5-minute lockout — brute force protection</td></tr>
+        <tr><td>Role-based access</td><td>Coordinator = full, Assistant = check-in only — enforced server-side</td></tr>
+        <tr><td>Audio-visual feedback</td><td>Confirmation + error sounds; visual status for integrity checks</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Elections run with tamper-evident vote records, encrypted DB, and full audit trail.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 4: Election Management <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Create elections, add positions, add candidates.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -368,21 +404,22 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 4: Voter Management <span class="duration">— 2-3 days</span></h3>
-      <p style="color: #94a3b8; margin-bottom: 12px;">Import voters, auto-generate credentials, print voter cards.</p>
+      <h3>Phase 5: Voter Management <span class="duration">— 2-3 days</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Import voters, auto-generate credentials, assign stations, print voter cards.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
-        <tr><td>CSV import</td><td>Import voters from CSV (VoterID, Name, Password)</td></tr>
+        <tr><td>CSV import</td><td>Import voters from CSV (VoterID, Name, Password, AssignedStation)</td></tr>
         <tr><td>Auto-generate</td><td>Generate VoterIDs + passwords for N voters</td></tr>
+        <tr><td>Station assignment</td><td>Assign voters to stations (Station ID in voter record) — for station elections</td></tr>
         <tr><td>Voter list view</td><td>Table with search, filter, edit, delete</td></tr>
-        <tr><td>Print voter cards</td><td>Generate printable voter cards (ID + password + QR code)</td></tr>
+        <tr><td>Print voter cards</td><td>Generate printable voter cards (ID + password + assigned station + QR code)</td></tr>
         <tr><td>Duplicate detection</td><td>Prevent duplicate voter IDs within same election</td></tr>
       </table>
-      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can import/generate voters and print voter cards.</p>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can import/generate voters, assign to stations, and print voter cards.</p>
     </div>
 
     <div class="phase-card">
-      <h3>Phase 5: Officer Management <span class="duration">— 1-2 days</span></h3>
+      <h3>Phase 6: Officer Management <span class="duration">— 1-2 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Add election officers, assign roles, manage check-in devices.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -397,7 +434,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 6: Check-In Flow <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 7: Check-In Flow <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Officer check-in desk — verify voter identity before voting.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -413,13 +450,15 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 7: Voting Flow <span class="duration">— 3-4 days</span></h3>
+      <h3>Phase 8: Voting Flow <span class="duration">— 3-4 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter. Supports multiple devices via LAN. Requires check-in first.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
         <tr><td>Voter auth screen</td><td>Voter enters ID + password → system verifies they're checked in</td></tr>
         <tr><td>Check-in verification</td><td>Validate voter ID against checkins table — must be checked in to vote</td></tr>
         <tr><td>Not checked in</td><td>If voter not in checkins table → show "Please check in first" → redirect to check-in desk</td></tr>
+        <tr><td>Station eligibility check</td><td>Station election: verify voter's assigned_station matches current station → if not, show "You must vote at your assigned station"</td></tr>
+        <tr><td>School eligibility</td><td>School election: no station restriction — vote at any device</td></tr>
         <tr><td>Ballot screen</td><td>Shows candidates for current position → voter selects</td></tr>
         <tr><td>Confirm vote</td><td>"Are you sure?" → confirm → peep sound → "Your vote has been recorded"</td></tr>
         <tr><td>Already voted</td><td>If voter ID found in votes table → show "Already voted" message</td></tr>
@@ -429,11 +468,11 @@ CREATE TABLE audit_log (
         <tr><td>Close voting</td><td>Coordinator can close voting → results become viewable</td></tr>
         <tr><td>Client fallback</td><td>If server goes down, client caches votes locally, syncs when server returns</td></tr>
       </table>
-      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete voting flow — check-in → auth → vote → confirm → next voter.</p>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Complete voting flow — check-in → station check → auth → vote → confirm → next voter.</p>
     </div>
 
     <div class="phase-card">
-      <h3>Phase 8: Results & Reporting <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 9: Results & Reporting <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">View results, export to file, print.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -450,7 +489,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 9: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
+      <h3>Phase 10: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations with global duplicate detection.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -466,7 +505,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 10: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 11: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Kiosk lockdown, audio, printing, distribution.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -486,23 +525,27 @@ CREATE TABLE audit_log (
     <div class="timeline">
       <div class="timeline-item">
         <div class="week">Week 1</div>
-        <p>Phase 1: Foundation + Phase 2: LAN Networking</p>
+        <p>Phase 1: Foundation + Phase 2: LAN Networking (start)</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 2</div>
-        <p>Phase 3: Election Management + Phase 4: Voter Management</p>
+        <p>Phase 2: LAN Networking (finish) + Phase 3: Security & Integrity (start)</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 3</div>
-        <p>Phase 5: Officer Management + Phase 6: Check-In Flow</p>
+        <p>Phase 3: Security (finish) + Phase 4: Election Management</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 4</div>
-        <p>Phase 7: Voting Flow + Phase 8: Results & Reporting</p>
+        <p>Phase 5: Voter Management + Phase 6: Officer Management + Phase 7: Check-In</p>
       </div>
       <div class="timeline-item">
         <div class="week">Week 5</div>
-        <p>Phase 9: Multi-Location Merge + Phase 10: Polish & Packaging</p>
+        <p>Phase 8: Voting Flow + Phase 9: Results & Reporting</p>
+      </div>
+      <div class="timeline-item">
+        <div class="week">Week 6</div>
+        <p>Phase 10: Multi-Location Merge + Phase 11: Polish & Packaging</p>
       </div>
     </div>
 
@@ -526,12 +569,15 @@ CREATE TABLE audit_log (
       <tr><td>npm</td><td>✅ Installed</td><td>Package manager</td></tr>
       <tr><td>Electron</td><td>✅ Installed</td><td>Desktop runtime</td></tr>
       <tr><td><code>better-sqlite3</code></td><td>✅ Installed</td><td>Local database</td></tr>
-      <tr><td><code>express</code></td><td>⏳ Install Phase 2</td><td>LAN server</td></tr>
+      <tr><td>Express</td><td>⏳ Install Phase 2</td><td>LAN server</td></tr>
       <tr><td><code>ws</code></td><td>⏳ Install Phase 2</td><td>WebSocket for real-time sync</td></tr>
       <tr><td><code>bonjour-service</code></td><td>⏳ Install Phase 2</td><td>mDNS auto-discovery</td></tr>
-      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 10</td><td>Packaging</td></tr>
-      <tr><td><code>csv-parse</code></td><td>⏳ Install Phase 4</td><td>CSV import</td></tr>
-      <tr><td><code>pdfkit</code></td><td>⏳ Install Phase 8</td><td>PDF export</td></tr>
+      <tr><td><code>bcrypt</code></td><td>⏳ Install Phase 3</td><td>Password hashing</td></tr>
+      <tr><td><code>sqlcipher</code></td><td>⏳ Install Phase 3</td><td>Encrypted database</td></tr>
+      <tr><td><code>node-forge</code> / <code>jose</code></td><td>⏳ Install Phase 3</td><td>Signatures, encryption</td></tr>
+      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 11</td><td>Packaging</td></tr>
+      <tr><td><code>csv-parse</code></td><td>✅ Installed</td><td>CSV import</td></tr>
+      <tr><td><code>pdfkit</code></td><td>✅ Installed</td><td>PDF export</td></tr>
     </table>
 
     <div class="summary-box">
