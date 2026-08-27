@@ -23,11 +23,11 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "csv-parse": "^7.0.2",
-    "electron": "^44.0.0",
     "pdfkit": "^0.20.1",
     "uuid": "^14.0.2"
   },
   "devDependencies": {
+    "electron": "^43.4.1",
     "electron-builder": "^26.15.3"
   }
 }

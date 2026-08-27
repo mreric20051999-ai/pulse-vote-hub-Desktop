@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulse Vote Hub Desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="auth-body">
+  <div class="auth-bg" aria-hidden="true"></div>
+
+  <div class="auth-card">
+    <div class="auth-brand">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub" class="auth-logo">
+      <div class="auth-title">Pulse Vote Hub</div>
+      <div class="auth-subtitle">Desktop Election System</div>
+    </div>
+
+    <!-- First-run setup -->
+    <div id="setup-view" class="auth-view" hidden>
+      <h2 class="auth-heading">Set up your coordinator</h2>
+      <p class="auth-hint">Create the primary administrator account.</p>
+      <form id="setup-form">
+        <div class="field">
+          <label class="label" for="setup-name">Full name</label>
+          <input class="input" id="setup-name" type="text" autocomplete="name" placeholder="e.g. Jane Doe">
+        </div>
+        <div class="field">
+          <label class="label" for="setup-id">Coordinator ID</label>
+          <input class="input" id="setup-id" type="text" autocomplete="username" placeholder="e.g. CO1">
+        </div>
+        <div class="field">
+          <label class="label" for="setup-pass">Password</label>
+          <input class="input" id="setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="setup-btn">Create Coordinator</button>
+      </form>
+      <p class="auth-error" id="setup-error"></p>
+    </div>
+
+    <!-- Login -->
+    <div id="login-view" class="auth-view" hidden>
+      <h2 class="auth-heading">Officer sign in</h2>
+      <p class="auth-hint">Enter your officer ID and password.</p>
+      <form id="login-form">
+        <div class="field">
+          <label class="label" for="login-id">Officer ID</label>
+          <input class="input" id="login-id" type="text" autocomplete="username" placeholder="e.g. CO1">
+        </div>
+        <div class="field">
+          <label class="label" for="login-pass">Password</label>
+          <input class="input" id="login-pass" type="password" autocomplete="current-password" placeholder="Your password">
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-btn">Sign in</button>
+      </form>
+      <p class="auth-error" id="login-error"></p>
+    </div>
+
+    <div class="auth-footer">Secure Offline Voting &middot; <span id="auth-version"></span></div>
+  </div>
+
+  <script src="js/login.js"></script>
+</body>
+</html>

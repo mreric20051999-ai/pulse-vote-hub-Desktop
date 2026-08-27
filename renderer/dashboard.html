@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+      <span>Pulse Vote Hub</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" href="#" data-nav="dashboard"><i aria-hidden="true">&#9633;</i>Dashboard</a>
+      <a class="nav-item" href="#" data-nav="elections"><i aria-hidden="true">&#9633;</i>Elections</a>
+      <a class="nav-item" href="#" data-nav="voters"><i aria-hidden="true">&#9633;</i>Voters</a>
+      <a class="nav-item" href="#" data-nav="officers"><i aria-hidden="true">&#9633;</i>Officers</a>
+      <a class="nav-item" href="#" data-nav="results"><i aria-hidden="true">&#9633;</i>Results</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="officer-chip">
+        <div class="officer-name" id="officer-name">—</div>
+        <div class="officer-role" id="officer-role">—</div>
+        <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Dashboard</h1>
+        <p id="page-subtitle">Overview of your elections</p>
+      </div>
+      <div class="page-actions">
+        <span class="pill pill-info" id="status-pill"><span class="status-dot info"></span>Loading</span>
+      </div>
+    </div>
+
+    <section class="stat-grid">
+      <div class="card stat-card">
+        <div class="stat-label">Active Election</div>
+        <div class="stat-value" id="stat-active">—</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Setup</div>
+        <div class="stat-value" id="stat-setup">—</div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-label">Closed</div>
+        <div class="stat-value" id="stat-closed">—</div>
+      </div>
+    </section>
+
+    <section class="card panel">
+      <div class="card-title">Getting started</div>
+      <p class="text-muted">
+        This is a placeholder dashboard. Election management, voters, officers,
+        check-in and voting flows are wired up in the upcoming phases.
+      </p>
+    </section>
+  </main>
+
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

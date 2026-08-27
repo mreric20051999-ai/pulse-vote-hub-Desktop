@@ -1,0 +1,103 @@
+/* ---------- Auth (login / setup) screen ---------- */
+
+.auth-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: var(--space-6);
+}
+
+/* Background matching the splash theme */
+.auth-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(1200px 800px at 15% -10%, rgba(37, 99, 235, 0.28), transparent 55%),
+    radial-gradient(1000px 700px at 100% 110%, rgba(185, 28, 28, 0.20), transparent 55%),
+    radial-gradient(900px 600px at 85% -10%, rgba(30, 64, 175, 0.32), transparent 60%),
+    var(--bg);
+}
+.auth-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border-strong) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-strong) 1px, transparent 1px);
+  background-size: 64px 64px;
+  opacity: 0.12;
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(circle at 50% 40%, #000 20%, transparent 78%);
+}
+
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-lg);
+}
+
+.auth-brand {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+.auth-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin-bottom: var(--space-3);
+}
+.auth-title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+}
+.auth-subtitle {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  margin-top: 2px;
+}
+
+.auth-view {
+  animation: splashIn 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.auth-heading {
+  font-size: var(--fs-lg);
+  text-align: center;
+  margin-bottom: var(--space-1);
+}
+.auth-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+  margin-bottom: var(--space-5);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.auth-error {
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  text-align: center;
+  margin-top: var(--space-4);
+  min-height: 1.2em;
+}
+
+.auth-footer {
+  margin-top: var(--space-8);
+  text-align: center;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
