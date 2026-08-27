@@ -12,6 +12,15 @@
     return `<span class="pill ${cls}">${label}</span>`;
   }
 
+  // Update the builder's status pill in place (keeps its #builder-status id).
+  function renderStatusPill(status) {
+    const el = $('builder-status');
+    if (!el) return;
+    const [cls, label] = STATUS[status] || ['pill', status];
+    el.className = `pill ${cls}`;
+    el.textContent = label;
+  }
+
   function fmtDate(ts) {
     if (!ts) return 'No date set';
     const d = new Date(ts);
@@ -91,7 +100,7 @@
     etypeDD.set(e ? e.type : 'school');
     estatusDD.set(e ? e.status : 'setup');
     setDateFields(e);
-    $('builder-status').outerHTML = statusPill(e ? e.status : 'setup');
+    renderStatusPill(e ? e.status : 'setup');
     renderPositions();
   }
 
@@ -231,7 +240,7 @@
     etypeDD.set('school');
     estatusDD.set('setup');
     setDateFields(null);
-    $('builder-status').outerHTML = statusPill('setup');
+    renderStatusPill('setup');
     renderPositions();
   });
 
@@ -251,6 +260,8 @@
     $('ptitle').value = '';
     await refreshBuilderData();
     renderPositions();
+    const newInput = document.querySelector('.position-block:last-child .cand-name');
+    if (newInput) newInput.focus();
   });
 
   // Creates the election from the form if it doesn't exist yet, so the user
@@ -287,14 +298,14 @@
     }
     await refreshBuilderData();
     $('builder-title').textContent = currentElection.title;
-    $('builder-status').outerHTML = statusPill(currentElection.status);
+    renderStatusPill(currentElection.status);
   });
 
   async function refreshBuilderData() {
     currentElection.positions = await window.pvh.listPositions(currentElection.id);
     currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
     $('builder-title').textContent = currentElection.title;
-    $('builder-status').outerHTML = statusPill(currentElection.status);
+    renderStatusPill(currentElection.status);
   }
 
   loadList();
