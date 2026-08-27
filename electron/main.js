@@ -216,3 +216,5 @@ ipcMain.handle('voter:autogen', (_e, electionId, opts) => voter.autoGenerate(ele
 ipcMain.handle('voter:delete', (_e, electionId, voterId) => voter.deleteVoter(electionId, voterId));
 ipcMain.handle('voter:clear', (_e, electionId) => voter.clearVoters(electionId));
 ipcMain.handle('voter:unvote', (_e, electionId, voterId) => voter.unvoteVoter(electionId, voterId));
+ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
+ipcMain.handle('voter:cast', (_e, electionId, voterId, selection) => voter.castVote(electionId, voterId, selection));

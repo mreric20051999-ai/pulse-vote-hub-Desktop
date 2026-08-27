@@ -198,7 +198,100 @@ function clearVoters(electionId) {
 function unvoteVoter(electionId, voterId) {
   db.get().prepare('UPDATE voters SET has_voted = 0, voted_at = NULL, position_voted = NULL WHERE election_id = ? AND voter_id = ?')
     .run(electionId, voterId);
+  db.get().prepare('DELETE FROM votes WHERE election_id = ? AND voter_id = ?').run(electionId, voterId);
   return { ok: true };
+}
+
+// ---- Kiosk voter verification + ballot casting ----
+
+function verifyVoter(electionId, voterId, password) {
+  const row = db.get().prepare(
+    'SELECT id, voter_id, name, password_hash, assigned_station, has_voted, voted_at FROM voters WHERE election_id = ? AND voter_id = ?'
+  ).get(electionId, String(voterId || '').trim().toUpperCase());
+  if (!row) return { ok: false, error: 'Voter not found', code: 'not-found' };
+  if (row.has_voted) return { ok: false, error: 'This voter has already cast a ballot.', code: 'already-voted' };
+
+  const expected = Buffer.from(row.password_hash, 'hex');
+  const actual = Buffer.from(auth.hashPassword(String(password || ''), fallbackSalt()), 'hex');
+  const matches = expected.length === actual.length && crypto.timingSafeEqual(actual, expected);
+  if (!matches) return { ok: false, error: 'Invalid voter ID or password.', code: 'bad-credentials' };
+
+  return {
+    ok: true,
+    voter: {
+      voter_id: row.voter_id,
+      name: row.name,
+      assigned_station: row.assigned_station,
+    },
+  };
+}
+
+// Record a cast ballot for a verified voter.
+// selection: [{ positionId, candidateId }] — one entry per selected candidate.
+function castVote(electionId, voterId, selection) {
+  const d = db.get();
+
+  const election = d.prepare('SELECT id, title, status FROM elections WHERE id = ?').get(electionId);
+  if (!election) return { ok: false, error: 'Election not found', code: 'no-election' };
+  if (election.status !== 'voting') return { ok: false, error: 'This election is not open for voting.', code: 'not-open' };
+
+  const voterRow = d.prepare(
+    'SELECT id, voter_id FROM voters WHERE election_id = ? AND voter_id = ?'
+  ).get(electionId, String(voterId || '').trim().toUpperCase());
+  if (!voterRow) return { ok: false, error: 'Voter not found', code: 'not-found' };
+  if (voterRow.has_voted) return { ok: false, error: 'This voter has already cast a ballot.', code: 'already-voted' };
+
+  if (!selection || !selection.length) {
+    return { ok: false, error: 'No selections made.', code: 'empty' };
+  }
+
+  const insertVote = d.prepare(`
+    INSERT INTO votes (election_id, position_id, candidate_id, voter_id, timestamp, prev_hash, vote_hash, synced)
+    VALUES (@election_id, @position_id, @candidate_id, @voter_id, @timestamp, @prev_hash, @vote_hash, 0)
+  `);
+
+  const now = Date.now();
+  const prev = d.prepare('SELECT vote_hash FROM votes ORDER BY id DESC LIMIT 1').get();
+  let prevHash = prev ? prev.vote_hash : null;
+
+  const tx = d.transaction(() => {
+    // Validate every selection belongs to this election before writing anything.
+    for (const sel of selection) {
+      const cand = d.prepare(
+        'SELECT id FROM candidates WHERE id = ? AND election_id = ? AND position_id = ?'
+      ).get(sel.candidateId, electionId, sel.positionId);
+      if (!cand) return { ok: false, error: 'Invalid candidate selection.', code: 'invalid' };
+    }
+
+    const positionTitles = d.prepare('SELECT id, title FROM positions WHERE election_id = ?').all(electionId);
+    const titleByPos = new Map(positionTitles.map((p) => [p.id, p.title]));
+    const votedPositions = new Set();
+
+    for (const sel of selection) {
+      const raw = `${election.id}|${sel.candidateId}|${voterRow.voter_id}|${now}`;
+      const voteHash = crypto.createHash('sha256').update(raw).digest('hex');
+      insertVote.run({
+        election_id: electionId,
+        position_id: sel.positionId,
+        candidate_id: sel.candidateId,
+        voter_id: voterRow.voter_id,
+        timestamp: now,
+        prev_hash: prevHash,
+        vote_hash: voteHash,
+      });
+      prevHash = voteHash;
+      votedPositions.add(sel.positionId);
+    }
+
+    const positionLabel = [...votedPositions].map((id) => titleByPos.get(id) || '').filter(Boolean).join(', ');
+    d.prepare('UPDATE voters SET has_voted = 1, voted_at = ?, position_voted = ? WHERE id = ?')
+      .run(now, positionLabel || null, voterRow.id);
+    return { ok: true, count: selection.length };
+  });
+
+  const res = tx();
+  if (!res.ok) return res;
+  return { ok: true, count: res.count, timestamp: now };
 }
 
 // ---- helpers ----
@@ -250,6 +343,8 @@ module.exports = {
   deleteVoter,
   clearVoters,
   unvoteVoter,
+  verifyVoter,
+  castVote,
   generateVoterId,
   generatePassword,
 };

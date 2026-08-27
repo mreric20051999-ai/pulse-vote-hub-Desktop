@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('pvh', {
   deleteVoter: (eid, vid) => ipcRenderer.invoke('voter:delete', eid, vid),
   clearVoters: (eid) => ipcRenderer.invoke('voter:clear', eid),
   unvoteVoter: (eid, vid) => ipcRenderer.invoke('voter:unvote', eid, vid),
+  verifyVoter: (eid, vid, pwd) => ipcRenderer.invoke('voter:verify', eid, vid, pwd),
+  castVote: (eid, vid, sel) => ipcRenderer.invoke('voter:cast', eid, vid, sel),
 
   setupCheck: () => ipcRenderer.invoke('auth:setup-check'),
   setupCoordinator: (payload) => ipcRenderer.invoke('auth:setup', payload),
