@@ -127,6 +127,23 @@
     </div>
   </main>
 
+  <!-- Preview Ballot modal -->
+  <div class="modal-overlay" id="preview-modal" hidden>
+    <div class="ballot-sheet">
+      <div class="ballot-sheet-head">
+        <div>
+          <div class="ballot-sheet-kicker">Ballot preview</div>
+          <div class="ballot-sheet-title" id="pb-title">—</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="pb-close">Close</button>
+      </div>
+      <div class="ballot-sheet-body" id="pb-body"></div>
+      <div class="ballot-sheet-foot">
+        <p class="text-muted hint" style="margin:0;">This is how the ballot will appear to voters (ballot numbers are auto-assigned per category).</p>
+      </div>
+    </div>
+  </div>
+
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/elections.js"></script>

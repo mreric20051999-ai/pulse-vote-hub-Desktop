@@ -101,7 +101,11 @@
     estatusDD.set(e ? e.status : 'setup');
     setDateFields(e);
     renderStatusPill(e ? e.status : 'setup');
-    renderPositions();
+    if (currentElection.id) {
+      await refreshBuilderData();
+    } else {
+      renderPositions();
+    }
   }
 
   function renderPositions() {
@@ -336,11 +340,69 @@
     renderStatusPill(currentElection.status);
   });
 
+  function openPreviewModal() {
+    $('preview-modal').hidden = false;
+  }
+  function closePreviewModal() {
+    $('preview-modal').hidden = true;
+  }
+
+  function previewBallot() {
+    if (!currentElection) return alert('Nothing to preview yet.');
+    const candidates = currentElection.candidates || [];
+    const positions = currentElection.positions || [];
+
+    const title = currentElection.title || $('etitle').value.trim() || 'Untitled Election';
+    $('pb-title').textContent = title;
+
+    const body = $('pb-body');
+    if (!positions.length) {
+      body.innerHTML = '<p class="ballot-empty">No categories yet. Add a category to preview the ballot.</p>';
+      openPreviewModal();
+      return;
+    }
+
+    body.innerHTML = positions.map((p) => {
+      const cands = candidates.filter((c) => c.position_id === p.id);
+      const rows = cands.length
+        ? cands.map((c) => `
+            <div class="ballot-cand">
+              <span class="ballot-badge">${esc(c.ballot_number)}</span>
+              <span class="ballot-cand-photo" data-photo="${esc(c.photo_path || '')}">${c.photo_path ? '' : ''}</span>
+              <span class="ballot-cand-name">${esc(c.name)}</span>
+            </div>`).join('')
+        : '<div class="ballot-empty">No candidates in this category yet.</div>';
+      return `
+        <div class="ballot-section">
+          <div class="ballot-section-head">${esc(p.title)} <span class="text-muted" style="font-weight:400;text-transform:none;letter-spacing:0;">· vote for up to ${p.max_votes}</span></div>
+          ${rows}
+        </div>`;
+    }).join('');
+
+    // Resolve stored photo paths to usable file URLs.
+    body.querySelectorAll('span[data-photo]').forEach((el) => {
+      if (!el.dataset.photo) return;
+      const img = document.createElement('img');
+      img.className = 'ballot-cand-photo';
+      img.alt = '';
+      window.pvh.candidatePhotoUrl(el.dataset.photo).then((url) => { if (url) img.src = url; });
+      el.replaceWith(img);
+    });
+
+    openPreviewModal();
+  }
+
+  $('preview-ballot').addEventListener('click', previewBallot);
+  $('pb-close').addEventListener('click', closePreviewModal);
+  $('preview-modal').addEventListener('click', (e) => { if (e.target === $('preview-modal')) closePreviewModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePreviewModal(); });
+
   async function refreshBuilderData() {
     currentElection.positions = await window.pvh.listPositions(currentElection.id);
     currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
     $('builder-title').textContent = currentElection.title;
     renderStatusPill(currentElection.status);
+    renderPositions();
   }
 
   loadList();
