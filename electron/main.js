@@ -4,6 +4,7 @@ const fs = require('fs');
 
 const db = require('./db');
 const auth = require('./auth');
+const election = require('./election');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -160,3 +161,21 @@ function stripSecret(o) {
   const { password, password_salt, ...rest } = o;
   return rest;
 }
+
+// ---------- Election IPC ----------
+
+ipcMain.handle('election:list', () => election.listElections());
+ipcMain.handle('election:get', (_e, id) => election.getElection(id));
+ipcMain.handle('election:create', (_e, payload) => election.createElection(payload));
+ipcMain.handle('election:update', (_e, id, payload) => election.updateElection(id, payload));
+ipcMain.handle('election:status', (_e, id, status) => election.setStatus(id, status));
+ipcMain.handle('election:delete', (_e, id) => election.deleteElection(id));
+
+ipcMain.handle('election:positions', (_e, electionId) => election.listPositions(electionId));
+ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes) => election.addPosition(electionId, title, maxVotes));
+ipcMain.handle('election:position-remove', (_e, id) => election.removePosition(id));
+
+ipcMain.handle('election:candidates', (_e, electionId) => election.listCandidates(electionId));
+ipcMain.handle('election:candidates-by-position', (_e, positionId) => election.listCandidatesByPosition(positionId));
+ipcMain.handle('election:candidate-add', (_e, payload) => election.addCandidate(payload));
+ipcMain.handle('election:candidate-remove', (_e, id) => election.removeCandidate(id));
