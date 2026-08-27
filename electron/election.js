@@ -138,7 +138,7 @@ function removePosition(id) {
 
 // ---- Candidates ----
 
-function addCandidate({ electionId, positionId, name }) {
+function addCandidate({ electionId, positionId, name, photo_path }) {
   if (!getElection(electionId)) return { ok: false, error: 'Election not found' };
   if (!name || !String(name).trim()) return { ok: false, error: 'Candidate name is required' };
 
@@ -154,7 +154,7 @@ function addCandidate({ electionId, positionId, name }) {
     election_id: electionId,
     position_id: positionId,
     name: String(name).trim(),
-    photo_path: null,
+    photo_path: photo_path || null,
     ballot_number: ballotNumber,
     sort_order: sortOrder,
   };

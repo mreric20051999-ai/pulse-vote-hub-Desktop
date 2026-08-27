@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -180,6 +180,31 @@ ipcMain.handle('election:candidates', (_e, electionId) => election.listCandidate
 ipcMain.handle('election:candidates-by-position', (_e, positionId) => election.listCandidatesByPosition(positionId));
 ipcMain.handle('election:candidate-add', (_e, payload) => election.addCandidate(payload));
 ipcMain.handle('election:candidate-remove', (_e, id) => election.removeCandidate(id));
+
+// Opens a file dialog for a candidate photo, copies the chosen image into the
+// app's data folder, and returns the stored relative path (or null if cancelled).
+ipcMain.handle('candidate:pick-photo', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose a candidate photo',
+    properties: ['openFile'],
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+  });
+  if (canceled || !filePaths || !filePaths[0]) return null;
+  const src = filePaths[0];
+  const photosDir = path.join(db.getDataDir(), 'candidate-photos');
+  fs.mkdirSync(photosDir, { recursive: true });
+  const dest = path.join(photosDir, `${Date.now()}_${path.basename(src)}`);
+  fs.copyFileSync(src, dest);
+  return path.relative(db.getDataDir(), dest);
+});
+
+// Resolve a stored candidate photo path to a loadable file:// URL.
+ipcMain.handle('candidate:photo-url', (_e, storedPath) => {
+  if (!storedPath) return null;
+  const abs = path.isAbsolute(storedPath) ? storedPath : path.join(db.getDataDir(), storedPath);
+  if (!fs.existsSync(abs)) return null;
+  return `file://${abs}`;
+});
 
 // ---------- Voter IPC ----------
 

@@ -127,27 +127,59 @@
         </div>
         <div class="cand-list"></div>
         <div class="cand-add">
+          <button class="btn btn-secondary btn-sm cand-photo-btn" title="Add photo">
+            <span class="icon" data-icon="camera"></span>
+          </button>
+          <img class="cand-photo-preview" data-id="preview" alt="" hidden>
           <input class="input cand-name" placeholder="Candidate name (ballot #${(cands.length + 1)} auto-assigned)">
           <button class="btn btn-secondary btn-sm cand-add-btn">Add</button>
         </div>
       `;
+      let selectedPhoto = null;
+
       const candList = block.querySelector('.cand-list');
-      candList.innerHTML = cands.length
-        ? cands.map((c) => `
-            <div class="candidate-row">
-              <span class="cand-name-line"><span class="ballot-badge">${c.ballot_number}</span>${esc(c.name)}</span>
-              <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
-            </div>
-          `).join('')
-        : '<div class="candidate-row text-dim">No candidates in this category yet.</div>';
+      const renderRows = () => {
+        candList.innerHTML = cands.length
+          ? cands.map((c) => `
+              <div class="candidate-row">
+                <span class="cand-name-line">
+                  <span class="ballot-badge">${c.ballot_number}</span>
+                  <span class="cand-photo-thumb">${c.photo_path ? `<img src="#" data-photo="${esc(c.photo_path)}" alt="">` : ''}</span>
+                  ${esc(c.name)}
+                </span>
+                <button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
+              </div>
+            `).join('')
+          : '<div class="candidate-row text-dim">No candidates in this category yet.</div>';
+        // Resolve stored photo paths to usable file URLs.
+        candList.querySelectorAll('img[data-photo]').forEach((img) => {
+          window.pvh.candidatePhotoUrl(img.dataset.photo).then((url) => { if (url) img.src = url; });
+        });
+      };
+      renderRows();
+
+      // Photo picker button for the next candidate in this category.
+      block.querySelector('.cand-photo-btn').addEventListener('click', async () => {
+        const stored = await window.pvh.pickCandidatePhoto();
+        if (!stored) return;
+        selectedPhoto = stored;
+        const prev = block.querySelector('.cand-photo-preview');
+        prev.hidden = false;
+        const url = await window.pvh.candidatePhotoUrl(stored);
+        if (url) prev.src = url;
+      });
 
       const addCandidate = async () => {
         if (!(await ensureElectionSaved())) return;
         const input = block.querySelector('.cand-name');
         const name = input.value.trim();
         if (!name) { alert('Enter a candidate name.'); return; }
-        await window.pvh.addCandidate({ electionId: currentElection.id, positionId: p.id, name });
+        await window.pvh.addCandidate({ electionId: currentElection.id, positionId: p.id, name, photo_path: selectedPhoto });
         input.value = '';
+        selectedPhoto = null;
+        const prev = block.querySelector('.cand-photo-preview');
+        prev.hidden = true;
+        prev.removeAttribute('src');
         currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
         renderPositions();
       };

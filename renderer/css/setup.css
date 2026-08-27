@@ -225,6 +225,7 @@
 /* Inline add-candidate row under each category */
 .cand-add {
   display: flex;
+  align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
   border-top: 1px solid var(--border);
@@ -237,6 +238,45 @@
 .cand-add .btn {
   flex-shrink: 0;
   align-self: stretch;
+}
+.cand-photo-btn {
+  flex-shrink: 0;
+  align-self: stretch !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cand-photo-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+.cand-photo-btn .icon svg {
+  width: 18px;
+  height: 18px;
+}
+.cand-photo-preview {
+  width: 38px;
+  height: 38px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+.cand-photo-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--surface-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cand-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .btn-icon {

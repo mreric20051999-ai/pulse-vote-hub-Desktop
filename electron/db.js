@@ -135,6 +135,24 @@ function migrate() {
   };
   addColumn('elections', 'election_date', 'INTEGER');
   addColumn('candidates', 'ballot_number', 'INTEGER');
+
+  // Backfill ballot numbers for candidates that predate the column.
+  backfillBallotNumbers();
+}
+
+// Assign sequential ballot numbers (per category) to any candidates that
+// don't have one yet, ordered by their sort order.
+function backfillBallotNumbers() {
+  const rows = db.prepare(
+    'SELECT id, position_id FROM candidates WHERE ballot_number IS NULL ORDER BY position_id, sort_order'
+  ).all();
+  const perPos = new Map();
+  for (const r of rows) {
+    let n = perPos.get(r.position_id) || 0;
+    n += 1;
+    perPos.set(r.position_id, n);
+    db.prepare('UPDATE candidates SET ballot_number = ? WHERE id = ?').run(n, r.id);
+  }
 }
 
 function get() {

@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('pvh', {
   listCandidatesByPosition: (pid) => ipcRenderer.invoke('election:candidates-by-position', pid),
   addCandidate: (p) => ipcRenderer.invoke('election:candidate-add', p),
   removeCandidate: (id) => ipcRenderer.invoke('election:candidate-remove', id),
+  pickCandidatePhoto: () => ipcRenderer.invoke('candidate:pick-photo'),
+  candidatePhotoUrl: (p) => ipcRenderer.invoke('candidate:photo-url', p),
 
   listVoters: (eid, opts) => ipcRenderer.invoke('voter:list', eid, opts),
   getVoter: (eid, vid) => ipcRenderer.invoke('voter:get', eid, vid),
