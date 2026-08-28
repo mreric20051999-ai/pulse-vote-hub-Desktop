@@ -23,7 +23,7 @@ function getVoter(electionId, voterId) {
 }
 
 // Add a single voter (name optional; voterId auto-generated if not given)
-function addVoter({ electionId, name, voterId, assignedStation, password }) {
+function addVoter({ electionId, name, voterId, assignedStation, password, phone }) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
 
   const finalVoterId = (voterId && String(voterId).trim()) ? String(voterId).trim().toUpperCase() : generateVoterId();
@@ -33,8 +33,8 @@ function addVoter({ electionId, name, voterId, assignedStation, password }) {
 
   const d = db.get();
   d.prepare(`
-    INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, assigned_station, has_voted)
-    VALUES (@id, @election_id, @voter_id, @name, @password_hash, @password_salt, @assigned_station, 0)
+    INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, plain_password, phone, assigned_station, has_voted)
+    VALUES (@id, @election_id, @voter_id, @name, @password_hash, @password_salt, @plain_password, @phone, @assigned_station, 0)
   `).run({
     id: uuidv4(),
     election_id: electionId,
@@ -42,10 +42,12 @@ function addVoter({ electionId, name, voterId, assignedStation, password }) {
     name: name ? String(name).trim() : null,
     password_hash: auth.hashPassword(finalPassword, fallbackSalt()),
     password_salt: '',
+    plain_password: finalPassword,
+    phone: phone ? String(phone).trim() : null,
     assigned_station: assignedStation ? String(assignedStation).trim() : null,
   });
 
-  return { ok: true, voter: { voter_id: finalVoterId, password: finalPassword, name, assigned_station: assignedStation } };
+  return { ok: true, voter: { voter_id: finalVoterId, password: finalPassword, name, phone: phone || null, assigned_station: assignedStation } };
 }
 
 // Import voters from a CSV string.
@@ -63,8 +65,8 @@ function importCsv(electionId, csvText) {
 
   const d = db.get();
   const insert = d.prepare(`
-    INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, assigned_station, has_voted)
-    VALUES (@id, @election_id, @voter_id, @name, @password_hash, @password_salt, @assigned_station, 0)
+    INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, plain_password, phone, assigned_station, has_voted)
+    VALUES (@id, @election_id, @voter_id, @name, @password_hash, @password_salt, @plain_password, @phone, @assigned_station, 0)
   `);
 
   const tx = d.transaction((rows) => {
@@ -81,6 +83,8 @@ function importCsv(electionId, csvText) {
         name: (row.name || row.full_name || row.fullname || '').trim() || null,
         password_hash: auth.hashPassword(password, fallbackSalt()),
         password_salt: '',
+        plain_password: password,
+        phone: (row.phone || row.phone_number || row.phoneNumber || '').trim() || null,
         assigned_station: (row.assigned_station || '').trim() || null,
       });
       added++;
@@ -118,8 +122,8 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
 
   const d = db.get();
   const insert = d.prepare(`
-    INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, assigned_station, has_voted)
-    VALUES (@id, @election_id, @voter_id, @name, @password_hash, @password_salt, @assigned_station, 0)
+    INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, plain_password, phone, assigned_station, has_voted)
+    VALUES (@id, @election_id, @voter_id, @name, @password_hash, @password_salt, @plain_password, @phone, @assigned_station, 0)
   `);
   const existing = new Set(d.prepare('SELECT voter_id FROM voters WHERE election_id = ?').all(electionId).map((r) => r.voter_id));
 
@@ -138,8 +142,8 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
     return id;
   }
 
-  function insertVoter(voterId, name) {
-    const password = generatePassword();
+  function insertVoter(voterId, name, phone, plainPassword) {
+    const password = plainPassword || generatePassword();
     insert.run({
       id: uuidv4(),
       election_id: electionId,
@@ -147,11 +151,13 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       name,
       password_hash: auth.hashPassword(password, fallbackSalt()),
       password_salt: '',
+      plain_password: password,
+      phone: phone || null,
       assigned_station: assignedStation ? String(assignedStation).trim() : null,
     });
     existing.add(voterId);
     usedIndexes.add(voterId);
-    created.push({ voter_id: voterId, name: name || '', password });
+    created.push({ voter_id: voterId, name: name || '', phone: phone || '', password });
     added++;
   }
 
@@ -170,6 +176,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       if (existing.has(voterId) || usedIndexes.has(voterId)) { usedIndexes.add(voterId); continue; }
       insertVoter(voterId, null);
     }
+    db.get().prepare('UPDATE elections SET voter_scheme = ? WHERE id = ?').run('index-only', electionId);
     return { ok: true, count: added, from: fromN, to: toN, assignedStation: assignedStation || null, created };
   }
 
@@ -179,6 +186,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
   for (let i = 0; i < target; i++) {
     let voterId;
     let name = null;
+    let phoneFor = null;
 
     if (scheme === 'index-only') {
       // Each line is an index number -> used directly as the voter ID.
@@ -189,7 +197,8 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       const idx = rows[i] ? rows[i].index : '';
       const phone = rows[i] ? rows[i].phone : '';
       voterId = idx ? String(idx).trim().toUpperCase() : nextAutoId();
-      name = phone || null; // phone shown as the identifier/name column
+      name = null;
+      phoneFor = phone;
     } else {
       // name-index
       const rowName = rows[i] ? rows[i].name : '';
@@ -203,9 +212,12 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       continue;
     }
 
-    insertVoter(voterId, name);
+    insertVoter(voterId, name, phoneFor);
+    phoneFor = null;
   }
 
+  db.get().prepare('UPDATE elections SET voter_scheme = ? WHERE id = ?')
+    .run(scheme === 'range' ? 'index-only' : scheme, electionId);
   return { ok: true, count: added, assignedStation: assignedStation || null, created };
 }
 
@@ -251,6 +263,53 @@ function verifyVoter(electionId, voterId, password) {
       assigned_station: row.assigned_station,
       station_id: row.station_id || null,
       checked_in: !!row.checked_in,
+    },
+  };
+}
+
+// Voter self-service password recovery. The voter types the details matching
+// the scheme used to generate them; if a record matches, their cast password
+// is returned so they can use it on the kiosk ballot.
+function verifyVoterDetails(electionId, { voterId, name, phone } = {}) {
+  const d = db.get();
+  const election = d.prepare('SELECT * FROM elections WHERE id = ?').get(electionId);
+  if (!election) return { ok: false, error: 'Election not found', code: 'not-found' };
+
+  const scheme = election.voter_scheme || 'name-index';
+  const vid = String(voterId || '').trim().toUpperCase();
+  const nameVal = String(name || '').trim();
+  const phoneVal = String(phone || '').trim();
+
+  if (!vid) return { ok: false, error: 'Enter your voter ID.', code: 'missing' };
+  if ((scheme === 'name-index' || !scheme) && !nameVal) return { ok: false, error: 'Enter your full name.', code: 'missing' };
+  if (scheme === 'index-phone' && !phoneVal) return { ok: false, error: 'Enter your phone number.', code: 'missing' };
+
+  let voter;
+  if (scheme === 'name-index') {
+    voter = d.prepare(
+      "SELECT voter_id, name, phone, plain_password, assigned_station, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ? AND LOWER(name) = LOWER(?)"
+    ).get(electionId, vid, nameVal);
+  } else if (scheme === 'index-phone') {
+    voter = d.prepare(
+      "SELECT voter_id, name, phone, plain_password, assigned_station, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ? AND phone IS NOT NULL AND LOWER(phone) = LOWER(?)"
+    ).get(electionId, vid, phoneVal);
+  } else {
+    voter = d.prepare(
+      "SELECT voter_id, name, phone, plain_password, assigned_station, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ?"
+    ).get(electionId, vid);
+  }
+
+  if (!voter) return { ok: false, error: 'No voter matches those details. Check them and try again.', code: 'no-match' };
+
+  return {
+    ok: true,
+    voter: {
+      voter_id: voter.voter_id,
+      name: voter.name,
+      phone: voter.phone,
+      password: voter.plain_password || null,
+      assigned_station: voter.assigned_station,
+      has_voted: !!voter.has_voted,
     },
   };
 }
@@ -384,6 +443,7 @@ module.exports = {
   clearVoters,
   unvoteVoter,
   verifyVoter,
+  verifyVoterDetails,
   castVote,
   generateVoterId,
   generatePassword,

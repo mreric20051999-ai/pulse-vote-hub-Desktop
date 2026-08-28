@@ -186,6 +186,9 @@ function migrate() {
   addColumn('voters', 'checked_in_by', 'TEXT');
   addColumn('voters', 'ballot_cast', 'INTEGER DEFAULT 0');
   addColumn('voters', 'grace_period', 'INTEGER DEFAULT 0');
+  addColumn('voters', 'plain_password', 'TEXT');
+  addColumn('voters', 'phone', 'TEXT');
+  addColumn('elections', 'voter_scheme', 'TEXT');
   db.exec(`
     CREATE TABLE IF NOT EXISTS stations (
       id TEXT PRIMARY KEY,

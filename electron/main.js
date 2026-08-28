@@ -392,6 +392,7 @@ ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElec
 ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId)));
 ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.unvoteVoter(electionId, voterId)));
 ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
+ipcMain.handle('voter:verify-details', (_e, electionId, details) => voter.verifyVoterDetails(electionId, details || {}));
 ipcMain.handle('voter:cast', (_e, electionId, voterId, selection) => voter.castVote(electionId, voterId, selection));
 
 // ---- Voter roll export (CSV / HTML / PDF / Print) ----

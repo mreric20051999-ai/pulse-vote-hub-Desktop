@@ -124,6 +124,7 @@
         </div>
         <button class="btn btn-primary btn-xl" id="vk-submit"><span>Continue</span></button>
         <p class="kiosk-form-error" id="vk-error" style="display:none;color:var(--danger);margin-top:14px;"></p>
+        <button class="link-btn" id="vk-forgot" type="button" style="margin-top:16px;">Forgot your password?</button>
         <p class="auth-secure"><span>🔒</span> Your vote is private and never linked to who you are.</p>
       </div>`;
 
@@ -154,7 +155,91 @@
     [idInput, passInput].forEach((i) => i.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submit();
     }));
+    $('vk-forgot').addEventListener('click', showVerify);
     idInput.focus();
+  }
+
+  // ------------------------------------------------------------
+  // Screen 2b: Voter self-service password recovery
+  // ------------------------------------------------------------
+  function showVerify() {
+    const scheme = election.voter_scheme || 'name-index';
+    setTitle(election.title);
+    setBackVisible(true);
+
+    const fieldFor = (scheme === 'index-phone')
+      ? `<div class="vk-field">
+          <label for="vk-verify-phone">Phone number</label>
+          <input class="input" id="vk-verify-phone" type="tel" placeholder="e.g. 0712345678" autocomplete="off" spellcheck="false">
+        </div>`
+      : `<div class="vk-field">
+          <label for="vk-verify-name">Full name</label>
+          <input class="input" id="vk-verify-name" type="text" placeholder="The name on the voter list" autocomplete="off" spellcheck="false">
+        </div>`;
+
+    content.innerHTML = `
+      <div class="kiosk-panel">
+        <div class="icon auth-icon">🔑</div>
+        <h2>Retrieve your password</h2>
+        <p class="subtitle">Enter your details below to receive the password issued for your voter ID.</p>
+        <div class="vk-field">
+          <label for="vk-verify-id">Voter ID</label>
+          <input class="input" id="vk-verify-id" type="text" placeholder="e.g. STUDENT2026" autocomplete="off" spellcheck="false">
+        </div>
+        ${fieldFor}
+        <button class="btn btn-primary btn-xl" id="vk-verify-submit"><span>Retrieve password</span></button>
+        <p class="kiosk-form-error" id="vk-verify-error" style="display:none;color:var(--danger);margin-top:14px;"></p>
+        <button class="link-btn" id="vk-verify-cancel" type="button" style="margin-top:16px;">← Back to sign in</button>
+      </div>`;
+
+    const idInput = $('vk-verify-id');
+    const extra = scheme === 'index-phone' ? $('vk-verify-phone') : $('vk-verify-name');
+    const err = $('vk-verify-error');
+
+    async function submit() {
+      err.style.display = 'none';
+      const details = { voterId: idInput.value.trim() };
+      if (scheme === 'index-phone') details.phone = extra.value.trim();
+      else if (scheme !== 'index-only' && scheme !== 'range') details.name = extra.value.trim();
+      const res = await window.pvh.verifyVoterDetails(election.id, details);
+      if (!res.ok) {
+        err.textContent = res.error || 'Could not verify those details.';
+        err.style.display = '';
+        return;
+      }
+      renderRecovered(res.voter);
+    }
+
+    $('vk-verify-submit').addEventListener('click', submit);
+    [idInput, extra].forEach((i) => i.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit();
+    }));
+    $('vk-verify-cancel').addEventListener('click', showAccess);
+    idInput.focus();
+  }
+
+  function renderRecovered(v) {
+    if (v.has_voted) { showBlocked('This voter has already cast a ballot in this election.', true); return; }
+    setTitle(election.title);
+    setBackVisible(true);
+    content.innerHTML = `
+      <div class="kiosk-panel">
+        <div class="icon auth-icon">🔑</div>
+        <h2>Voter found</h2>
+        <p class="subtitle">Use the password below to sign in and cast your ballot.</p>
+        <div class="vk-field">
+          <label>Voter ID</label>
+          <div class="vk-recovered-value">${esc(v.voter_id)}</div>
+        </div>
+        ${v.name ? `<div class="vk-field"><label>Name</label><div class="vk-recovered-value">${esc(v.name)}</div></div>` : ''}
+        ${v.phone ? `<div class="vk-field"><label>Phone</label><div class="vk-recovered-value">${esc(v.phone)}</div></div>` : ''}
+        <div class="vk-field">
+          <label>Password</label>
+          <div class="vk-recovered-value vk-recovered-password">${esc(v.password || '—')}</div>
+        </div>
+        <button class="btn btn-primary btn-xl" id="vk-recovered-back"><span>Back to sign in</span></button>
+      </div>`;
+    $('vk-recovered-back').addEventListener('click', showAccess);
   }
 
   // ------------------------------------------------------------
