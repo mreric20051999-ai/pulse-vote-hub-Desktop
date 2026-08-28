@@ -177,27 +177,43 @@
       </div>`;
 
     // Per-category winners
+    const cwPct = (v) => Math.max(3, Math.min(100, v || 0));
     const winChips = (r.categoryWinners || []).map((cw) => {
       if (cw.mode === 'win') {
         return `
           <div class="cat-winner">
-            <div class="cw-cat">${esc(cw.name)}</div>
-            <div class="cw-name">${esc(cw.winner.name)}</div>
-            <div class="cw-votes">${fmtNum(cw.winner.votes)} votes &middot; ${cw.winner.percentage}%</div>
+            <div class="cw-top">
+              <span class="cw-cat">${esc(cw.name)}</span>
+              <span class="cw-badge" title="Winner">W</span>
+            </div>
+            <div class="cw-name" title="${esc(cw.winner.name)}">${esc(cw.winner.name)}</div>
+            <div class="cw-meta">
+              <span class="cw-votes">${fmtNum(cw.winner.votes)} votes</span>
+              <span class="cw-pct">${cw.winner.percentage}%</span>
+            </div>
+            <div class="cw-bar"><div class="cw-fill" style="width:${cwPct(cw.winner.percentage)}%"></div></div>
           </div>`;
       }
       if (cw.mode === 'tie') {
         return `
           <div class="cat-winner tie">
-            <div class="cw-cat">${esc(cw.name)}</div>
-            <div class="cw-name">${esc(cw.names.join(' & '))}</div>
-            <div class="cw-votes">Tied at ${fmtNum(cw.votes)} votes each</div>
+            <div class="cw-top">
+              <span class="cw-cat">${esc(cw.name)}</span>
+              <span class="cw-badge tie" title="Tie">T</span>
+            </div>
+            <div class="cw-name" title="${esc(cw.names.join(' & '))}">${esc(cw.names.join(' & '))}</div>
+            <div class="cw-meta">
+              <span class="cw-votes">Tied at ${fmtNum(cw.votes)} each</span>
+            </div>
+            <div class="cw-bar"><div class="cw-fill tie" style="width:${cwPct(50)}%"></div></div>
           </div>`;
       }
       return `
         <div class="cat-winner empty">
-          <div class="cw-cat">${esc(cw.name)}</div>
-          <div class="cw-name">No votes</div>
+          <div class="cw-top">
+            <span class="cw-cat">${esc(cw.name)}</span>
+          </div>
+          <div class="cw-name">No votes cast</div>
         </div>`;
     }).join('');
     if (winChips) html += `<div class="winners-grid"><h3 class="section-title">Winners by Category</h3>${winChips}</div>`;
