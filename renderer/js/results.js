@@ -594,11 +594,11 @@ body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:
 .mini-bar{width:80px;height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px;}
  .mini-fill{height:100%;background:#B30202;}
  .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 20px;}
- .chart-box{border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#f8fafc;}
+ .chart-box{border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#f8fafc;display:flex;flex-direction:column;}
  .chart-box h3{margin:0 0 12px;font-size:14px;color:#B30202;}
  .pie-wrap{display:flex;justify-content:center;margin:0 auto 12px;max-width:280px;}
  #pieChart{width:100%;max-width:280px;height:auto;display:block;}
- #barChart{width:100%;height:260px;display:block;}
+ #barChart{width:100%;flex:1 1 auto;min-height:260px;display:block;}
  .chart-legend{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
  .chart-legend-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#0f172a;}
  .cl-swatch{flex-shrink:0;width:11px;height:11px;border-radius:3px;}
