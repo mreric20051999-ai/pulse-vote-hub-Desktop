@@ -87,6 +87,7 @@ body.is-admin .admin-only.inline { display: inline-block; }
   flex-wrap: wrap;
 }
 .inline-form .field {
+  flex: 1 1 260px;
   min-width: 260px;
   margin: 0;
 }
