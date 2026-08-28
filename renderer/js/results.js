@@ -255,11 +255,52 @@
     drawCharts(r, pieSlice);
   }
 
+  // Custom dropdown (mirrors the shared .pdd component used across the app).
+  function buildSelectDropdown(select, onChange) {
+    const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
+    let value = select.value;
+    const root = document.createElement('div');
+    root.className = 'pdd';
+    root.innerHTML = `
+      <button type="button" class="pdd-trigger">
+        <span class="pdd-label"></span>
+        <span class="pdd-arrow"></span>
+      </button>
+      <div class="pdd-menu" hidden></div>
+    `;
+    const labelEl = root.querySelector('.pdd-label');
+    const menu = root.querySelector('.pdd-menu');
+    const trigger = root.querySelector('.pdd-trigger');
+    function render() {
+      menu.innerHTML = opts.map((o) =>
+        `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
+      ).join('');
+      const cur = opts.find((o) => o.value === value);
+      labelEl.textContent = cur ? cur.label : '— Select —';
+      labelEl.classList.toggle('placeholder', !cur);
+    }
+    function close() { root.classList.remove('open'); menu.hidden = true; }
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) { close(); return; }
+      render(); menu.hidden = false; root.classList.add('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('.pdd-option');
+      if (!o) return;
+      value = o.dataset.value; render(); close();
+      if (onChange) onChange(value);
+    });
+    document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
+    select.replaceWith(root);
+    return { get: () => value, set: (v) => { value = v; render(); }, setOptions: (l) => { opts.length = 0; opts.push(...l); render(); }, root };
+  }
+
   function bindStationFilter() {
     const sel = $('station-filter');
     if (sel) {
-      sel.addEventListener('change', () => {
-        currentStationId = sel.value || null;
+      buildSelectDropdown(sel, (value) => {
+        currentStationId = value || null;
         loadReport();
       });
     }
@@ -273,6 +314,17 @@
 
   // ---------- Charts (manual canvas) ----------
   function drawCharts(r, pieSlice) {
+    const cssVar = (name, fb) => {
+      const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return v || fb;
+    };
+    const T = {
+      text: cssVar('--text', '#f1f5f9'),
+      muted: cssVar('--text-muted', '#94a3b8'),
+      accent: cssVar('--accent', '#ef4444'),
+      soft: cssVar('--surface-2', '#283549'),
+      track: cssVar('--surface-3', '#31405a'),
+    };
     const pie = $('pieChart');
     if (pie) {
       const ctx = pie.getContext('2d');
@@ -291,9 +343,12 @@
           ctx.fillStyle = colors[i]; ctx.fill();
           a0 += sweep;
         });
+      } else {
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.closePath();
+        ctx.fillStyle = T.track; ctx.fill();
       }
-      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx, cy, rad * 0.55, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#0f172a'; ctx.font = '700 16px Poppins, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = T.soft; ctx.beginPath(); ctx.arc(cx, cy, rad * 0.55, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = T.text; ctx.font = '700 16px Poppins, sans-serif'; ctx.textAlign = 'center';
       ctx.fillText(fmtNum(total), cx, cy + 5);
       // Legend
       const legend = pieSlice.slice(0, 6);
@@ -303,7 +358,7 @@
         if (ly < 20) return;
         ly -= 14;
         ctx.fillStyle = colors[i]; ctx.fillRect(8, ly - 8, 8, 8);
-        ctx.fillStyle = '#475569'; ctx.fillText(truncate(c.name, 26) + ' · ' + (c.percentageOverall || c.percentage) + '%', 20, ly);
+        ctx.fillStyle = T.muted; ctx.fillText(truncate(c.name, 26) + ' · ' + (c.percentageOverall || c.percentage) + '%', 20, ly);
       });
     }
     const bar = $('barChart');
@@ -317,14 +372,15 @@
       const max = Math.max(1, ...cats.map((c) => c.votes));
       const labelW = Math.min(120, Math.max(40, w / (cats.length || 1) - 16));
       const startX = 30, baseY = h - 24;
-      ctx.fillStyle = '#475569'; ctx.font = '600 10px Open Sans, sans-serif'; ctx.textAlign = 'center';
+      ctx.font = '600 10px Open Sans, sans-serif'; ctx.textAlign = 'center';
       cats.forEach((c, i) => {
         const barH = (c.votes / max) * (h - 60);
         const x = startX + i * (labelW + 12);
-        ctx.fillStyle = 'rgba(179,2,2,0.75)';
+        ctx.fillStyle = T.accent; ctx.globalAlpha = 0.85;
         ctx.fillRect(x, baseY - barH, labelW, barH);
-        ctx.fillStyle = '#0f172a'; ctx.fillText(fmtNum(c.votes), x + labelW / 2, baseY - barH - 5);
-        ctx.fillStyle = '#64748b'; ctx.fillText(truncate(c.name, 8), x + labelW / 2, baseY + 12);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = T.text; ctx.fillText(fmtNum(c.votes), x + labelW / 2, baseY - barH - 5);
+        ctx.fillStyle = T.muted; ctx.fillText(truncate(c.name, 8), x + labelW / 2, baseY + 12);
       });
     }
   }
