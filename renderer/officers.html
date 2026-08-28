@@ -124,7 +124,7 @@
         </div>
       </div>
       <form id="password-form" class="ofc-form">
-        <div class="ofc-grid">
+        <div class="ofc-grid pw-grid">
           <div class="field">
             <label class="label" for="pw-target">Officer</label>
             <select class="select" id="pw-target">
@@ -135,11 +135,11 @@
             <label class="label" for="pw-new">New password</label>
             <input class="input" id="pw-new" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
           </div>
+          <div class="pw-actions">
+            <button type="submit" class="btn btn-secondary"><span class="icon btn-icon" data-icon="lock"></span>Update password</button>
+          </div>
         </div>
         <p class="auth-error" id="pw-error"></p>
-        <div class="actions-right">
-          <button type="submit" class="btn btn-secondary"><span class="icon btn-icon" data-icon="lock"></span>Update password</button>
-        </div>
       </form>
     </section>
 

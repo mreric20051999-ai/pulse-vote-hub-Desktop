@@ -61,6 +61,23 @@
   margin: 0;
 }
 
+/* Password form: button inline with the new-password field */
+#password-form {
+  max-width: 780px;
+}
+#password-form .pw-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+}
+#password-form .pw-actions {
+  display: flex;
+}
+#password-form .pw-actions .btn {
+  min-width: 190px;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
 /* ---------- Search (self-contained for this page) ---------- */
 .search-wrap {
   position: relative;
@@ -92,6 +109,13 @@
 @media (max-width: 640px) {
   .ofc-grid {
     grid-template-columns: 1fr;
+  }
+  #password-form .pw-grid {
+    grid-template-columns: 1fr;
+  }
+  #password-form .pw-actions .btn {
+    width: 100%;
+    min-width: 0;
   }
   .section-links {
     position: static;
