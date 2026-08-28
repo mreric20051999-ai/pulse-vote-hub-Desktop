@@ -15,7 +15,7 @@
   let currentStationId = null;
   let lastReport = null;
 
-  const COLORS = ['#B30202', '#dc2626', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
+  const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899'];
 
   function statusLabel(r) {
     const s = r.status;
@@ -237,7 +237,10 @@
       <div class="charts-grid">
         <div class="chart-box">
           <h3>Vote Distribution</h3>
-          <canvas id="pieChart" height="200"></canvas>
+          <div class="pie-wrap">
+            <canvas id="pieChart" height="200"></canvas>
+          </div>
+          <div class="chart-legend" id="pieLegend"></div>
         </div>
         <div class="chart-box">
           <h3>Votes by Category</h3>
@@ -355,10 +358,10 @@
     if (pie) {
       const ctx = pie.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
-      pie.width = pie.clientWidth * dpr; pie.height = 200 * dpr;
-      ctx.scale(dpr, dpr); ctx.clearRect(0, 0, pie.width / dpr, 200);
-      const w = pie.width / dpr, h = 200;
-      const cx = w / 2, cy = h / 2, rad = Math.min(w, h) / 2 - 14;
+      pie.width = pie.clientWidth * dpr; pie.height = 220 * dpr;
+      ctx.scale(dpr, dpr); ctx.clearRect(0, 0, pie.width / dpr, 220);
+      const w = pie.width / dpr, h = 220;
+      const cx = w / 2, cy = h / 2, rad = Math.min(w, h) / 2 - 8;
       const total = pieSlice.reduce((s, c) => s + c.votes, 0);
       const colors = pieSlice.map((_, i) => COLORS[i % COLORS.length]);
       let a0 = -Math.PI / 2;
@@ -373,40 +376,62 @@
         ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.closePath();
         ctx.fillStyle = T.track; ctx.fill();
       }
-      ctx.fillStyle = T.soft; ctx.beginPath(); ctx.arc(cx, cy, rad * 0.55, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = T.text; ctx.font = '700 16px Poppins, sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(fmtNum(total), cx, cy + 5);
-      // Legend
-      const legend = pieSlice.slice(0, 6);
-      let ly = h - 2;
-      ctx.font = '600 10px Open Sans, sans-serif'; ctx.textAlign = 'left';
-      legend.forEach((c, i) => {
-        if (ly < 20) return;
-        ly -= 14;
-        ctx.fillStyle = colors[i]; ctx.fillRect(8, ly - 8, 8, 8);
-        ctx.fillStyle = T.muted; ctx.fillText(truncate(c.name, 26) + ' · ' + (c.percentageOverall || c.percentage) + '%', 20, ly);
-      });
+      ctx.fillStyle = T.soft;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rad * 0.58, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0)';
+      ctx.fillStyle = T.text; ctx.font = '700 17px Poppins, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(fmtNum(total), cx, cy - 8);
+      ctx.fillStyle = T.muted; ctx.font = '600 10px Open Sans, sans-serif';
+      ctx.fillText('Total votes', cx, cy + 12);
+      // Legend (HTML)
+      const lg = $('pieLegend');
+      if (lg && total > 0) {
+        lg.innerHTML = pieSlice.slice(0, 6).map((c, i) => `
+          <div class="chart-legend-item">
+            <span class="cl-swatch" style="background:${colors[i]}"></span>
+            <span class="cl-name" title="${esc(c.name)}">${esc(c.name)}</span>
+            <span class="cl-pct">${c.percentageOverall || c.percentage}%</span>
+            <span class="cl-votes">${fmtNum(c.votes)}</span>
+          </div>`).join('');
+      } else if (lg) {
+        lg.innerHTML = '<div class="chart-legend-empty">No votes recorded yet</div>';
+      }
     }
     const bar = $('barChart');
     if (bar) {
       const ctx = bar.getContext('2d');
       const dpr = window.devicePixelRatio || 1;
-      bar.width = bar.clientWidth * dpr; bar.height = 200 * dpr;
-      ctx.scale(dpr, dpr); ctx.clearRect(0, 0, bar.width / dpr, 200);
-      const w = bar.width / dpr, h = 200;
+      const cw = bar.clientWidth, ch = bar.clientHeight;
+      bar.width = cw * dpr; bar.height = ch * dpr;
+      ctx.scale(dpr, dpr); ctx.clearRect(0, 0, cw, ch);
       const cats = r.categories.slice(0, 8);
       const max = Math.max(1, ...cats.map((c) => c.votes));
-      const labelW = Math.min(120, Math.max(40, w / (cats.length || 1) - 16));
-      const startX = 30, baseY = h - 24;
-      ctx.font = '600 10px Open Sans, sans-serif'; ctx.textAlign = 'center';
+      const padL = 6, padR = 6, top = 24, bottom = 34;
+      const plotW = cw - padL - padR, plotH = ch - top - bottom;
+      const slot = plotW / (cats.length || 1);
+      const barW = Math.max(6, Math.min(44, slot * 0.55));
+      const baseY = ch - bottom;
+      const colors = cats.map((_, i) => COLORS[i % COLORS.length]);
+      ctx.textAlign = 'center';
       cats.forEach((c, i) => {
-        const barH = (c.votes / max) * (h - 60);
-        const x = startX + i * (labelW + 12);
-        ctx.fillStyle = T.accent; ctx.globalAlpha = 0.85;
-        ctx.fillRect(x, baseY - barH, labelW, barH);
+        const barH = Math.max(2, (c.votes / max) * plotH);
+        const x = padL + i * slot + (slot - barW) / 2;
+        ctx.fillStyle = colors[i];
+        ctx.beginPath();
+        const r = 3, bw = barW, bh = barH;
+        ctx.moveTo(x, baseY - bh + r); ctx.arcTo(x, baseY - bh, x + bw, baseY - bh, r);
+        ctx.arcTo(x + bw, baseY - bh, x + bw, baseY - bh + r, r);
+        ctx.lineTo(x + bw, baseY); ctx.lineTo(x, baseY); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = T.track;
+        ctx.fillRect(x, baseY - plotH, barW, plotH - bh);
         ctx.globalAlpha = 1;
-        ctx.fillStyle = T.text; ctx.fillText(fmtNum(c.votes), x + labelW / 2, baseY - barH - 5);
-        ctx.fillStyle = T.muted; ctx.fillText(truncate(c.name, 8), x + labelW / 2, baseY + 12);
+        ctx.fillStyle = T.muted; ctx.font = '600 10px Open Sans, sans-serif';
+        ctx.fillText(truncate(c.name, 10), x + barW / 2, baseY + 14);
+        ctx.fillStyle = T.text; ctx.font = '700 12px Open Sans, sans-serif';
+        ctx.fillText(fmtNum(c.votes), x + barW / 2, baseY - bh - 7);
       });
     }
   }
@@ -567,8 +592,22 @@ body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:
 .st-submitted{font-size:11px;font-weight:700;color:#166534;background:#dcfce7;padding:3px 8px;border-radius:999px;}
 .st-pending{font-size:11px;font-weight:700;color:#92400e;background:#fef3c7;padding:3px 8px;border-radius:999px;}
 .mini-bar{width:80px;height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px;}
-.mini-fill{height:100%;background:#B30202;}
-@media print{body.print-body{padding:12px;}.charts-grid{display:none;}}` + '';
+ .mini-fill{height:100%;background:#B30202;}
+ .charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:8px 0 20px;}
+ .chart-box{border:1px solid #e2e8f0;border-radius:10px;padding:16px;background:#f8fafc;}
+ .chart-box h3{margin:0 0 12px;font-size:14px;color:#B30202;}
+ .pie-wrap{display:flex;justify-content:center;margin:0 auto 12px;max-width:280px;}
+ #pieChart{width:100%;max-width:280px;height:auto;display:block;}
+ #barChart{width:100%;height:260px;display:block;}
+ .chart-legend{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+ .chart-legend-item{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;font-size:13px;color:#0f172a;}
+ .cl-swatch{flex-shrink:0;width:11px;height:11px;border-radius:3px;}
+ .cl-name{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;}
+ .cl-pct{font-weight:800;color:#0f172a;}
+ .cl-votes{color:#64748b;font-size:12px;min-width:44px;text-align:right;}
+ .chart-legend-empty{padding:14px;text-align:center;color:#64748b;font-size:13px;}
+ @media (max-width:680px){.charts-grid{grid-template-columns:1fr;}}
+ @media print{body.print-body{padding:12px;}.charts-grid{display:none;}}` + '';
   }
 
   // ---------- Print ----------

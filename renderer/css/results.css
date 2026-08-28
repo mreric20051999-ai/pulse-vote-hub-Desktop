@@ -63,9 +63,20 @@
 .cw-name:empty { min-height: 1.25em; }
 
 /* ---------- Charts ---------- */
-.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 20px; }
-.chart-box { border: 1px solid var(--border, #334155); border-radius: var(--radius-md, 10px); padding: 16px; background: var(--surface-2, #283549); }
+.charts-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 8px 0 20px; }
+.chart-box { border: 1px solid var(--border, #334155); border-radius: var(--radius-md, 10px); padding: 16px; background: var(--surface-2, #283549); min-width: 0; display: flex; flex-direction: column; }
 .chart-box h3 { margin: 0 0 12px; font-size: 14px; color: var(--accent, #ef4444); display: flex; align-items: center; gap: 8px; }
+.pie-wrap { display: flex; justify-content: center; margin: 0 auto 12px; max-width: 280px; min-width: 0; }
+#pieChart { width: 100%; max-width: 280px; height: auto; min-width: 0; display: block; }
+#barChart { width: 100%; height: 260px; display: block; }
+.chart-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.chart-legend-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13px; color: var(--text, #f1f5f9); transition: background .15s ease; }
+.chart-legend-item:hover { background: var(--surface-3, #31405a); }
+.cl-swatch { flex-shrink: 0; width: 11px; height: 11px; border-radius: 3px; }
+.cl-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.cl-pct { font-weight: 800; color: var(--text, #f1f5f9); }
+.cl-votes { color: var(--text-muted, #94a3b8); font-size: 12px; min-width: 44px; text-align: right; }
+.chart-legend-empty { padding: 14px; text-align: center; color: var(--text-muted, #94a3b8); font-size: 13px; }
 
 /* ---------- Ranking tables ---------- */
 .rank-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; color: var(--text, #f1f5f9); }
@@ -99,4 +110,4 @@
 /* Fallback styling for any native <select> that is not yet a custom dropdown. */
 .station-filter select { padding: 9px 14px; border: 1px solid var(--border, #334155); border-radius: var(--radius-sm, 6px); background: var(--surface, #1e293b); color: var(--text, #f1f5f9); font-size: 13px; font-weight: 600; font-family: var(--font-body, sans-serif); max-width: 340px; width: 100%; }
 
-@media (max-width: 760px) { .charts-grid { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .charts-grid { grid-template-columns: 1fr; } }
