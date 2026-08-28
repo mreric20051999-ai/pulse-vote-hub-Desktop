@@ -340,7 +340,7 @@ ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, office
 ipcMain.handle('election:position-remove', (_e, id, officerId) => {
   const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
   if (!pos) return { ok: false, error: 'Position not found' };
-  return guardElection(pos.election_id, officerId, () => election.removePosition(id));
+  return guardElection(pos.election_id, officerId, (actor) => election.removePosition(id, actor));
 });
 
 ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listCandidates(electionId, actor)));
@@ -353,7 +353,7 @@ ipcMain.handle('election:candidate-add', (_e, payload, officerId) => election.ad
 ipcMain.handle('election:candidate-remove', (_e, id, officerId) => {
   const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
   if (!cand) return { ok: false, error: 'Candidate not found' };
-  return guardElection(cand.election_id, officerId, () => election.removeCandidate(id));
+  return guardElection(cand.election_id, officerId, (actor) => election.removeCandidate(id, actor));
 });
 
 // Opens a file dialog for a candidate photo, copies the chosen image into the

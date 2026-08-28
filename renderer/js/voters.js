@@ -211,7 +211,12 @@
     btn.disabled = false;
     btn.textContent = 'Auto-generate';
     if (!res.ok) { alert(res.error || 'Generation failed'); return; }
-    alert(`Generated ${res.count} voter(s)${res.from != null ? ` (V-range ${res.from} → ${res.to})` : ''}${res.assignedStation ? ` — assigned to ${res.assignedStation}` : ''}`);
+    const creds = res.created && res.created.length
+      ? '\n\n' + res.created.slice(0, 10)
+          .map((c) => `${c.voter_id}\t·\t${c.password}${c.name ? ` (${c.name})` : ''}`).join('\n')
+        + (res.created.length > 10 ? `\n… and ${res.created.length - 10} more` : '')
+      : '';
+    alert(`Generated ${res.count} voter(s)${res.from != null ? ` (V-range ${res.from} → ${res.to})` : ''}${res.assignedStation ? ` — assigned to ${res.assignedStation}` : ''}. Passwords are required for ballot access:${creds}`);
     $('autogen-list').value = '';
     refresh();
   });

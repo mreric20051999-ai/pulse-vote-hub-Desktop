@@ -125,6 +125,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
 
   let added = 0;
   let usedIndexes = new Set();
+  const created = [];
 
   function nextAutoId() {
     let n = 1;
@@ -150,6 +151,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
     });
     existing.add(voterId);
     usedIndexes.add(voterId);
+    created.push({ voter_id: voterId, name: name || '', password });
     added++;
   }
 
@@ -168,7 +170,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       if (existing.has(voterId) || usedIndexes.has(voterId)) { usedIndexes.add(voterId); continue; }
       insertVoter(voterId, null);
     }
-    return { ok: true, count: added, from: fromN, to: toN, assignedStation: assignedStation || null };
+    return { ok: true, count: added, from: fromN, to: toN, assignedStation: assignedStation || null, created };
   }
 
   // number of voters wanted; if a list is provided use its length (or count cap)
@@ -204,7 +206,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
     insertVoter(voterId, name);
   }
 
-  return { ok: true, count: added, assignedStation: assignedStation || null };
+  return { ok: true, count: added, assignedStation: assignedStation || null, created };
 }
 
 function deleteVoter(electionId, voterId) {

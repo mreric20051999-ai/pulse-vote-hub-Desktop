@@ -172,20 +172,82 @@
     });
   }
 
-  // ---------- Assign station ----------
+  // ---------- Custom dropdown (opens downward, matches other pages) ----------
+  function buildSelectDropdown(select, onChange) {
+    const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
+    let value = select.value;
+    const root = document.createElement('div');
+    root.className = 'pdd';
+    root.innerHTML = `
+      <button type="button" class="pdd-trigger">
+        <span class="pdd-label"></span>
+        <span class="pdd-arrow"></span>
+      </button>
+      <div class="pdd-menu" hidden></div>
+    `;
+    const labelEl = root.querySelector('.pdd-label');
+    const menu = root.querySelector('.pdd-menu');
+    const trigger = root.querySelector('.pdd-trigger');
+
+    function render() {
+      menu.innerHTML = opts.map((o) =>
+        `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
+      ).join('');
+      const cur = opts.find((o) => o.value === value);
+      labelEl.textContent = cur ? cur.label : '— Select a station election —';
+      labelEl.classList.toggle('placeholder', !cur);
+    }
+    function close() { root.classList.remove('open'); menu.hidden = true; }
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) { close(); return; }
+      render();
+      menu.hidden = false;
+      root.classList.add('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('.pdd-option');
+      if (!o) return;
+      value = o.dataset.value;
+      render();
+      close();
+      if (onChange) onChange(value);
+    });
+    document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
+
+    select.replaceWith(root);
+    return {
+      get: () => value,
+      set: (v) => { value = v; render(); },
+      setOptions: (list) => { opts.length = 0; opts.push(...list); render(); },
+      root,
+    };
+  }
+
+  let assignElectionDD = null;
   async function renderAssignElections() {
     const all = await window.pvh.listElections();
     const stationElecs = all.filter((e) => e.type === 'station');
-    const sel = $('assign-election');
-    const keep = sel.value;
-    sel.innerHTML = '<option value="">— Select a station election —</option>' +
-      stationElecs.map((e) => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join('');
-    if (stationElecs.some((e) => e.id === keep)) sel.value = keep;
-    else $('assign-station-body').innerHTML = '<p class="text-muted hint">Select a station election above to assign its station officers.</p>';
+    const keep = assignElectionDD ? assignElectionDD.get() : '';
+    if (!assignElectionDD) {
+      assignElectionDD = buildSelectDropdown($('assign-election'), () => renderAssignStations());
+      assignElectionDD.root.style.maxWidth = '380px';
+    }
+    assignElectionDD.setOptions(
+      [{ value: '', label: '— Select a station election —' }].concat(
+        stationElecs.map((e) => ({ value: e.id, label: e.title }))
+      )
+    );
+    if (stationElecs.some((e) => e.id === keep)) assignElectionDD.set(keep);
+    else {
+      assignElectionDD.set('');
+      $('assign-station-body').innerHTML = '<p class="text-muted hint">Select a station election above to assign its station officers.</p>';
+    }
   }
   async function renderAssignStations() {
     const body = $('assign-station-body');
-    const electionId = $('assign-election').value;
+    const electionId = assignElectionDD ? assignElectionDD.get() : '';
     if (!electionId) {
       body.innerHTML = '<p class="text-muted hint">Select a station election above to assign its station officers.</p>';
       return;
@@ -224,7 +286,6 @@
       });
     });
   }
-  $('assign-election').addEventListener('change', renderAssignStations);
 
   // ---------- Init ----------
   bindAddOfficer();
