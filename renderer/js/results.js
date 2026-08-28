@@ -260,9 +260,9 @@
             <td><strong>${fmtNum(c.votes)}</strong></td>
             <td><strong>${c.percentage}%</strong></td>
             <td>
-              <div style="display:flex;align-items:center;gap:10px;">
+              <div class="rank-bar-row">
                 <div class="bar-track"><div class="bar-fill" style="width:${barW}%"></div></div>
-                <span style="font-size:12px;color:#64748b;">${c.percentage}%</span>
+                <span class="text-dim rank-bar-pct">${c.percentage}%</span>
               </div>
             </td>
           </tr>`;
@@ -270,7 +270,7 @@
       return `
         <table class="rank-table">
           <thead>
-            <tr class="rank-cat-head"><td colspan="5">${esc(cat.name)} <span style="font-weight:400;font-size:12px;color:#64748b;">(${cat.candidates.length} candidate${cat.candidates.length === 1 ? '' : 's'} &bull; ${fmtNum(cat.votes)} votes)</span></td></tr>
+            <tr class="rank-cat-head"><td colspan="5">${esc(cat.name)} <span class="text-dim rank-cat-sub">(${cat.candidates.length} candidate${cat.candidates.length === 1 ? '' : 's'} &bull; ${fmtNum(cat.votes)} votes)</span></td></tr>
             <tr><th>Rank</th><th>Candidate</th><th>Votes</th><th>Percentage</th><th>Progress</th></tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -586,8 +586,11 @@ body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:
 .rank-2{background:#3b82f6;color:#fff;}
 .rank-3{background:#10b981;color:#fff;}
 .rank-other{background:#e2e8f0;color:#475569;}
-.bar-track{flex:1;min-width:80px;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;}
-.bar-fill{height:100%;background:#B30202;}
+ .bar-track{flex:1;min-width:80px;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;}
+ .bar-fill{height:100%;background:#B30202;}
+ .rank-bar-row{display:flex;align-items:center;gap:10px;}
+ .rank-bar-pct{font-size:12px;color:#64748b;}
+ .rank-cat-sub{font-weight:400;font-size:12px;color:#64748b;}
 .st-status{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#e2e8f0;color:#475569;}
 .st-submitted{font-size:11px;font-weight:700;color:#166534;background:#dcfce7;padding:3px 8px;border-radius:999px;}
 .st-pending{font-size:11px;font-weight:700;color:#92400e;background:#fef3c7;padding:3px 8px;border-radius:999px;}
