@@ -335,7 +335,7 @@ ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publish
 ipcMain.handle('election:apply-schedule', () => election.applySchedule());
 ipcMain.handle('election:delete', (_e, id, officerId) => election.deleteElection(id, resolveActor(officerId)));
 
-ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, () => election.listPositions(electionId)));
+ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listPositions(electionId, actor)));
 ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => election.addPosition(electionId, title, maxVotes, resolveActor(officerId)));
 ipcMain.handle('election:position-remove', (_e, id, officerId) => {
   const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
@@ -343,7 +343,7 @@ ipcMain.handle('election:position-remove', (_e, id, officerId) => {
   return guardElection(pos.election_id, officerId, () => election.removePosition(id));
 });
 
-ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, () => election.listCandidates(electionId)));
+ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listCandidates(electionId, actor)));
 ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) => {
   const cand = db.get().prepare('SELECT election_id FROM candidates WHERE position_id = ? LIMIT 1').get(positionId);
   if (!cand) return election.listCandidatesByPosition(positionId);
