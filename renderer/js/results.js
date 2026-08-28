@@ -216,7 +216,17 @@
           <div class="cw-name">No votes cast</div>
         </div>`;
     }).join('');
-    if (winChips) html += `<div class="winners-grid"><h3 class="section-title">Winners by Category</h3>${winChips}</div>`;
+    if (winChips) {
+      const catCount = (r.categoryWinners || []).length;
+      html += `
+        <div class="winners-card">
+          <div class="winners-head">
+            <h3 class="section-title">Winners by Category</h3>
+            <span class="winners-count">${catCount} categor${catCount === 1 ? 'y' : 'ies'}</span>
+          </div>
+          <div class="winners-grid">${winChips}</div>
+        </div>`;
+    }
 
     // Charts
     const topCands = [];
