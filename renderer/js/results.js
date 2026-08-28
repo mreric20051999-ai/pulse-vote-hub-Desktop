@@ -529,12 +529,26 @@ body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:
 .turnout-bar{position:relative;background:#e2e8f0;border-radius:999px;height:18px;overflow:hidden;margin:4px 0 20px;}
 .turnout-fill{height:100%;background:linear-gradient(90deg,#dc2626,#B30202);}
 .turnout-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
-.section-title{font-size:16px;margin:0 0 12px;color:#0f172a;}
-.winners-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px;}
-.cat-winner{border:1px solid #e2e8f0;border-left:4px solid #B30202;border-radius:10px;padding:12px;}
-.cw-cat{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;}
-.cw-name{font-size:15px;font-weight:700;color:#0f172a;margin-top:4px;}
-.cw-votes{font-size:12px;color:#64748b;margin-top:2px;}
+ .section-title{font-size:15px;font-weight:800;color:#0f172a;margin:0;}
+ .winners-card{border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:18px;margin:8px 0 24px;}
+ .winners-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;}
+ .winners-count{font-size:11.5px;font-weight:700;color:#64748b;background:#f1f5f9;padding:3px 10px;border-radius:999px;white-space:nowrap;}
+ .winners-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;}
+ .cat-winner{position:relative;display:flex;flex-direction:column;gap:6px;min-height:118px;border:1px solid #e2e8f0;border-top:3px solid #B30202;border-radius:10px;padding:14px 16px;background:#f8fafc;}
+ .cat-winner.tie{border-top-color:#2563eb;}
+ .cat-winner.empty{border-top-color:#cbd5e1;opacity:.65;}
+ .cw-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+ .cw-cat{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+ .cw-badge{flex-shrink:0;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:800;background:#B30202;color:#fff;}
+ .cw-badge.tie{background:#2563eb;}
+ .cw-name{font-size:16px;font-weight:800;color:#0f172a;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+ .cw-meta{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:auto;}
+ .cw-votes{font-size:12px;color:#64748b;}
+ .cw-pct{font-size:13.5px;font-weight:800;color:#B30202;}
+ .cat-winner.tie .cw-pct,.cat-winner.tie .cw-votes{color:#2563eb;}
+ .cw-bar{height:6px;border-radius:999px;background:#e2e8f0;overflow:hidden;}
+ .cw-fill{height:100%;background:#B30202;border-radius:999px;}
+ .cw-fill.tie{background:#2563eb;}
 .station-breakdown{margin:24px 0;}
 .station-filter{margin-bottom:10px;}
 .label{font-weight:600;font-size:13px;}
