@@ -66,9 +66,28 @@ function buildReport(electionRow, { stationId } = {}) {
   }
   allCandidates.sort((a, b) => b.votes - a.votes);
 
-  // Effective winner across categories only when all categories agree on the
-  // same top candidate (as the web treats an overall winner when not tied).
-  // Simple overall winner = candidate with the most votes overall.
+  // ---- Per-category winners (each category's top candidate(s)) ----
+  const categoryWinners = categories.map((cat) => {
+    const top = cat.candidates.filter((c) => c.votes > 0);
+    if (!top.length) return { id: cat.id, name: cat.name, mode: 'none', votes: 0 };
+    const maxV = top[0].votes;
+    const leaders = top.filter((c) => c.votes === maxV);
+    if (leaders.length > 1) {
+      return {
+        id: cat.id, name: cat.name, mode: 'tie',
+        names: leaders.map((c) => c.name), votes: maxV,
+      };
+    }
+    return {
+      id: cat.id, name: cat.name, mode: 'win', votes: maxV,
+      winner: { id: leaders[0].id, name: leaders[0].name, votes: maxV, percentage: leaders[0].percentage },
+    };
+  });
+
+  // Overall winner/tie: candidate with the most votes overall (only published
+  // once effectively closed). Note: true "winner of the election" across
+  // separate categories is conveyed by the per-category winners; overall is a
+  // headline of the single candidate with the most votes.
   const overallTop = allCandidates.length ? allCandidates[0] : null;
   const overallTop2 = allCandidates.length >= 2 ? allCandidates[1] : null;
   let winner = null;
@@ -82,10 +101,39 @@ function buildReport(electionRow, { stationId } = {}) {
     }
   }
 
-  // Stations available (station-mode elections only).
-  const stations = electionRow.type === 'station'
-    ? d.prepare('SELECT id, name, location FROM stations WHERE election_id = ? ORDER BY name').all(electionRow.id)
-    : [];
+  // ---- Voter turnout ----
+  // Overall: distinct voters who cast at least one ballot.
+  const registered = d.prepare('SELECT COUNT(*) n FROM voters WHERE election_id = ?').get(electionRow.id).n;
+  const castVoters = (d.prepare('SELECT COUNT(DISTINCT voter_id) n FROM votes WHERE election_id = ?').get(electionRow.id) || { n: 0 }).n;
+  const turnoutPct = registered > 0 ? Number(((castVoters / registered) * 100).toFixed(1)) : 0;
+  const turnout = { registered, cast: castVoters, turnoutPct };
+
+  // ---- Stations + per-station breakdown (station-mode only) ----
+  const stations = [];
+  if (electionRow.type === 'station') {
+    const stationRows = d.prepare('SELECT * FROM stations WHERE election_id = ? ORDER BY name').all(electionRow.id);
+    const allVoters = d.prepare('SELECT * FROM voters WHERE election_id = ?').all(electionRow.id);
+    for (const st of stationRows) {
+      const keys = new Set([st.id, st.code, st.name].filter(Boolean).map((k) => String(k).toLowerCase()));
+      const members = allVoters.filter((v) => {
+        if (v.station_id && String(v.station_id) === st.id) return true;
+        return keys.has(String(v.assigned_station || '').toLowerCase());
+      });
+      const sRegistered = members.length;
+      const sCast = members.filter((v) => v.has_voted === 1 || v.ballot_cast === 1).length;
+      stations.push({
+        id: st.id,
+        name: st.name,
+        location: st.location || null,
+        code: st.code || null,
+        status: st.status,
+        submitted: !!(st.final_submit_json) || st.status === 'submitted',
+        registered: sRegistered,
+        cast: sCast,
+        turnoutPct: sRegistered > 0 ? Number(((sCast / sRegistered) * 100).toFixed(1)) : 0,
+      });
+    }
+  }
 
   return {
     ok: true,
@@ -103,6 +151,8 @@ function buildReport(electionRow, { stationId } = {}) {
     categories,
     winner,
     tie,
+    categoryWinners,
+    turnout,
     stats: { votes: totalVotes, candidates: candidates.length, categories: categories.length },
     stations,
     currentStationId: stationId || null,

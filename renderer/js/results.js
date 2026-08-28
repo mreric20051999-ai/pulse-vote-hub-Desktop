@@ -13,6 +13,7 @@
   const actions = $('results-actions');
   let currentElectionId = null;
   let currentStationId = null;
+  let lastReport = null;
 
   const COLORS = ['#B30202', '#dc2626', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6'];
 
@@ -73,6 +74,7 @@
   }
 
   function renderReport(r) {
+    lastReport = r;
     const e = r.election;
     let html = `
       <div class="report-head">
@@ -83,15 +85,40 @@
         ${statusLabel(r)}
       </div>`;
 
-    // Station filter (station-mode elections with stations available)
+    // Station breakdown (station-mode elections with stations available)
     if (e.type === 'station' && Array.isArray(r.stations) && r.stations.length) {
+      const statusMap = { not_opened: 'Not opened', open: 'Open', queuing: 'Queuing', counted: 'Counted', submitted: 'Submitted' };
+      const sRows = r.stations.map((s) => {
+        s.turnoutPct = s.turnoutPct || 0;
+        return `
+          <tr class="${currentStationId === s.id ? 'row-active' : ''}" data-sid="${esc(s.id)}">
+            <td><strong>${esc(s.name)}</strong>${s.location ? '<div class="text-muted" style="font-size:12px;">' + esc(s.location) + '</div>' : ''}</td>
+            <td><span class="st-status st-${esc(s.status)}">${esc(statusMap[s.status] || s.status)}</span></td>
+            <td>${fmtNum(s.registered)}</td>
+            <td>${fmtNum(s.cast)}</td>
+            <td>
+              <div class="mini-bar"><div class="mini-fill" style="width:${Math.min(100, s.turnoutPct)}%"></div></div>
+              <span class="text-muted" style="font-size:12px;">${s.turnoutPct}%</span>
+            </td>
+            <td>${s.submitted ? '<span class="st-submitted">Submitted</span>' : '<span class="st-pending">Pending</span>'}</td>
+          </tr>`;
+      }).join('');
       html += `
-        <div class="station-filter">
-          <label class="label" for="station-filter">Station:</label>
-          <select id="station-filter">
-            <option value="">All Stations (Combined)</option>
-            ${r.stations.map((s) => `<option value="${esc(s.id)}" ${currentStationId === s.id ? 'selected' : ''}>${esc(s.name)}${s.location ? ' — ' + esc(s.location) : ''}</option>`).join('')}
-          </select>
+        <div class="station-breakdown">
+          <h3 class="section-title">Station Breakdown</h3>
+          <div class="station-filter">
+            <label class="label" for="station-filter">Candidate results for:</label>
+            <select id="station-filter">
+              <option value="">All Stations (Combined)</option>
+              ${r.stations.map((s) => `<option value="${esc(s.id)}" ${currentStationId === s.id ? 'selected' : ''}>${esc(s.name)}${s.location ? ' — ' + esc(s.location) : ''}</option>`).join('')}
+            </select>
+          </div>
+          <table class="rank-table station-table">
+            <thead>
+              <tr><th>Station</th><th>Status</th><th>Registered</th><th>Cast</th><th>Turnout</th><th>Submission</th></tr>
+            </thead>
+            <tbody>${sRows}</tbody>
+          </table>
         </div>`;
     }
 
@@ -134,12 +161,46 @@
     }
 
     // Stats
+    const t = r.turnout || { registered: 0, cast: 0, turnoutPct: 0 };
     html += `
       <div class="report-stats">
         <div class="report-stat"><div class="rs-value">${fmtNum(r.stats.votes)}</div><div class="rs-label">Total Votes</div></div>
+        <div class="report-stat"><div class="rs-value">${fmtNum(t.registered)}</div><div class="rs-label">Registered</div></div>
+        <div class="report-stat"><div class="rs-value">${fmtNum(t.cast)}</div><div class="rs-label">Voters Cast</div></div>
+        <div class="report-stat"><div class="rs-value">${t.turnoutPct}%</div><div class="rs-label">Turnout</div></div>
         <div class="report-stat"><div class="rs-value">${r.stats.candidates}</div><div class="rs-label">Candidates</div></div>
         <div class="report-stat"><div class="rs-value">${r.stats.categories}</div><div class="rs-label">Categories</div></div>
+      </div>
+      <div class="turnout-bar">
+        <div class="turnout-fill" style="width:${Math.min(100, t.turnoutPct)}%"></div>
+        <span class="turnout-label">${t.turnoutPct}% turnout (${fmtNum(t.cast)} of ${fmtNum(t.registered)} registered voters)</span>
       </div>`;
+
+    // Per-category winners
+    const winChips = (r.categoryWinners || []).map((cw) => {
+      if (cw.mode === 'win') {
+        return `
+          <div class="cat-winner">
+            <div class="cw-cat">${esc(cw.name)}</div>
+            <div class="cw-name">${esc(cw.winner.name)}</div>
+            <div class="cw-votes">${fmtNum(cw.winner.votes)} votes &middot; ${cw.winner.percentage}%</div>
+          </div>`;
+      }
+      if (cw.mode === 'tie') {
+        return `
+          <div class="cat-winner tie">
+            <div class="cw-cat">${esc(cw.name)}</div>
+            <div class="cw-name">${esc(cw.names.join(' & '))}</div>
+            <div class="cw-votes">Tied at ${fmtNum(cw.votes)} votes each</div>
+          </div>`;
+      }
+      return `
+        <div class="cat-winner empty">
+          <div class="cw-cat">${esc(cw.name)}</div>
+          <div class="cw-name">No votes</div>
+        </div>`;
+    }).join('');
+    if (winChips) html += `<div class="winners-grid"><h3 class="section-title">Winners by Category</h3>${winChips}</div>`;
 
     // Charts
     const topCands = [];
@@ -196,10 +257,17 @@
 
   function bindStationFilter() {
     const sel = $('station-filter');
-    if (!sel) return;
-    sel.addEventListener('change', () => {
-      currentStationId = sel.value || null;
-      loadReport();
+    if (sel) {
+      sel.addEventListener('change', () => {
+        currentStationId = sel.value || null;
+        loadReport();
+      });
+    }
+    reportRoot.querySelectorAll('.station-table tbody tr[data-sid]').forEach((row) => {
+      row.addEventListener('click', () => {
+        currentStationId = row.dataset.sid || null;
+        loadReport();
+      });
     });
   }
 
@@ -283,8 +351,135 @@
     tick();
   }
 
+  // ---------- Export: CSV / HTML / PDF ----------
+  function csvCell(v) {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  function buildCsv(r) {
+    const lines = [];
+    const e = r.election;
+    const t = r.turnout || {};
+    lines.push(`Election,${csvCell(e.title)}`);
+    lines.push(`Type,${csvCell(e.type)}`);
+    lines.push(`Status,${csvCell(r.status)}`);
+    lines.push(`Total votes,${r.totalVotes}`);
+    lines.push(`Registered voters,${csvCell(t.registered)}`);
+    lines.push(`Voters cast,${csvCell(t.cast)}`);
+    lines.push(`Turnout %,${csvCell(t.turnoutPct)}`);
+    lines.push('');
+    lines.push(['Category', 'Candidate', 'Votes', 'Category %', 'Overall %', 'Rank'].join(','));
+    r.categories.forEach((cat) => {
+      cat.candidates.forEach((c, i) => {
+        lines.push([csvCell(cat.name), csvCell(c.name), c.votes, c.percentage, c.overallPct, i + 1].join(','));
+      });
+    });
+    return lines.join('\n');
+  }
+
+  function safeBase(title) {
+    return (title || 'results').replace(/[^\w\- ]+/g, '_').trim().replace(/\s+/g, '_');
+  }
+
+  function exportCsv() {
+    if (!lastReport || !lastReport.ok) return;
+    const base = safeBase(lastReport.election.title);
+    window.pvh.exportFile(buildCsv(lastReport), `${base}_results`, 'csv').then((res) => {
+      if (!res || !res.ok) handleExportError(res, 'CSV');
+    });
+  }
+
+  function exportHtml() {
+    if (!lastReport || !lastReport.ok) return;
+    const base = safeBase(lastReport.election.title);
+    window.pvh.exportFile(buildStandaloneHtml(), `${base}_report`, 'html').then((res) => {
+      if (!res || !res.ok) handleExportError(res, 'HTML');
+    });
+  }
+
+  function exportPdf() {
+    if (!lastReport || !lastReport.ok) return;
+    const base = safeBase(lastReport.election.title);
+    window.pvh.exportPdf(buildStandaloneHtml(), `${base}_report`).then((res) => {
+      if (!res || !res.ok) handleExportError(res, 'PDF');
+    });
+  }
+
+  function handleExportError(res, label) {
+    if (res && res.canceled) return;
+    alert((res && res.error) || `${label} export failed.`);
+  }
+
+  function buildStandaloneHtml() {
+    const title = lastReport.election.title;
+    const reportBody = reportRoot.innerHTML;
+    const css = buildReportCss();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${esc(title)} — Results Report</title>
+  <style>${css}</style>
+</head>
+<body class="print-body">
+  <div class="report-render">${reportBody}</div>
+</body>
+</html>`;
+  }
+
+  function buildReportCss() {
+    return /* css */ `:root{--surface:#ffffff;--surface-2:#f1f5f9;--border:#e2e8f0;--text:#0f172a;--text-muted:#64748b;--accent:#B30202;--accent-soft:#fee2e2;--radius-md:10px;--radius-lg:16px;}
+body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#0f172a;background:#fff;margin:0;padding:32px;}
+.report-render{max-width:900px;margin:0 auto;}
+.report-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #B30202;padding-bottom:16px;margin-bottom:20px;}
+.report-head h2{font-size:26px;margin:0;color:#0f172a;}
+.text-muted{color:#64748b;}
+.rep-status{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;}
+.rep-status.live{background:#dcfce7;color:#166534;}
+.rep-status.ended{background:#fee2e2;color:#991b1b;}
+.winner-card{display:flex;gap:16px;align-items:center;background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fcd34d;border-radius:16px;padding:20px;margin-bottom:20px;}
+.wc-trophy{font-size:40px;}
+.report-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin:20px 0;}
+.report-stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;text-align:center;}
+.rs-value{font-size:24px;font-weight:800;color:#B30202;}
+.rs-label{font-size:12px;color:#64748b;margin-top:2px;}
+.turnout-bar{position:relative;background:#e2e8f0;border-radius:999px;height:18px;overflow:hidden;margin:4px 0 20px;}
+.turnout-fill{height:100%;background:linear-gradient(90deg,#dc2626,#B30202);}
+.turnout-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;}
+.section-title{font-size:16px;margin:0 0 12px;color:#0f172a;}
+.winners-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px;}
+.cat-winner{border:1px solid #e2e8f0;border-left:4px solid #B30202;border-radius:10px;padding:12px;}
+.cw-cat{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.05em;}
+.cw-name{font-size:15px;font-weight:700;color:#0f172a;margin-top:4px;}
+.cw-votes{font-size:12px;color:#64748b;margin-top:2px;}
+.station-breakdown{margin:24px 0;}
+.station-filter{margin-bottom:10px;}
+.label{font-weight:600;font-size:13px;}
+.rank-table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:14px;}
+.rank-table th,.rank-table td{border-bottom:1px solid #e2e8f0;padding:10px 10px;text-align:left;}
+.rank-table thead th{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+.rank-cat-head{background:#f8fafc;font-weight:700;}
+.rank-number{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;border-radius:50%;font-weight:700;font-size:12px;}
+.rank-1{background:#B30202;color:#fff;}
+.rank-2{background:#3b82f6;color:#fff;}
+.rank-3{background:#10b981;color:#fff;}
+.rank-other{background:#e2e8f0;color:#475569;}
+.bar-track{flex:1;min-width:80px;height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden;}
+.bar-fill{height:100%;background:#B30202;}
+.st-status{font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:#e2e8f0;color:#475569;}
+.st-submitted{font-size:11px;font-weight:700;color:#166534;background:#dcfce7;padding:3px 8px;border-radius:999px;}
+.st-pending{font-size:11px;font-weight:700;color:#92400e;background:#fef3c7;padding:3px 8px;border-radius:999px;}
+.mini-bar{width:80px;height:6px;background:#e2e8f0;border-radius:999px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:6px;}
+.mini-fill{height:100%;background:#B30202;}
+@media print{body.print-body{padding:12px;}.charts-grid{display:none;}}` + '';
+  }
+
   // ---------- Print ----------
   $('print-btn').addEventListener('click', () => window.print());
+  $('export-csv-btn').addEventListener('click', exportCsv);
+  $('export-html-btn').addEventListener('click', exportHtml);
+  $('export-pdf-btn').addEventListener('click', exportPdf);
 
   // ---------- Init ----------
   const q = new URLSearchParams(window.location.search);

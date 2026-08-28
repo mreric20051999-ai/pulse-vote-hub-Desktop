@@ -68,6 +68,8 @@ contextBridge.exposeInMainWorld('pvh', {
 
   // Results report
   resultsReport: (eid, stationId) => ipcRenderer.invoke('result:report', eid, oid(), stationId),
+  exportFile: (content, defaultName, ext) => ipcRenderer.invoke('result:export-file', { content, defaultName, ext }),
+  exportPdf: (html, defaultName) => ipcRenderer.invoke('result:export-pdf', { html, defaultName }),
 
   setupCheck: () => ipcRenderer.invoke('auth:setup-check'),
   setupCoordinator: (payload) => ipcRenderer.invoke('auth:setup', payload),

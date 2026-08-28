@@ -593,3 +593,46 @@ ipcMain.handle('result:report', (_e, electionId, officerId, stationId) =>
     if (!row) return { ok: false, error: 'Election not found' };
     return results.buildReport(row, { stationId: stationId || null });
   }));
+
+// Results export: pass the already-rendered content and let the user pick a
+// destination. Mirrors the voter-roll export flow (save dialog + write / printToPDF).
+ipcMain.handle('result:export-file', async (_e, { content, defaultName, ext }) => {
+  try {
+    if (!content && content !== '') return { ok: false, error: 'Nothing to export' };
+    const base = sanitizeFileName(defaultName || 'results-report');
+    const extName = ext === 'csv' ? 'CSV' : 'HTML';
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: `Export Results (${extName})`,
+      defaultPath: `${base}.${ext}`,
+      filters: [{ name: extName, extensions: [ext] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+    fs.writeFileSync(res.filePath, content, 'utf8');
+    return { ok: true, path: res.filePath, format: ext };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('result:export-pdf', async (_e, { html, defaultName } = {}) => {
+  try {
+    if (!html) return { ok: false, error: 'Nothing to export' };
+    const base = sanitizeFileName(defaultName || 'results-report');
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Results (PDF)',
+      defaultPath: `${base}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+    const win = await voterExportWindow(html);
+    try {
+      const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
+      fs.writeFileSync(res.filePath, pdf);
+    } finally {
+      if (!win.isDestroyed()) win.destroy();
+    }
+    return { ok: true, path: res.filePath, format: 'pdf' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});

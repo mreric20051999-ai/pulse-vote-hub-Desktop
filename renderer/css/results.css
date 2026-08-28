@@ -46,4 +46,34 @@
 .station-filter { margin: 0 0 16px; }
 .station-filter select { padding: 9px 14px; border: 2px solid var(--border, #e2e8f0); border-radius: 999px; font-size: 13px; font-weight: 600; font-family: inherit; max-width: 340px; width: 100%; }
 
+/* Turnout */
+.turnout-bar { position: relative; margin: 4px 0 22px; background: var(--surface-2, #f1f5f9); border-radius: 999px; height: 22px; overflow: hidden; }
+.turnout-fill { height: 100%; background: linear-gradient(90deg, #dc2626, #B30202); border-radius: 999px; min-width: 2px; transition: width .4s ease; }
+.turnout-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+
+/* Per-category winners */
+.section-title { margin: 0 0 12px; font-size: 15px; color: var(--text, #0f172a); }
+.winners-grid { margin: 8px 0 22px; }
+.winners-grid .section-title { margin-bottom: 12px; }
+.winners-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+.cat-winner { border: 1px solid var(--border, #e2e8f0); border-left: 4px solid var(--accent, #B30202); border-radius: var(--radius-md, 10px); padding: 12px 14px; background: var(--surface, #fff); }
+.cat-winner.tie { border-left-color: #6366f1; }
+.cat-winner.empty { border-left-color: #94a3b8; opacity: .75; }
+.cw-cat { font-size: 11px; font-weight: 700; color: var(--text-muted, #64748b); text-transform: uppercase; letter-spacing: .05em; }
+.cw-name { font-size: 15px; font-weight: 700; color: var(--text, #0f172a); margin-top: 4px; }
+.cw-votes { font-size: 12px; color: var(--text-muted, #64748b); margin-top: 2px; }
+
+/* Station breakdown */
+.station-breakdown { margin: 6px 0 22px; }
+.station-table tbody tr { cursor: pointer; }
+.station-table tbody tr:hover { background: var(--surface-2, #f1f5f9); }
+.station-table tbody tr.row-active { background: rgba(179,2,2,.07); box-shadow: inset 3px 0 0 var(--accent, #B30202); }
+.st-status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: #eef2f7; color: #475569; white-space: nowrap; }
+.st-status.st-open { background: rgba(16,185,129,.15); color: #059669; }
+.st-status.st-submitted { background: rgba(99,102,241,.15); color: #4f46e5; }
+.st-submitted { font-size: 11px; font-weight: 700; color: #059669; }
+.st-pending { font-size: 11px; font-weight: 700; color: #b45309; }
+.mini-bar { display: inline-block; vertical-align: middle; width: 70px; height: 6px; background: #eef2f7; border-radius: 999px; overflow: hidden; margin-right: 6px; }
+.mini-fill { height: 100%; background: linear-gradient(90deg,#dc2626,#B30202); border-radius: 999px; }
+
 @media (max-width: 760px) { .charts-grid { grid-template-columns: 1fr; } }
