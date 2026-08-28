@@ -23,8 +23,9 @@
       <a class="nav-item active" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
       <a class="nav-item" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
       <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
-      <a class="nav-item" href="#" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
-      <a class="nav-item" href="#" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
   </aside>
@@ -52,83 +53,143 @@
 
     <!-- Voter tools -->
     <div id="tools" hidden>
-      <div class="tools-grid">
-        <section class="card">
-          <div class="card-title">Add voter</div>
-          <div class="row">
-            <div class="field" style="flex:1;margin:0;">
-              <label class="label">Voter name</label>
-              <input class="input" id="v-name" placeholder="Full name">
-            </div>
-          </div>
-          <div class="row two-add">
-            <div class="field" style="flex:1;margin:0;">
-              <label class="label">Voter ID <span class="text-dim">(optional)</span></label>
-              <input class="input" id="v-voter-id" placeholder="e.g. V0001">
-            </div>
-            <div class="field" style="flex:1;margin:0;">
-              <label class="label">Station <span class="text-dim">(optional)</span></label>
-              <input class="input" id="v-station" placeholder="e.g. Station A">
-            </div>
-          </div>
-          <div class="row actions-right">
-            <button class="btn btn-primary" id="add-voter-btn">Add Voter</button>
-          </div>
-        </section>
-
-        <section class="card">
-          <div class="card-title">Import &amp; generate</div>
-          <label class="label">CSV (columns: voter_id, name, assigned_station)</label>
-          <textarea class="textarea" id="csv-input" rows="5" placeholder="voter_id,name,assigned_station&#10;V0001,John Doe,Station A"></textarea>
-          <button class="btn btn-secondary btn-block" id="import-btn">Import CSV</button>
-          <hr class="divider">
-          <div class="autogen">
-            <label class="label">Auto-generate voters</label>
+      <div class="voters-layout">
+        <!-- Main column: add voter + roll -->
+        <div class="voters-main">
+          <section class="card tools-card">
+            <header class="card-head">
+              <span class="icon card-ic" data-icon="voters"></span>
+              <div>
+                <h3 class="card-head-title">Add voter</h3>
+                <p class="card-head-sub">Create a single voter and assign them to a station.</p>
+              </div>
+            </header>
             <div class="row">
-              <select class="select" id="autogen-scheme">
-                <option value="name-index">Name + Index</option>
-                <option value="index-only">Index only</option>
-                <option value="index-phone">Index + Phone</option>
-              </select>
-              <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
+              <div class="field" style="flex:1;margin:0;">
+                <label class="label">Voter name</label>
+                <input class="input" id="v-name" placeholder="Full name">
+              </div>
             </div>
-            <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index,phone)</label>
-            <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
-            <button class="btn btn-secondary btn-block" id="autogen-btn">Auto-generate</button>
-          </div>
-        </section>
-      </div>
+            <div class="row two-add">
+              <div class="field" style="flex:1;margin:0;">
+                <label class="label">Voter ID <span class="text-dim">(optional)</span></label>
+                <input class="input" id="v-voter-id" placeholder="e.g. V0001">
+              </div>
+              <div class="field" style="flex:1;margin:0;">
+                <label class="label">Station <span class="text-dim">(optional)</span></label>
+                <select class="select" id="v-station">
+                  <option value="">-- No station --</option>
+                </select>
+              </div>
+            </div>
+            <div class="row actions-right">
+              <button class="btn btn-primary" id="add-voter-btn">Add Voter</button>
+            </div>
+          </section>
 
-      <!-- List -->
-      <section class="card panel">
-        <div class="list-header">
-          <h3 class="card-title" style="margin:0;">Voter roll</h3>
-          <div class="list-tools">
-            <div class="search-wrap">
-              <span class="icon search-ic" data-icon="search"></span>
-              <input class="input" id="voter-search" placeholder="Search voter ID or name">
+          <!-- List -->
+          <section class="card panel">
+            <div class="list-header">
+              <h3 class="card-title" style="margin:0;">Voter roll</h3>
+              <div class="list-tools">
+                <div class="search-wrap">
+                  <span class="icon search-ic" data-icon="search"></span>
+                  <input class="input" id="voter-search" placeholder="Search voter ID or name">
+                </div>
+                <button class="btn btn-danger btn-sm" id="clear-btn">Clear all</button>
+              </div>
             </div>
-            <button class="btn btn-danger btn-sm" id="clear-btn">Clear all</button>
-          </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Voter ID</th>
+                    <th>Name</th>
+                    <th>Station</th>
+                    <th>Status</th>
+                    <th style="width:90px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="voter-rows">
+                  <tr><td colspan="5" class="text-muted center">No voters yet.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="pagination" id="pagination"></div>
+          </section>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Voter ID</th>
-                <th>Name</th>
-                <th>Station</th>
-                <th>Status</th>
-                <th style="width:90px;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="voter-rows">
-              <tr><td colspan="5" class="text-muted center">No voters yet.</td></tr>
-            </tbody>
-          </table>
+
+        <!-- Side column: import/generate + export -->
+        <div class="voters-side">
+          <section class="card tools-card">
+            <header class="card-head">
+              <span class="icon card-ic" data-icon="upload"></span>
+              <div>
+                <h3 class="card-head-title">Import &amp; generate</h3>
+                <p class="card-head-sub">Import from CSV or auto-generate voters in bulk.</p>
+              </div>
+            </header>
+
+            <label class="label">CSV (columns: voter_id, name, assigned_station)</label>
+            <textarea class="textarea" id="csv-input" rows="4" placeholder="voter_id,name,assigned_station&#10;V0001,John Doe,Station A"></textarea>
+            <button class="btn btn-secondary btn-block" id="import-btn">Import CSV</button>
+
+            <hr class="divider">
+
+            <div class="autogen">
+              <div class="autogen-label">
+                <span class="sub-head">Auto-generate voters</span>
+                <p class="field-desc">Generate a batch of voters with random voting passwords.</p>
+              </div>
+              <div class="row">
+                <select class="select" id="autogen-scheme">
+                  <option value="name-index">Name + Index</option>
+                  <option value="index-only">Index only</option>
+                  <option value="index-phone">Index + Phone</option>
+                  <option value="range">Voter ID Range (V0001 → V0050)</option>
+                </select>
+                <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
+              </div>
+              <div class="field" style="margin: var(--space-3) 0 var(--space-1);">
+                <label class="label hint">Assign to station <span class="text-dim">(optional)</span></label>
+                <select class="select" id="autogen-station">
+                  <option value="">-- No station --</option>
+                </select>
+                <p class="hint" style="margin:4px 0 0;">Generated voters are grouped under this station.</p>
+              </div>
+              <div class="row range-row" id="autogen-range" hidden>
+                <div class="field" style="flex:1;margin:0;">
+                  <label class="label hint">From</label>
+                  <input class="input" id="autogen-from" type="number" min="1" value="1">
+                </div>
+                <div class="field" style="flex:1;margin:0;">
+                  <label class="label hint">To</label>
+                  <input class="input" id="autogen-to" type="number" min="1" value="50">
+                </div>
+              </div>
+              <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index,phone)</label>
+              <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
+              <button class="btn btn-secondary btn-block" id="autogen-btn">Auto-generate</button>
+            </div>
+          </section>
+
+          <section class="card tools-card">
+            <header class="card-head">
+              <span class="icon card-ic" data-icon="download"></span>
+              <div>
+                <h3 class="card-head-title">Export voter roll</h3>
+                <p class="card-head-sub">Download or print the full roll for this election.</p>
+              </div>
+            </header>
+            <div class="export-grid">
+              <button class="btn btn-secondary" id="export-csv"><span class="icon" data-icon="download"></span> CSV</button>
+              <button class="btn btn-secondary" id="export-pdf"><span class="icon" data-icon="download"></span> PDF</button>
+              <button class="btn btn-secondary" id="export-html"><span class="icon" data-icon="download"></span> HTML</button>
+              <button class="btn btn-secondary" id="export-print"><span class="icon" data-icon="search"></span> Print</button>
+            </div>
+          </section>
         </div>
-        <div class="pagination" id="pagination"></div>
-      </section>
+      </div>
     </div>
   </main>
 

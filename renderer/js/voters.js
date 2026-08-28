@@ -69,10 +69,12 @@
     currentPage = 0;
     $('tools').hidden = !currentElectionId;
     if (currentElectionId) {
-      await refresh();
+      await Promise.all([refresh(), loadStations()]);
     } else {
       $('voter-rows').innerHTML = '<tr><td colspan="5" class="text-muted center">Select an election.</td></tr>';
       $('picker-summary').textContent = '';
+      $('v-station').innerHTML = '<option value="">-- No station --</option>';
+      $('autogen-station').innerHTML = '<option value="">-- No station --</option>';
     }
   });
 
@@ -83,6 +85,16 @@
         elections.map((e) => ({ value: e.id, label: `${e.title} (${e.type})` }))
       )
     );
+  }
+
+  async function loadStations() {
+    let stations = [];
+    try { stations = await window.pvh.listStations(currentElectionId) || []; } catch (e) { stations = []; }
+    const opts = '<option value="">-- No station --</option>' +
+      stations.map((s) => '<option value="' + esc(s.code || s.id) + '">' +
+        esc((s.name || s.code || s.id) + (s.code ? ' (' + s.code + ')' : '')) + '</option>').join('');
+    $('v-station').innerHTML = opts;
+    $('autogen-station').innerHTML = opts;
   }
 
   async function refresh() {
@@ -167,30 +179,62 @@
     'name-index': 'Paste names — one per line (or CSV: name,index)',
     'index-only': 'Paste index numbers — one per line (or CSV: index)',
     'index-phone': 'Paste rows — one per line: name,index,phone',
+    'range': 'Generate sequential Voter IDs over a numeric range (V0001 → V00nn).',
   };
-  $('autogen-scheme').addEventListener('change', (e) => {
-    $('autogen-list-label').textContent = schemeLabels[e.target.value] || schemeLabels['name-index'];
-  });
+  function updateAutogenUI() {
+    const scheme = $('autogen-scheme').value;
+    const isRange = scheme === 'range';
+    $('autogen-list-label').textContent = schemeLabels[scheme] || schemeLabels['name-index'];
+    $('autogen-range').hidden = !isRange;
+    $('autogen-count').style.display = isRange ? 'none' : '';
+    $('autogen-list').style.display = isRange ? 'none' : '';
+    $('autogen-list-label').style.display = isRange ? 'none' : '';
+  }
+  $('autogen-scheme').addEventListener('change', updateAutogenUI);
 
   // Auto-generate button
   $('autogen-btn').addEventListener('click', async () => {
-    if (!confirm('Auto-generate voters with the selected scheme?')) return;
+    const scheme = $('autogen-scheme').value;
+    if (!confirm(`Auto-generate voters with the selected scheme?`)) return;
     const btn = $('autogen-btn');
     btn.disabled = true;
     btn.textContent = 'Generating...';
     const opts = {
       count: Number($('autogen-count').value) || 10,
-      scheme: $('autogen-scheme').value,
+      scheme,
       list: $('autogen-list').value,
+      from: Number($('autogen-from').value),
+      to: Number($('autogen-to').value),
+      assignedStation: $('autogen-station').value,
     };
     const res = await window.pvh.autoGenerateVoters(currentElectionId, opts);
     btn.disabled = false;
     btn.textContent = 'Auto-generate';
     if (!res.ok) { alert(res.error || 'Generation failed'); return; }
-    alert(`Generated ${res.count} voter(s)`);
+    alert(`Generated ${res.count} voter(s)${res.from != null ? ` (V-range ${res.from} → ${res.to})` : ''}${res.assignedStation ? ` — assigned to ${res.assignedStation}` : ''}`);
     $('autogen-list').value = '';
     refresh();
   });
+
+  // Export voter roll (CSV / PDF / HTML / Print)
+  async function doExport(format) {
+    if (!currentElectionId) return;
+    try {
+      const res = await window.pvh.exportVoters(currentElectionId, format);
+      if (res.ok) {
+        if (format === 'print') { alert('Sent to printer.'); }
+        else { alert(`Exported to ${format.toUpperCase()}: ${res.path}`); }
+      } else if (res.error && res.error !== 'Export cancelled') {
+        alert(`Export failed: ${res.error}`);
+      }
+    } catch (err) {
+      alert(`Export failed: ${err.message}`);
+    }
+  }
+  $('export-csv').addEventListener('click', () => doExport('csv'));
+  $('export-pdf').addEventListener('click', () => doExport('pdf'));
+  $('export-html').addEventListener('click', () => doExport('html'));
+  $('export-print').addEventListener('click', () => doExport('print'));
 
   $('clear-btn').addEventListener('click', async () => {
     if (!confirm('Remove ALL voters for this election? This cannot be undone.')) return;
@@ -206,5 +250,6 @@
     });
   });
 
+  updateAutogenUI();
   loadElections();
 })();

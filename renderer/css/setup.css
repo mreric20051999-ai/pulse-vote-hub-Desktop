@@ -317,7 +317,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  width: min(620px, 94vw);
+  width: min(760px, 94vw);
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -325,32 +325,48 @@
   animation: popIn var(--transition-slow) ease;
 }
 .ballot-sheet-head {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: var(--space-4);
-  padding: var(--space-6) var(--space-7);
+  padding: var(--space-5) var(--space-7);
   color: #fff;
+  text-align: center;
   background:
     radial-gradient(120% 160% at 100% 0%, rgba(239, 68, 68, 0.35) 0%, transparent 50%),
     linear-gradient(135deg, var(--bg-elevated), var(--accent-hover));
   border-bottom: 1px solid var(--border);
 }
+.ballot-sheet-head::after {
+  content: "";
+  position: absolute;
+  left: var(--space-7);
+  right: var(--space-7);
+  bottom: 0;
+  height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: repeating-linear-gradient(90deg, #fff, #fff 8px, transparent 8px, transparent 16px);
+  opacity: .35;
+}
 .ballot-sheet-kicker {
   font-size: var(--fs-xs);
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.82);
   font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: .18em;
   margin-bottom: var(--space-1);
 }
 .ballot-sheet-title {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
   font-weight: var(--fw-bold);
   color: #fff;
-  line-height: 1.2;
+  line-height: 1.15;
+  letter-spacing: .01em;
 }
 .ballot-sheet-head .btn {
+  position: absolute;
+  right: var(--space-6);
   background: rgba(255, 255, 255, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.25);
   color: #fff;
@@ -359,7 +375,7 @@
   background: rgba(255, 255, 255, 0.24);
 }
 .ballot-sheet-body {
-  padding: var(--space-5) var(--space-7);
+  padding: 0;
   overflow-y: auto;
   background: var(--bg);
 }
@@ -473,4 +489,157 @@
   padding: var(--space-4) var(--space-7);
   border-top: 1px solid var(--border);
   background: var(--surface-2);
+}
+
+/* ---------- Elegant ballot-paper preview ---------- */
+.ballot-paper {
+  background: var(--bg);
+  padding: var(--space-6) var(--space-7);
+}
+.bp-mast {
+  text-align: center;
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1.5px solid var(--border-strong);
+}
+.bp-mast-flag {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: .22em;
+  color: var(--text-dim);
+  margin-bottom: var(--space-2);
+}
+.bp-mast-title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  letter-spacing: .02em;
+}
+.bp-instructions {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  margin: 0 0 var(--space-5);
+}
+.bp-cat {
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+.bp-cat:last-child {
+  margin-bottom: 0;
+}
+.bp-cat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.bp-cat-index {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+.bp-cat-title {
+  font-family: var(--font-heading);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.bp-cat-max {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.bp-cands {
+  padding: var(--space-2) var(--space-3);
+}
+.bp-cand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px dashed var(--border);
+}
+.bp-cand:last-child {
+  border-bottom: 0;
+}
+.bp-num {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 10px;
+  font-family: var(--font-heading);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: var(--accent);
+  background: var(--surface);
+}
+.bp-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-heading);
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+}
+.bp-cand-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.bp-cand-name {
+  font-family: var(--font-heading);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+  color: var(--text);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bp-cand-tag {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.bp-mark {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 2px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--surface);
 }

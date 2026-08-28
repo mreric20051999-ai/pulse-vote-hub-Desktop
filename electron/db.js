@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS elections (
   station_mode INTEGER DEFAULT 0,
   close_grace_minutes INTEGER DEFAULT 30,
   max_close_grace_minutes INTEGER DEFAULT 120,
+  owner_id TEXT,
   created_at INTEGER,
   closed_at INTEGER
 );
@@ -172,6 +173,7 @@ function migrate() {
   addColumn('elections', 'station_mode', 'INTEGER DEFAULT 0');
   addColumn('elections', 'close_grace_minutes', 'INTEGER DEFAULT 30');
   addColumn('elections', 'max_close_grace_minutes', 'INTEGER DEFAULT 120');
+  addColumn('elections', 'owner_id', 'TEXT');
   addColumn('candidates', 'ballot_number', 'INTEGER');
   addColumn('officers', 'suspended', 'INTEGER DEFAULT 0');
 
@@ -312,6 +314,12 @@ function migrate() {
 
   // Backfill election start_date from the legacy single election_date.
   db.prepare('UPDATE elections SET start_date = election_date WHERE start_date IS NULL AND election_date IS NOT NULL').run();
+
+  // Ownership: elections predating coordinator isolation have no owner. Claim
+  // them by the first admin so existing data remains visible to admins (who
+  // can see everything) and is not exposed to coordinators.
+  const admin = db.prepare("SELECT id FROM officers WHERE role = 'admin' ORDER BY created_at LIMIT 1").get();
+  if (admin) db.prepare('UPDATE elections SET owner_id = ? WHERE owner_id IS NULL').run(admin.id);
 }
 
 // Assign sequential ballot numbers (per category) to any candidates that

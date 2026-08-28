@@ -130,3 +130,91 @@
 /* Two/three column dashboard grid */
 .station-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 860px) { .station-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Add / officer modals (fixed + centered) ---------- */
+#add-overlay.modal-overlay,
+#officer-overlay.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--blur);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  animation: fadeIn var(--transition) ease;
+}
+#add-overlay.modal-overlay[hidden],
+#officer-overlay.modal-overlay[hidden] { display: none; }
+
+/* ---------- Professional "Add station" modal ---------- */
+.add-station-modal {
+  width: min(440px, 92vw);
+}
+.add-station-modal .modal-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.modal-top-ic {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.modal-top-text {
+  flex: 1;
+  min-width: 0;
+}
+.add-station-modal .modal-title {
+  margin-bottom: 2px;
+  font-size: var(--fs-lg);
+}
+.modal-sub {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.4;
+}
+.modal-close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px -4px 0 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.modal-close:hover {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+}
+.add-station-modal .field {
+  margin-bottom: var(--space-4);
+}
+.req {
+  color: var(--danger);
+  font-weight: var(--fw-bold);
+}
+.field-hint {
+  margin-top: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.add-station-modal .btn-icon {
+  vertical-align: -3px;
+  margin-right: var(--space-1);
+}

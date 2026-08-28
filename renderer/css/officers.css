@@ -1,0 +1,101 @@
+/* ============================================================
+   Pulse Vote Hub Desktop — Officers page
+   ============================================================ */
+
+/* ---------- Section sub-menu (quick links) ---------- */
+.section-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin-bottom: var(--space-5);
+  padding: var(--space-2, 8px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  position: sticky;
+  top: var(--topbar-height, calc(var(--space-5) + var(--space-2)));
+  z-index: 20;
+}
+.section-links .sub-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium, 500);
+  text-decoration: none;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+.section-links .sub-link:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.section-links .sub-link.active {
+  color: var(--accent-contrast, #fff);
+  background: var(--accent);
+}
+.section-links .sub-link .icon {
+  color: inherit;
+}
+
+/* ---------- Sections ---------- */
+.ofc-section {
+  margin-bottom: var(--space-5);
+  scroll-margin-top: calc(var(--topbar-height, 64px) + var(--space-6, 24px));
+}
+
+.ofc-form {
+  max-width: 640px;
+  margin-top: var(--space-3);
+}
+
+.ofc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.ofc-grid .field {
+  margin: 0;
+}
+
+/* ---------- Search (self-contained for this page) ---------- */
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.search-wrap input {
+  padding-left: 38px;
+  min-width: 220px;
+}
+.search-ic {
+  position: absolute;
+  left: 12px;
+  color: var(--text-dim);
+  display: inline-flex;
+}
+
+.actions-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ---------- Assign station table ---------- */
+.assign-table-wrap {
+  margin-top: var(--space-2);
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 640px) {
+  .ofc-grid {
+    grid-template-columns: 1fr;
+  }
+  .section-links {
+    position: static;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+}

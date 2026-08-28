@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Officers &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/officers.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+      <span>Pulse Vote Hub</span>
+    </div>
+    <nav class="sidebar-nav" id="nav">
+      <a class="nav-item" href="dashboard.html" data-nav="dashboard"><span class="icon nav-ic" data-icon="dashboard"></span>Dashboard</a>
+      <a class="nav-item" href="elections.html" data-nav="elections"><span class="icon nav-ic" data-icon="elections"></span>Elections</a>
+      <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
+      <a class="nav-item" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
+      <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
+      <a class="nav-item active" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
+    </nav>
+    <div class="sidebar-footer" id="sidebar-footer"></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Officers</h1>
+        <p id="page-subtitle">Manage officer accounts, passwords and station assignments.</p>
+      </div>
+    </div>
+
+    <!-- Section sub-menu: quick links that jump to each management area -->
+    <nav class="section-links" id="section-links">
+      <a href="#add-officer" class="sub-link active" data-target="add-officer"><span class="icon" data-icon="plus"></span>Add officer</a>
+      <a href="#manage-officers" class="sub-link" data-target="manage-officers"><span class="icon" data-icon="officers"></span>Manage officers</a>
+      <a href="#passwords" class="sub-link" data-target="passwords"><span class="icon" data-icon="lock"></span>Change / assign password</a>
+      <a href="#assign-station" class="sub-link" data-target="assign-station"><span class="icon" data-icon="users"></span>Assign station</a>
+    </nav>
+
+    <!-- Add officer -->
+    <section class="card panel ofc-section" id="add-officer">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Add officer</div>
+          <p class="text-muted panel-sub" id="add-sub">Create a new officer account with a name, ID and password.</p>
+        </div>
+      </div>
+      <form id="add-officer-form" class="ofc-form">
+        <div class="ofc-grid">
+          <div class="field">
+            <label class="label" for="ao-name">Full name</label>
+            <input class="input" id="ao-name" type="text" placeholder="e.g. Robert Rivera">
+          </div>
+          <div class="field">
+            <label class="label" for="ao-id">Officer ID</label>
+            <input class="input" id="ao-id" type="text" placeholder="e.g. CO2 / AS5">
+          </div>
+        </div>
+        <div class="ofc-grid">
+          <div class="field">
+            <label class="label" for="ao-pass">Password</label>
+            <input class="input" id="ao-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+          <div class="field admin-only">
+            <label class="label" for="ao-role">Role</label>
+            <select class="select" id="ao-role">
+              <option value="assistant">Station officer (assistant)</option>
+              <option value="coordinator">Coordinator</option>
+            </select>
+          </div>
+        </div>
+        <p class="auth-error" id="ao-error"></p>
+        <div class="actions-right">
+          <button type="submit" class="btn btn-primary"><span class="icon btn-icon" data-icon="plus"></span>Create officer</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Manage officers -->
+    <section class="card panel ofc-section" id="manage-officers">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Manage officers</div>
+          <p class="text-muted panel-sub">Suspend, activate or remove accounts.</p>
+        </div>
+        <div class="search-wrap">
+          <span class="icon search-ic" data-icon="search"></span>
+          <input class="input" id="officer-search" placeholder="Search name or ID">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table officers-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Officer ID</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th class="th-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="officers-body">
+            <tr><td colspan="5" class="text-muted">Loading accounts…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Change / assign password -->
+    <section class="card panel ofc-section" id="passwords">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Change / assign password</div>
+          <p class="text-muted panel-sub">Set a new password for an officer or for your own account.</p>
+        </div>
+      </div>
+      <form id="password-form" class="ofc-form">
+        <div class="ofc-grid">
+          <div class="field">
+            <label class="label" for="pw-target">Officer</label>
+            <select class="select" id="pw-target">
+              <option value="">— Select an officer —</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="pw-new">New password</label>
+            <input class="input" id="pw-new" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+        </div>
+        <p class="auth-error" id="pw-error"></p>
+        <div class="actions-right">
+          <button type="submit" class="btn btn-secondary"><span class="icon btn-icon" data-icon="lock"></span>Update password</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Assign station -->
+    <section class="card panel ofc-section" id="assign-station">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Assign station</div>
+          <p class="text-muted panel-sub">Link a station officer to a polling station for an election.</p>
+        </div>
+      </div>
+      <div class="field" style="max-width:380px;margin:0 0 var(--space-4);">
+        <label class="label">Station election</label>
+        <select class="select" id="assign-election">
+          <option value="">— Select a station election —</option>
+        </select>
+      </div>
+      <div id="assign-station-body">
+        <p class="text-muted hint">Select a station election above to assign its station officers.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/officers.js"></script>
+</body>
+</html>

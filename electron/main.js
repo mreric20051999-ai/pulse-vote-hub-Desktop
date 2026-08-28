@@ -12,6 +12,7 @@ const auth = require('./auth');
 const election = require('./election');
 const voter = require('./voter');
 const station = require('./station');
+const results = require('./results');
 
 let mainWindow = null;
 let splashWindow = null;
@@ -134,16 +135,30 @@ ipcMain.handle('db:init', () => {
   }
 });
 
-ipcMain.handle('db:stats', () => {
+ipcMain.handle('db:stats', (_e, officerId) => {
+  const actor = resolveActor(officerId);
+  const isAdmin = actor && actor.role === 'admin';
   const d = db.get();
-  const row = d.prepare(`
-    SELECT
-      SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)    AS active,
-      SUM(CASE WHEN status = 'upcoming' THEN 1 ELSE 0 END)  AS upcoming,
-      SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END)     AS draft,
-      SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END)    AS closed
-    FROM elections
-  `).get();
+  const row = isAdmin
+    ? d.prepare(`
+        SELECT
+          SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)    AS active,
+          SUM(CASE WHEN status = 'upcoming' THEN 1 ELSE 0 END)  AS upcoming,
+          SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END)     AS draft,
+          SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END)    AS closed
+        FROM elections
+      `).get()
+    : (actor && actor.id
+        ? d.prepare(`
+            SELECT
+              SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)    AS active,
+              SUM(CASE WHEN status = 'upcoming' THEN 1 ELSE 0 END)  AS upcoming,
+              SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END)     AS draft,
+              SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END)    AS closed
+            FROM elections
+            WHERE owner_id = ?
+          `).get(actor.id)
+        : { active: 0, upcoming: 0, draft: 0, closed: 0 });
   const voters = d.prepare('SELECT COUNT(*) AS c FROM voters').get().c || 0;
   const cast = d.prepare('SELECT COUNT(*) AS c FROM voters WHERE has_voted = 1').get().c || 0;
   const votes = d.prepare('SELECT COUNT(*) AS c FROM votes').get().c || 0;
@@ -168,18 +183,31 @@ ipcMain.handle('db:stats', () => {
 });
 
 // Active (voting) elections with their live counts, for the dashboard summary.
-ipcMain.handle('db:active-elections', () => {
+ipcMain.handle('db:active-elections', (_e, officerId) => {
+  const actor = resolveActor(officerId);
   const d = db.get();
-  return d.prepare(`
-    SELECT e.id, e.title, e.type, e.status,
-      (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS positions,
-      (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidates,
-      (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id) AS voters,
-      (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id AND v.has_voted = 1) AS cast
-    FROM elections e
-    WHERE e.status = 'active'
-    ORDER BY e.created_at DESC
-  `).all();
+  const rows = actor && actor.role !== 'admin'
+    ? d.prepare(`
+        SELECT e.id, e.title, e.type, e.status, e.owner_id,
+          (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS positions,
+          (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidates,
+          (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id) AS voters,
+          (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id AND v.has_voted = 1) AS cast
+        FROM elections e
+        WHERE e.status = 'active' AND e.owner_id = ?
+        ORDER BY e.created_at DESC
+      `).all(actor.id)
+    : d.prepare(`
+        SELECT e.id, e.title, e.type, e.status, e.owner_id,
+          (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS positions,
+          (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidates,
+          (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id) AS voters,
+          (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id AND v.has_voted = 1) AS cast
+        FROM elections e
+        WHERE e.status = 'active'
+        ORDER BY e.created_at DESC
+      `).all();
+  return rows;
 });
 
 ipcMain.handle('auth:setup-check', () => auth.isConfigured());
@@ -252,7 +280,10 @@ ipcMain.handle('backup:database', async () => {
 });
 
 // Export a single election (its config + all data) as a JSON snapshot.
-ipcMain.handle('backup:election', async (_e, electionId) => {
+ipcMain.handle('backup:election', async (_e, electionId, officerId) => {
+  const actor = resolveActor(officerId);
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
   const e = election.getElection(electionId);
   if (!e) return { ok: false, error: 'Election not found' };
   const snapshot = { exported_at: Date.now(), exporter: 'pulse-vote-hub-desktop', election: e };
@@ -276,25 +307,54 @@ function stripSecret(o) {
   return rest;
 }
 
+// Resolve the acting officer from the renderer-reported session officer id.
+function resolveActor(officerId) {
+  if (!officerId) return null;
+  const o = auth.findById(officerId);
+  if (!o) return null;
+  return { id: o.id, role: o.role };
+}
+
+// Authorize an election-scoped management operation: admins pass, coordinators
+// must own the election. Runs `fn(actor)` only when access is allowed.
+function guardElection(electionId, officerId, fn) {
+  const actor = resolveActor(officerId);
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  return fn(actor);
+}
+
 // ---------- Election IPC ----------
 
-ipcMain.handle('election:list', () => election.listElections());
-ipcMain.handle('election:get', (_e, id) => election.getElection(id));
-ipcMain.handle('election:create', (_e, payload) => election.createElection(payload));
-ipcMain.handle('election:update', (_e, id, payload) => election.updateElection(id, payload));
-ipcMain.handle('election:status', (_e, id, status) => election.setStatus(id, status));
-ipcMain.handle('election:publish', (_e, id, opts) => election.publishElection(id, opts));
+ipcMain.handle('election:list', (_e, officerId) => election.listElections(resolveActor(officerId)));
+ipcMain.handle('election:get', (_e, id, officerId) => guardElection(id, officerId, (actor) => election.getElection(id, actor)));
+ipcMain.handle('election:create', (_e, payload, officerId) => election.createElection(payload, resolveActor(officerId)));
+ipcMain.handle('election:update', (_e, id, payload, officerId) => election.updateElection(id, payload, resolveActor(officerId)));
+ipcMain.handle('election:status', (_e, id, status, officerId) => election.setStatus(id, status, resolveActor(officerId)));
+ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publishElection(id, opts, resolveActor(officerId)));
 ipcMain.handle('election:apply-schedule', () => election.applySchedule());
-ipcMain.handle('election:delete', (_e, id) => election.deleteElection(id));
+ipcMain.handle('election:delete', (_e, id, officerId) => election.deleteElection(id, resolveActor(officerId)));
 
-ipcMain.handle('election:positions', (_e, electionId) => election.listPositions(electionId));
-ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes) => election.addPosition(electionId, title, maxVotes));
-ipcMain.handle('election:position-remove', (_e, id) => election.removePosition(id));
+ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, () => election.listPositions(electionId)));
+ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => election.addPosition(electionId, title, maxVotes, resolveActor(officerId)));
+ipcMain.handle('election:position-remove', (_e, id, officerId) => {
+  const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
+  if (!pos) return { ok: false, error: 'Position not found' };
+  return guardElection(pos.election_id, officerId, () => election.removePosition(id));
+});
 
-ipcMain.handle('election:candidates', (_e, electionId) => election.listCandidates(electionId));
-ipcMain.handle('election:candidates-by-position', (_e, positionId) => election.listCandidatesByPosition(positionId));
-ipcMain.handle('election:candidate-add', (_e, payload) => election.addCandidate(payload));
-ipcMain.handle('election:candidate-remove', (_e, id) => election.removeCandidate(id));
+ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, () => election.listCandidates(electionId)));
+ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) => {
+  const cand = db.get().prepare('SELECT election_id FROM candidates WHERE position_id = ? LIMIT 1').get(positionId);
+  if (!cand) return election.listCandidatesByPosition(positionId);
+  return guardElection(cand.election_id, officerId, () => election.listCandidatesByPosition(positionId));
+});
+ipcMain.handle('election:candidate-add', (_e, payload, officerId) => election.addCandidate(payload, resolveActor(officerId)));
+ipcMain.handle('election:candidate-remove', (_e, id, officerId) => {
+  const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
+  if (!cand) return { ok: false, error: 'Candidate not found' };
+  return guardElection(cand.election_id, officerId, () => election.removeCandidate(id));
+});
 
 // Opens a file dialog for a candidate photo, copies the chosen image into the
 // app's data folder, and returns the stored relative path (or null if cancelled).
@@ -323,29 +383,212 @@ ipcMain.handle('candidate:photo-url', (_e, storedPath) => {
 
 // ---------- Voter IPC ----------
 
-ipcMain.handle('voter:list', (_e, electionId, opts) => voter.listVoters(electionId, opts || {}));
+ipcMain.handle('voter:list', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.listVoters(electionId, opts || {})));
 ipcMain.handle('voter:get', (_e, electionId, voterId) => voter.getVoter(electionId, voterId));
-ipcMain.handle('voter:add', (_e, payload) => voter.addVoter(payload));
-ipcMain.handle('voter:import', (_e, electionId, csvText) => voter.importCsv(electionId, csvText));
-ipcMain.handle('voter:autogen', (_e, electionId, opts) => voter.autoGenerate(electionId, opts || {}));
-ipcMain.handle('voter:delete', (_e, electionId, voterId) => voter.deleteVoter(electionId, voterId));
-ipcMain.handle('voter:clear', (_e, electionId) => voter.clearVoters(electionId));
-ipcMain.handle('voter:unvote', (_e, electionId, voterId) => voter.unvoteVoter(electionId, voterId));
+ipcMain.handle('voter:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => voter.addVoter(payload)));
+ipcMain.handle('voter:import', (_e, electionId, csvText, officerId) => guardElection(electionId, officerId, () => voter.importCsv(electionId, csvText)));
+ipcMain.handle('voter:autogen', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.autoGenerate(electionId, opts || {})));
+ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.deleteVoter(electionId, voterId)));
+ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId)));
+ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.unvoteVoter(electionId, voterId)));
 ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
 ipcMain.handle('voter:cast', (_e, electionId, voterId, selection) => voter.castVote(electionId, voterId, selection));
+
+// ---- Voter roll export (CSV / HTML / PDF / Print) ----
+const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const csvCell = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+
+function buildVoterRollHtml(electionId) {
+  const e = election.getElection(electionId);
+  const voters = voter.listVoters(electionId, { limit: 1000000 }).voters;
+  const title = (e && e.title) || 'Election';
+  const stamp = new Date().toLocaleString();
+  const safe = (e && e.safe_name) || String(title).replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+
+  const rows = voters.map((v, i) => `
+    <tr>
+      <td class="num">${i + 1}</td>
+      <td class="vid">${escHtml(v.voter_id)}</td>
+      <td>${escHtml(v.name || '—')}</td>
+      <td>${escHtml(v.assigned_station || '—')}</td>
+      <td class="status ${v.has_voted ? 'voted' : 'ready'}">${v.has_voted ? 'Voted' : 'Ready'}</td>
+    </tr>`).join('');
+
+  return {
+    title,
+    safe,
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Voter Roll — ${escHtml(title)}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; margin: 0; padding: 32px; }
+  .mast { border-bottom: 3px solid #dc2626; padding-bottom: 12px; margin-bottom: 20px; }
+  .brand { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #9ca3af; font-weight: 600; }
+  h1 { margin: 4px 0 0; font-size: 22px; color: #111827; }
+  .meta { margin-top: 6px; font-size: 12px; color: #6b7280; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; background: #f3f4f6; border-bottom: 2px solid #e5e7eb; text-transform: uppercase; font-size: 11px; letter-spacing: .5px; color: #4b5563; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; }
+  tr:nth-child(even) td { background: #fafafa; }
+  .num { width: 40px; color: #9ca3af; }
+  .vid { font-weight: 600; color: #111827; }
+  .status { text-align: center; }
+  .status.voted { color: #15803d; font-weight: 600; }
+  .status.ready { color: #2563eb; }
+  .foot { margin-top: 20px; font-size: 11px; color: #9ca3af; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+  <div class="mast">
+    <div class="brand">Pulse Vote Hub &middot; Official Voter Roll</div>
+    <h1>${escHtml(title)}</h1>
+    <div class="meta">${voters.length} voter${voters.length === 1 ? '' : 's'} &middot; generated ${escHtml(stamp)}</div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Voter ID</th><th>Name</th><th>Station</th><th>Status</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="5">No voters found.</td></tr>'}</tbody>
+  </table>
+  <div class="foot">Pulse Vote Hub &middot; ${escHtml(stamp)}</div>
+</body>
+</html>`,
+  };
+}
+
+function sanitizeFileName(name) {
+  return String(name || 'voters').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'voters';
+}
+
+async function voterExportWindow(html) {
+  const win = new BrowserWindow({
+    show: false,
+    width: 900,
+    height: 1100,
+    webPreferences: { sandbox: true, webSecurity: true },
+  });
+  await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  return win;
+}
+
+ipcMain.handle('voter:export', async (_e, { electionId, format }, officerId) => {
+  if (!['csv', 'html', 'pdf', 'print'].includes(format)) {
+    return { ok: false, error: 'Invalid export format' };
+  }
+  const actor = resolveActor(officerId);
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  try {
+    const { title, safe, html } = buildVoterRollHtml(electionId);
+    const voters = voter.listVoters(electionId, { limit: 1000000 }).voters;
+    const base = sanitizeFileName(safe);
+
+    if (format === 'csv') {
+      const csvLines = ['Voter ID,Name,Station,Status'];
+      for (const v of voters) {
+        csvLines.push([csvCell(v.voter_id), csvCell(v.name || ''), csvCell(v.assigned_station || ''), v.has_voted ? 'Voted' : 'Ready'].join(','));
+      }
+      const res = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Voter Roll (CSV)',
+        defaultPath: `${base}-voters.csv`,
+        filters: [{ name: 'CSV', extensions: ['csv'] }],
+      });
+      if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+      fs.writeFileSync(res.filePath, csvLines.join('\n'), 'utf8');
+      return { ok: true, path: res.filePath, format };
+    }
+
+    if (format === 'html') {
+      const res = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Voter Roll (HTML)',
+        defaultPath: `${base}-voters.html`,
+        filters: [{ name: 'HTML', extensions: ['html'] }],
+      });
+      if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+      fs.writeFileSync(res.filePath, html, 'utf8');
+      return { ok: true, path: res.filePath, format };
+    }
+
+    if (format === 'pdf') {
+      const res = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Voter Roll (PDF)',
+        defaultPath: `${base}-voters.pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      });
+      if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+      const win = await voterExportWindow(html);
+      try {
+        const pdf = await win.webContents.printToPDF({ pageSize: 'A4' });
+        fs.writeFileSync(res.filePath, pdf);
+      } finally {
+        if (!win.isDestroyed()) win.destroy();
+      }
+      return { ok: true, path: res.filePath, format };
+    }
+
+    if (format === 'print') {
+      const win = await voterExportWindow(html);
+      let resolved = false;
+      const done = (ok, reason) => {
+        if (resolved) return;
+        resolved = true;
+        ipcMain.emit('voter:export:print-done', { ok, reason });
+      };
+      win.webContents.print({ silent: false, printBackground: true }, (ok, failureReason) => {
+        done(ok, failureReason);
+      });
+      const result = await new Promise((resolve) => {
+        const t = setTimeout(() => resolve({ ok: true, format }), 120000);
+        ipcMain.once('voter:export:print-done', (_, r) => { clearTimeout(t); resolve({ ok: r.ok, error: r.reason, format }); });
+      });
+      if (!win.isDestroyed()) win.destroy();
+      return result;
+    }
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
 
 // ---- Stations ----
 const safeStation = (fn) => (_e, ...args) => {
   try { return fn(...args); } catch (err) { return { ok: false, error: err.message }; }
 };
-ipcMain.handle('station:list', safeStation((electionId) => station.getStationsForElection(electionId)));
-ipcMain.handle('station:add', safeStation((payload) => station.addStation(payload)));
-ipcMain.handle('station:update', safeStation((id, payload) => station.updateStation(id, payload)));
-ipcMain.handle('station:remove', safeStation((id) => station.removeStation(id)));
-ipcMain.handle('station:open', safeStation((id, opts) => station.openPolls(id, opts || {})));
-ipcMain.handle('station:close', safeStation((id, opts) => station.closePolls(id, opts || {})));
+ipcMain.handle('station:list', (_e, electionId, officerId) => guardElection(electionId, officerId, () => station.getStationsForElection(electionId)));
+ipcMain.handle('station:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => station.addStation(payload)));
+ipcMain.handle('station:update', (_e, id, payload, officerId) => {
+  const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Station not found' };
+  return guardElection(row.election_id, officerId, () => station.updateStation(id, payload));
+});
+ipcMain.handle('station:remove', (_e, id, officerId) => {
+  const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Station not found' };
+  return guardElection(row.election_id, officerId, () => station.removeStation(id));
+});
+ipcMain.handle('station:open', (_e, id, opts, officerId) => {
+  const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Station not found' };
+  return guardElection(row.election_id, officerId, () => station.openPolls(id, opts || {}));
+});
+ipcMain.handle('station:close', (_e, id, opts, officerId) => {
+  const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Station not found' };
+  return guardElection(row.election_id, officerId, () => station.closePolls(id, opts || {}));
+});
 ipcMain.handle('station:close-queue-now', safeStation((id, opts) => station.closeQueueNow(id, opts || {})));
 ipcMain.handle('station:submit', safeStation((id, opts) => station.submitPacket(id, opts || {})));
 ipcMain.handle('station:checkin', safeStation((voterId, opts) => station.checkInVoter(voterId, opts || {})));
 ipcMain.handle('station:ballot-cast', safeStation((voterId, opts) => station.markBallotCast(voterId, opts || {})));
-ipcMain.handle('station:dashboard', safeStation((electionId, stationId) => station.stationDashboard(electionId, stationId)));
+ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardElection(electionId, officerId, () => station.stationDashboard(electionId, stationId)));
+
+// ---------- Results IPC ----------
+
+ipcMain.handle('result:report', (_e, electionId, officerId, stationId) =>
+  guardElection(electionId, officerId, (actor) => {
+    const row = db.get().prepare('SELECT * FROM elections WHERE id = ?').get(electionId);
+    if (!row) return { ok: false, error: 'Election not found' };
+    return results.buildReport(row, { stationId: stationId || null });
+  }));

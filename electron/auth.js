@@ -45,6 +45,15 @@ function findByOfficerId(officerId) {
     .get(String(officerId).trim().toUpperCase());
 }
 
+// Look up an officer by its internal UUID id (used to resolve the acting
+// officer that the renderer session reports).
+function findById(id) {
+  if (!id) return null;
+  return db.get()
+    .prepare('SELECT * FROM officers WHERE id = ?')
+    .get(String(id));
+}
+
 function insertOfficer(name, officerId, password, role, extra = {}) {
   const salt = generateSalt();
   const hash = hashPassword(String(password), salt);
@@ -192,6 +201,7 @@ module.exports = {
   setupCoordinator,
   login,
   listOfficers,
+  findById,
   addOfficer,
   removeOfficer,
   setSuspended,

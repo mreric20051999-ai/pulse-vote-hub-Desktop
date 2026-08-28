@@ -8,12 +8,67 @@
   let stations = [];
   let officers = [];
 
+  // ---- Shared custom dropdown (opens downward, matches other pages) ----
+  function buildSelectDropdown(select, onChange) {
+    const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
+    let value = select.value;
+    const root = document.createElement('div');
+    root.className = 'pdd';
+    root.innerHTML = `
+      <button type="button" class="pdd-trigger">
+        <span class="pdd-label"></span>
+        <span class="pdd-arrow"></span>
+      </button>
+      <div class="pdd-menu" hidden></div>
+    `;
+    const labelEl = root.querySelector('.pdd-label');
+    const menu = root.querySelector('.pdd-menu');
+    const trigger = root.querySelector('.pdd-trigger');
+
+    function render() {
+      menu.innerHTML = opts.map((o) =>
+        `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
+      ).join('');
+      const cur = opts.find((o) => o.value === value);
+      labelEl.textContent = cur ? cur.label : '— Select a station election —';
+      labelEl.classList.toggle('placeholder', !cur);
+    }
+    function close() { root.classList.remove('open'); menu.hidden = true; }
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) { close(); return; }
+      render();
+      menu.hidden = false;
+      root.classList.add('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('.pdd-option');
+      if (!o) return;
+      value = o.dataset.value;
+      render();
+      close();
+      if (onChange) onChange(value);
+    });
+    document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
+
+    select.replaceWith(root);
+    return {
+      get: () => value,
+      set: (v) => { value = v; render(); },
+      setOptions: (list) => { opts.length = 0; opts.push(...list); render(); },
+      root,
+    };
+  }
+
   async function loadElectionOptions() {
     const all = await window.pvh.listElections();
     const stationElecs = all.filter((e) => e.type === 'station');
-    const sel = $('station-election-select');
-    sel.innerHTML = '<option value="">-- Select a station election --</option>' +
-      stationElecs.map((e) => '<option value="' + esc(e.id) + '">' + esc(e.title) + '</option>').join('');
+    electionDD.setOptions(
+      [{ value: '', label: '— Select a station election —' }].concat(
+        stationElecs.map((e) => ({ value: e.id, label: e.title }))
+      )
+    );
   }
 
   function statusPill(s) {
@@ -84,12 +139,16 @@
   function bindAddStation() {
     const overlay = $('add-overlay');
     const form = $('add-station-form');
+    function closeModal() { overlay.hidden = true; $('st-error').textContent = ''; }
     $('add-station-btn').addEventListener('click', () => {
       if (!currentElectionId) { alert('Select a station election first.'); return; }
       overlay.hidden = false;
       $('st-name').focus();
     });
-    $('st-cancel').addEventListener('click', () => { overlay.hidden = true; $('st-error').textContent = ''; });
+    $('st-cancel').addEventListener('click', closeModal);
+    $('st-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) closeModal(); });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       $('st-error').textContent = '';
@@ -109,11 +168,40 @@
     });
   }
 
-  $('station-election-select').addEventListener('change', () => {
-    currentElectionId = $('station-election-select').value;
+  function bindCreateOfficer() {
+    const overlay = $('officer-overlay');
+    const form = $('create-officer-form');
+    function closeModal() { overlay.hidden = true; form.reset(); $('of-error').textContent = ''; }
+    $('create-officer-btn').addEventListener('click', () => { overlay.hidden = false; $('of-name').focus(); });
+    $('of-cancel').addEventListener('click', closeModal);
+    $('of-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) closeModal(); });
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      $('of-error').textContent = '';
+      const res = await window.pvh.addOfficer({
+        name: $('of-name').value,
+        officerId: $('of-id').value,
+        password: $('of-pass').value,
+        role: 'assistant',
+      });
+      if (res.ok) {
+        closeModal();
+        if (currentElectionId) renderStations();
+      } else {
+        $('of-error').textContent = res.error || 'Failed to create officer';
+      }
+    });
+  }
+
+  const electionDD = buildSelectDropdown($('station-election-select'), (value) => {
+    currentElectionId = value;
     renderStations();
   });
+  electionDD.root.style.maxWidth = '380px';
 
   loadElectionOptions();
   bindAddStation();
+  bindCreateOfficer();
 })();

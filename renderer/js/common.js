@@ -6,6 +6,8 @@
     return;
   }
 
+  if (session.role === 'admin') document.body.classList.add('is-admin');
+
   const footer = document.getElementById('sidebar-footer');
   if (footer) {
     footer.innerHTML = `
@@ -34,13 +36,13 @@
         e.preventDefault();
         const navName = a.getAttribute('data-nav');
         // Navigate to the matching page if it exists
-        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', admin: 'dashboard.html', officers: 'dashboard.html' };
+        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', results: 'results.html', admin: 'administration.html', officers: 'officers.html' };
         const target = map[navName];
         if (!target) return;
         // If we're already on the target page, don't reload — scroll to the
-        // relevant section (e.g. Administration/Officers -> coordinator panel).
+        // relevant section (e.g. Administration -> coordinator panel).
         if (window.location.pathname.split('/').pop() === target) {
-          const anchor = (navName === 'admin' || navName === 'officers')
+          const anchor = (navName === 'admin')
             ? document.getElementById('coordinators-panel')
             : null;
           if (anchor) { anchor.scrollIntoView({ behavior: 'auto', block: 'start' }); }

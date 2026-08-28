@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administration &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/officers.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+      <span>Pulse Vote Hub</span>
+    </div>
+    <nav class="sidebar-nav" id="nav">
+      <a class="nav-item" href="dashboard.html" data-nav="dashboard"><span class="icon nav-ic" data-icon="dashboard"></span>Dashboard</a>
+      <a class="nav-item" href="elections.html" data-nav="elections"><span class="icon nav-ic" data-icon="elections"></span>Elections</a>
+      <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
+      <a class="nav-item" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
+      <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
+      <a class="nav-item" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item admin-only active" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
+    </nav>
+    <div class="sidebar-footer" id="sidebar-footer"></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Administration</h1>
+        <p id="page-subtitle">Backup, export and your account.</p>
+      </div>
+    </div>
+
+    <!-- Section sub-menu -->
+    <nav class="section-links" id="section-links">
+      <a href="#backup" class="sub-link active" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
+      <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
+    </nav>
+
+    <!-- Backup & export -->
+    <section class="card panel ofc-section" id="backup">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Backup &amp; export</div>
+          <p class="text-muted panel-sub">Download a full database backup or export an election as JSON.</p>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="backup-db-btn"><span class="icon btn-icon" data-icon="download"></span>Back up database</button>
+        <button class="btn btn-secondary" id="export-election-btn"><span class="icon btn-icon" data-icon="upload"></span>Export election JSON</button>
+      </div>
+      <p class="auth-error" id="backup-msg"></p>
+    </section>
+
+    <!-- My account -->
+    <section class="card panel ofc-section" id="my-account">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">My account</div>
+          <p class="text-muted panel-sub">Change your own password.</p>
+        </div>
+      </div>
+      <form id="my-password-form" class="inline-form ofc-form">
+        <div class="field">
+          <label class="label" for="my-new-pass">New password</label>
+          <input class="input" id="my-new-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        </div>
+        <button type="submit" class="btn btn-secondary"><span class="icon btn-icon" data-icon="lock"></span>Update password</button>
+      </form>
+      <p class="auth-error" id="my-password-msg"></p>
+    </section>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/administration.js"></script>
+</body>
+</html>

@@ -92,11 +92,12 @@ function importCsv(electionId, csvText) {
 }
 
 // Auto-generate voters from a pasted list, per scheme.
-// scheme: 'name-index' | 'index-only' | 'index-phone'
+// scheme: 'name-index' | 'index-only' | 'index-phone' | 'range'
 // list: newline-separated; each line is "name" or CSV "name,index,phone" parts.
-function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = '' } = {}) {
+// range: { from, to } for 'range' scheme -> generates sequential Voter IDs over a numeric range.
+function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = '', from, to, assignedStation } = {}) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
-  if (!['name-index', 'index-only', 'index-phone'].includes(scheme)) {
+  if (!['name-index', 'index-only', 'index-phone', 'range'].includes(scheme)) {
     return { ok: false, error: 'Invalid generation scheme' };
   }
   list = String(list || '');
@@ -136,6 +137,40 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
     return id;
   }
 
+  function insertVoter(voterId, name) {
+    const password = generatePassword();
+    insert.run({
+      id: uuidv4(),
+      election_id: electionId,
+      voter_id: voterId,
+      name,
+      password_hash: auth.hashPassword(password, fallbackSalt()),
+      password_salt: '',
+      assigned_station: assignedStation ? String(assignedStation).trim() : null,
+    });
+    existing.add(voterId);
+    usedIndexes.add(voterId);
+    added++;
+  }
+
+  // Range scheme: generate sequential Voter IDs (Vxxxx) across a numeric range.
+  if (scheme === 'range') {
+    const fromN = Math.max(1, Math.floor(Number(from) || 1));
+    const toN = Math.floor(Number(to) || fromN);
+    if (!Number.isFinite(fromN) || !Number.isFinite(toN) || toN < fromN) {
+      return { ok: false, error: 'Range is invalid. To must be greater than or equal to From.' };
+    }
+    const cap = Math.max(1, toN - fromN + 1);
+    if (cap > 5000) return { ok: false, error: 'Range is too large (max 5000 voters at once).' };
+    const pad = Math.max(4, String(toN).length);
+    for (let num = fromN; num <= toN; num++) {
+      const voterId = `V${String(num).padStart(pad, '0')}`;
+      if (existing.has(voterId) || usedIndexes.has(voterId)) { usedIndexes.add(voterId); continue; }
+      insertVoter(voterId, null);
+    }
+    return { ok: true, count: added, from: fromN, to: toN, assignedStation: assignedStation || null };
+  }
+
   // number of voters wanted; if a list is provided use its length (or count cap)
   const target = rows.length ? Math.min(rows.length, count || rows.length) : Math.max(1, Number(count) || 1);
 
@@ -166,22 +201,10 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       continue;
     }
 
-    const password = generatePassword();
-    insert.run({
-      id: uuidv4(),
-      election_id: electionId,
-      voter_id: voterId,
-      name,
-      password_hash: auth.hashPassword(password, fallbackSalt()),
-      password_salt: '',
-      assigned_station: null,
-    });
-    existing.add(voterId);
-    usedIndexes.add(voterId);
-    added++;
+    insertVoter(voterId, name);
   }
 
-  return { ok: true, count: added };
+  return { ok: true, count: added, assignedStation: assignedStation || null };
 }
 
 function deleteVoter(electionId, voterId) {
@@ -338,12 +361,9 @@ function generateVoterId(n) {
   return `V${num}`;
 }
 
-function generatePassword(len = 8) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  let out = '';
-  const bytes = crypto.randomBytes(len);
-  for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
-  return out;
+// Voting password: auto-generated 4-digit numeric code.
+function generatePassword() {
+  return randomDigits(4);
 }
 
 function randomDigits(len) {

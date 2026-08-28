@@ -93,6 +93,15 @@ body.is-admin .admin-only.inline { display: inline-block; }
 
 /* ---------- Active elections ---------- */
 
+.active-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.active-empty .hint {
+  margin-bottom: 0;
+}
 .active-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

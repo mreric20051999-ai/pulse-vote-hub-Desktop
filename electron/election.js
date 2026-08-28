@@ -29,9 +29,10 @@ function computedStatus(e, now = Date.now()) {
 
 // ---- Elections ----
 
-function createElection({ title, type, election_date, start_date, end_date, station_mode, close_grace_minutes, max_close_grace_minutes }) {
+function createElection({ title, type, election_date, start_date, end_date, station_mode, close_grace_minutes, max_close_grace_minutes }, actor) {
   if (!title || !String(title).trim()) return { ok: false, error: 'Title is required' };
   if (!ELECTION_TYPES.includes(type)) return { ok: false, error: 'Invalid election type' };
+  if (!actor || !actor.id) return { ok: false, error: 'Authentication required' };
 
   const now = Date.now();
   const start = start_date !== undefined ? (start_date ? Number(start_date) : null) : (election_date ? Number(election_date) : null);
@@ -41,6 +42,7 @@ function createElection({ title, type, election_date, start_date, end_date, stat
     title: String(title).trim(),
     type,
     status: 'draft',
+    owner_id: actor.id,
     election_date: start,       // legacy alias for the start timestamp
     start_date: start,
     end_date: end,
@@ -53,11 +55,11 @@ function createElection({ title, type, election_date, start_date, end_date, stat
 
   db.get().prepare(`
     INSERT INTO elections (
-      id, title, type, status, election_date, start_date, end_date,
+      id, title, type, status, election_date, start_date, end_date, owner_id,
       station_mode, close_grace_minutes, max_close_grace_minutes, created_at, closed_at
     )
     VALUES (
-      @id, @title, @type, @status, @election_date, @start_date, @end_date,
+      @id, @title, @type, @status, @election_date, @start_date, @end_date, @owner_id,
       @station_mode, @close_grace_minutes, @max_close_grace_minutes, @created_at, @closed_at
     )
   `).run(election);
@@ -66,24 +68,65 @@ function createElection({ title, type, election_date, start_date, end_date, stat
   return { ok: true, election };
 }
 
-function listElections() {
+// ---- Ownership / authorization ----
+//
+// Coordinators may only see and configure the elections they created. Admins
+// can see and configure everything. `actor` is the resolved { id, role } of
+// the acting officer, threaded from the renderer session through IPC.
+
+function canAccessElection(e, actor) {
+  if (!actor || !actor.id) return { ok: false, error: 'Authentication required', code: 'forbidden' };
+  if (actor.role === 'admin') return { ok: true };
+  if (!e) return { ok: false, error: 'Election not found' };
+  if (e.owner_id && e.owner_id !== actor.id) {
+    return { ok: false, error: 'You do not have access to this election.', code: 'forbidden' };
+  }
+  return { ok: true };
+}
+
+function listElections(actor) {
+  const admin = actor && actor.role === 'admin';
+  if (admin) {
+    return db.get().prepare(`
+      SELECT e.*,
+        (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS position_count,
+        (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidate_count,
+        (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id) AS voter_count
+      FROM elections e
+      ORDER BY e.created_at DESC
+    `).all();
+  }
+  // Non-admins (coordinators) only ever see the elections they own. An unknown
+  // or unauthenticated actor sees nothing.
+  if (!actor || !actor.id) return [];
   return db.get().prepare(`
     SELECT e.*,
       (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS position_count,
       (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidate_count,
       (SELECT COUNT(*) FROM voters v WHERE v.election_id = e.id) AS voter_count
     FROM elections e
+    WHERE e.owner_id = ?
     ORDER BY e.created_at DESC
-  `).all();
+  `).all(actor.id);
 }
 
-function getElection(id) {
-  return db.get().prepare('SELECT * FROM elections WHERE id = ?').get(id) || null;
+function getElection(id, actor) {
+  const e = db.get().prepare('SELECT * FROM elections WHERE id = ?').get(id) || null;
+  if (e) e._accessError = canAccessElection(e, actor).ok ? null : canAccessElection(e, actor).error;
+  return e;
 }
 
-function updateElection(id, { title, type, election_date, start_date, end_date, station_mode, close_grace_minutes, max_close_grace_minutes }) {
+function getElectionOrError(id, actor) {
+  const e = db.get().prepare('SELECT * FROM elections WHERE id = ?').get(id) || null;
+  if (!e) return { ok: false, error: 'Election not found' };
+  return canAccessElection(e, actor);
+}
+
+function updateElection(id, { title, type, election_date, start_date, end_date, station_mode, close_grace_minutes, max_close_grace_minutes }, actor) {
   const exists = getElection(id);
   if (!exists) return { ok: false, error: 'Election not found' };
+  const acc = canAccessElection(exists, actor);
+  if (!acc.ok) return acc;
   if (title && !String(title).trim()) return { ok: false, error: 'Title is required' };
   if (type && !ELECTION_TYPES.includes(type)) return { ok: false, error: 'Invalid election type' };
 
@@ -115,10 +158,12 @@ function updateElection(id, { title, type, election_date, start_date, end_date, 
   return { ok: true, election: getElection(id) };
 }
 
-function setStatus(id, status) {
+function setStatus(id, status, actor) {
   if (!ELECTION_STATUSES.includes(status)) return { ok: false, error: 'Invalid status' };
   const exists = getElection(id);
   if (!exists) return { ok: false, error: 'Election not found' };
+  const acc = canAccessElection(exists, actor);
+  if (!acc.ok) return acc;
 
   db.get().prepare('UPDATE elections SET status = ?, closed_at = ? WHERE id = ?')
     .run(status, status === 'closed' ? Date.now() : exists.closed_at, id);
@@ -130,9 +175,11 @@ function setStatus(id, status) {
 // Publish an election: compute its status from the schedule, mirroring the web
 // app's saveElection('publish') logic. A school election without any voters
 // cannot publish — it is forced back to 'draft'.
-function publishElection(id, { schoolVoterCount = null } = {}) {
+function publishElection(id, { schoolVoterCount = null } = {}, actor) {
   const exists = getElection(id);
   if (!exists) return { ok: false, error: 'Election not found' };
+  const acc = canAccessElection(exists, actor);
+  if (!acc.ok) return acc;
 
   const now = Date.now();
   let status = deriveStatusFromSchedule(exists, now);
@@ -193,7 +240,11 @@ function applySchedule(now = Date.now()) {
   return { ok: true, changed };
 }
 
-function deleteElection(id) {
+function deleteElection(id, actor) {
+  const exists = getElection(id);
+  if (!exists) return { ok: false, error: 'Election not found' };
+  const acc = canAccessElection(exists, actor);
+  if (!acc.ok) return acc;
   const d = db.get();
   const tx = d.transaction(() => {
     d.prepare('DELETE FROM candidates WHERE election_id = ?').run(id);
@@ -214,9 +265,12 @@ function deleteElection(id) {
 
 // ---- Positions ----
 
-function addPosition(electionId, title, maxVotes = 1) {
-  if (!getElection(electionId)) return { ok: false, error: 'Election not found' };
-  if (isLocked(getElection(electionId).status)) return lockedError();
+function addPosition(electionId, title, maxVotes = 1, actor) {
+  const e = getElection(electionId);
+  if (!e) return { ok: false, error: 'Election not found' };
+  const acc = canAccessElection(e, actor);
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
   if (!title || !String(title).trim()) return { ok: false, error: 'Position title is required' };
   maxVotes = Math.max(1, Number(maxVotes) || 1);
 
@@ -234,7 +288,11 @@ function addPosition(electionId, title, maxVotes = 1) {
   return { ok: true, position };
 }
 
-function listPositions(electionId) {
+function listPositions(electionId, actor) {
+  const e = getElection(electionId);
+  if (!e) return [];
+  const acc = canAccessElection(e, actor);
+  if (!acc.ok) return [];
   return db.get().prepare(`
     SELECT p.*,
       (SELECT COUNT(*) FROM candidates c WHERE c.position_id = p.id) AS candidate_count
@@ -242,9 +300,13 @@ function listPositions(electionId) {
   `).all(electionId);
 }
 
-function removePosition(id) {
+function removePosition(id, actor) {
   const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
-  if (pos && isLocked(getElection(pos.election_id).status)) return lockedError();
+  if (!pos) return { ok: false, error: 'Position not found' };
+  const e = getElection(pos.election_id);
+  const acc = e ? canAccessElection(e, actor) : { ok: false, error: 'Election not found' };
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
   db.get().prepare('DELETE FROM candidates WHERE position_id = ?').run(id);
   db.get().prepare('DELETE FROM positions WHERE id = ?').run(id);
   audit('elections', `Removed position "${id}"`);
@@ -253,9 +315,12 @@ function removePosition(id) {
 
 // ---- Candidates ----
 
-function addCandidate({ electionId, positionId, name, photo_path }) {
-  if (!getElection(electionId)) return { ok: false, error: 'Election not found' };
-  if (isLocked(getElection(electionId).status)) return lockedError();
+function addCandidate({ electionId, positionId, name, photo_path }, actor) {
+  const e = getElection(electionId);
+  if (!e) return { ok: false, error: 'Election not found' };
+  const acc = canAccessElection(e, actor);
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
   if (!name || !String(name).trim()) return { ok: false, error: 'Candidate name is required' };
 
   const position = db.get().prepare('SELECT * FROM positions WHERE id = ? AND election_id = ?').get(positionId, electionId);
@@ -282,7 +347,11 @@ function addCandidate({ electionId, positionId, name, photo_path }) {
   return { ok: true, candidate };
 }
 
-function listCandidates(electionId) {
+function listCandidates(electionId, actor) {
+  const e = getElection(electionId);
+  if (!e) return [];
+  const acc = canAccessElection(e, actor);
+  if (!acc.ok) return [];
   return db.get().prepare(`
     SELECT c.* FROM candidates c
     WHERE c.election_id = ? ORDER BY c.position_id, c.sort_order
@@ -293,9 +362,13 @@ function listCandidatesByPosition(positionId) {
   return db.get().prepare('SELECT * FROM candidates WHERE position_id = ? ORDER BY sort_order').all(positionId);
 }
 
-function removeCandidate(id) {
+function removeCandidate(id, actor) {
   const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
-  if (cand && isLocked(getElection(cand.election_id).status)) return lockedError();
+  if (!cand) return { ok: false, error: 'Candidate not found' };
+  const e = getElection(cand.election_id);
+  const acc = e ? canAccessElection(e, actor) : { ok: false, error: 'Election not found' };
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
   db.get().prepare('DELETE FROM candidates WHERE id = ?').run(id);
   audit('elections', `Removed candidate "${id}"`);
   return { ok: true };
@@ -330,6 +403,8 @@ module.exports = {
   createElection,
   listElections,
   getElection,
+  getElectionOrError,
+  canAccessElection,
   updateElection,
   setStatus,
   publishElection,

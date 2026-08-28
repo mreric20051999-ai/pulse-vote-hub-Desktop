@@ -23,7 +23,9 @@
       <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
       <a class="nav-item active" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
       <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
-      <a class="nav-item" href="#" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
   </aside>
@@ -36,6 +38,7 @@
           <p id="page-subtitle">Configure stations and assign a station officer to each.</p>
         </div>
         <div class="page-actions">
+          <button class="btn btn-secondary" id="create-officer-btn"><span class="icon btn-icon" data-icon="users"></span>Create officer</button>
           <button class="btn btn-primary" id="add-station-btn"><span class="icon btn-icon" data-icon="plus"></span>Add station</button>
         </div>
       </div>
@@ -59,25 +62,69 @@
 
   <!-- Add station modal -->
   <div class="modal-overlay" id="add-overlay" hidden>
-    <div class="modal">
-      <div class="modal-title">Add station</div>
+    <div class="modal add-station-modal">
+      <div class="modal-top">
+        <span class="icon modal-top-ic" data-icon="users"></span>
+        <div class="modal-top-text">
+          <div class="modal-title">Add polling station</div>
+          <div class="modal-sub">Create a new station for this election and link its officer.</div>
+        </div>
+        <button type="button" class="icon modal-close" id="st-close" aria-label="Close" data-icon="x"></button>
+      </div>
       <form id="add-station-form">
         <div class="field">
-          <label class="label" for="st-name">Station name</label>
-          <input class="input" id="st-name" type="text" placeholder="e.g. Block A">
+          <label class="label" for="st-name">Station name <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="st-name" type="text" placeholder="e.g. Block A" autocomplete="off">
+          <div class="field-hint">A short, readable name for this location.</div>
         </div>
         <div class="field">
           <label class="label" for="st-location">Location</label>
-          <input class="input" id="st-location" type="text" placeholder="e.g. Main Hall">
+          <input class="input" id="st-location" type="text" placeholder="e.g. Main Hall" autocomplete="off">
+          <div class="field-hint">Building, hall or street where voters report.</div>
         </div>
         <div class="field">
-          <label class="label" for="st-code">Station code</label>
-          <input class="input" id="st-code" type="text" placeholder="e.g. BLK-A (used to assign voters)">
+          <label class="label" for="st-code">Station code <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="st-code" type="text" placeholder="e.g. BLK-A" autocomplete="off" spellcheck="false">
+          <div class="field-hint">Short code used to assign voters to this station.</div>
         </div>
         <p class="auth-error" id="st-error"></p>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" id="st-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="st-submit">Add station</button>
+          <button type="submit" class="btn btn-primary" id="st-submit"><span class="icon btn-icon" data-icon="plus"></span>Add station</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Create officer account modal -->
+  <div class="modal-overlay" id="officer-overlay" hidden>
+    <div class="modal add-station-modal">
+      <div class="modal-top">
+        <span class="icon modal-top-ic" data-icon="users"></span>
+        <div class="modal-top-text">
+          <div class="modal-title">Create station officer</div>
+          <div class="modal-sub">Create an officer account, then assign it to a station below.</div>
+        </div>
+        <button type="button" class="icon modal-close" id="of-close" aria-label="Close" data-icon="x"></button>
+      </div>
+      <form id="create-officer-form">
+        <div class="field">
+          <label class="label" for="of-name">Full name <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="of-name" type="text" placeholder="e.g. Sandra Mensah" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="label" for="of-id">Officer ID <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="of-id" type="text" placeholder="e.g. OFF1" autocomplete="off" spellcheck="false">
+          <div class="field-hint">Unique login ID, used by this officer to sign in.</div>
+        </div>
+        <div class="field">
+          <label class="label" for="of-pass">Password <span class="req" aria-hidden="true">*</span></label>
+          <input class="input" id="of-pass" type="password" placeholder="Min. 6 characters" autocomplete="new-password">
+        </div>
+        <p class="auth-error" id="of-error"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="of-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="of-submit"><span class="icon btn-icon" data-icon="check"></span>Create officer</button>
         </div>
       </form>
     </div>

@@ -22,9 +22,9 @@
       <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
       <a class="nav-item" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
       <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
-      <a class="nav-item" href="#" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
-      <a class="nav-item" href="#" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
-      <a class="nav-item admin-only" href="#" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
+      <a class="nav-item" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
   </aside>
@@ -76,97 +76,7 @@
       <div class="card-title">Active elections</div>
       <div id="active-elections"><p class="text-muted hint">No elections are currently running.</p></div>
     </section>
-
-    <!-- Admin-only: backup -->
-    <section class="card panel admin-only" id="backup-panel">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">Backup &amp; export</div>
-          <p class="text-muted panel-sub">Create a full backup of the election database, or export an individual election as a JSON archive.</p>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" id="backup-db-btn"><span class="icon btn-icon" data-icon="download"></span>Back up database</button>
-        <button class="btn btn-secondary" id="export-election-btn"><span class="icon btn-icon" data-icon="upload"></span>Export election JSON</button>
-      </div>
-      <p class="auth-error" id="backup-msg"></p>
-    </section>
-
-    <!-- Admin-only: coordinator management -->
-    <section class="card panel admin-only" id="coordinators-panel">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">Coordinators &amp; assistants</div>
-          <p class="text-muted panel-sub">Assign coordinators, suspend accounts, or reset passwords. Administrators cannot be modified here.</p>
-        </div>
-        <button class="btn btn-primary" id="add-officer-btn"><span class="icon btn-icon" data-icon="plus"></span>Add coordinator</button>
-      </div>
-      <div class="table-wrap">
-        <table class="table officers-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Officer ID</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th class="th-actions">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="officers-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="card panel admin-only" id="my-account-panel">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">My account</div>
-          <p class="text-muted panel-sub">Change your own password.</p>
-        </div>
-      </div>
-      <form id="my-password-form" class="inline-form">
-        <div class="field">
-          <label class="label" for="my-new-pass">New password</label>
-          <input class="input" id="my-new-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
-        </div>
-        <button type="submit" class="btn btn-secondary">Update password</button>
-      </form>
-      <p class="auth-error" id="my-password-msg"></p>
-    </section>
   </main>
-
-  <!-- Add coordinator modal -->
-  <div class="modal-overlay" id="modal-overlay" hidden>
-    <div class="modal">
-      <div class="modal-title">Add coordinator</div>
-      <form id="add-officer-form">
-        <div class="field">
-          <label class="label" for="ao-name">Full name</label>
-          <input class="input" id="ao-name" type="text" placeholder="e.g. Robert Rivera">
-        </div>
-        <div class="field">
-          <label class="label" for="ao-id">Officer ID</label>
-          <input class="input" id="ao-id" type="text" placeholder="e.g. CO2">
-        </div>
-        <div class="field">
-          <label class="label" for="ao-pass">Password</label>
-          <input class="input" id="ao-pass" type="password" placeholder="Min. 6 characters">
-        </div>
-        <div class="field">
-          <label class="label" for="ao-role">Role</label>
-          <select class="input" id="ao-role">
-            <option value="coordinator">Coordinator</option>
-            <option value="assistant">Assistant</option>
-          </select>
-        </div>
-        <p class="auth-error" id="ao-error"></p>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-ghost" id="ao-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="ao-submit">Add</button>
-        </div>
-      </form>
-    </div>
-  </div>
 
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>

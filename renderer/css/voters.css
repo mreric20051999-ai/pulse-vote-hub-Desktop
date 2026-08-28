@@ -1,5 +1,8 @@
 /* ---------- Voters page ---------- */
 
+.picker-card {
+  margin-bottom: var(--space-6);
+}
 .picker-row {
   display: flex;
   align-items: flex-end;
@@ -9,6 +12,90 @@
   color: var(--text-muted);
   font-size: var(--fs-md);
   padding-bottom: 10px;
+}
+
+/* Main working layout: primary tools on the left, supporting tools on the right */
+.voters-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+.voters-main,
+.voters-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.voters-side {
+  position: sticky;
+  top: var(--topbar-height, 64px);
+}
+
+/* Tools cards — consistent, calm, premium */
+.tools-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+}
+.tools-card .panel {
+  margin-top: 0;
+}
+
+/* Card header with icon chip */
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.card-ic {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.card-ic svg {
+  width: 20px;
+  height: 20px;
+}
+.card-head-title {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-heading);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  line-height: var(--lh-tight);
+}
+.card-head-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+.sub-head {
+  display: block;
+  font-family: var(--font-heading);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin-bottom: var(--space-1);
+}
+.field-desc {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
 }
 
 /* Two-column add-voter fields */
@@ -25,25 +112,15 @@
   margin-top: var(--space-4);
   margin-bottom: 0;
 }
-
-/* Give the tools cards a consistent, comfortable padding */
-.tools-grid .card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.tools-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: var(--space-5);
-  margin-top: var(--space-5);
+.actions-right .btn {
+  min-width: 132px;
+  justify-content: center;
 }
 
 .divider {
   border: none;
   border-top: 1px solid var(--border);
-  margin: var(--space-5) 0;
+  margin: var(--space-4) 0;
 }
 
 .list-header {
@@ -104,4 +181,50 @@
 .autogen textarea {
   font-family: var(--font-body);
   font-size: var(--fs-sm);
+}
+.autogen .range-row {
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+/* Export voter roll buttons */
+.export-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  margin-top: 2px;
+}
+.export-grid .btn {
+  justify-content: flex-start;
+  gap: var(--space-2);
+  width: 100%;
+}
+.export-grid .btn .icon {
+  font-size: var(--fs-md);
+}
+
+/* Responsive: collapse side column alongside main content */
+@media (max-width: 1024px) {
+  .voters-layout {
+    grid-template-columns: 1fr;
+  }
+  .voters-side {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .picker-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+  }
+  .picker-summary {
+    padding-bottom: 0;
+  }
+  .two-add {
+    grid-template-columns: 1fr;
+  }
 }

@@ -514,42 +514,53 @@
 
     const body = $('pb-body');
     if (!positions.length) {
-      body.innerHTML = '<p class="ballot-empty">No categories yet. Add a category to preview the ballot.</p>';
+      body.innerHTML = '<div class="ballot-empty">No categories yet. Add a category to preview the ballot.</div>';
       openPreviewModal();
       return;
     }
+    body.classList.add('ballot-paper');
 
-    body.innerHTML = positions.map((p) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    const sections = positions.map((p, i) => {
       const cands = candidates.filter((c) => c.position_id === p.id);
-      const cards = cands.length
-        ? cands.map((c) => `
-            <div class="ballot-card">
-              <span class="ballot-avatar" data-photo="${esc(c.photo_path || '')}">${esc((c.name || '?').charAt(0).toUpperCase())}</span>
-              <div class="ballot-card-info">
-                <div class="ballot-bn">
-                  <span class="ballot-bn-num">${esc(c.ballot_number != null ? c.ballot_number : 1)}</span>
-                  <span class="ballot-bn-label">BALLOT</span>
-                </div>
-                <div class="ballot-card-name">${esc(c.name)}</div>
-                <div class="ballot-card-tagline">Candidate</div>
-              </div>
+      const rows = cands.length
+        ? cands.map((c, j) => `
+            <div class="bp-cand">
+              <span class="bp-num">${esc(c.ballot_number != null ? c.ballot_number : j + 1)}</span>
+              <span class="bp-avatar" data-photo="${esc(c.photo_path || '')}">${esc((c.name || '?').charAt(0).toUpperCase())}</span>
+              <span class="bp-cand-info">
+                <span class="bp-cand-name">${esc(c.name)}</span>
+                <span class="bp-cand-tag">${esc(c.tagline || 'Candidate')}</span>
+              </span>
+              <span class="bp-mark"></span>
             </div>`).join('')
         : '<div class="ballot-empty">No candidates in this category yet.</div>';
       return `
-        <div class="ballot-section">
-          <div class="ballot-section-head">
-            <span class="ballot-cat-title">${esc(p.title)}</span>
-            <span class="ballot-cat-max">vote for up to ${p.max_votes}</span>
+        <section class="bp-cat">
+          <div class="bp-cat-head">
+            <span class="bp-cat-index">${pad(i + 1)}</span>
+            <span class="bp-cat-title">${esc(p.title)}</span>
+            <span class="bp-cat-max">Vote for up to ${esc(p.max_votes || 1)}</span>
           </div>
-          <div class="ballot-grid">${cards}</div>
-        </div>`;
+          <div class="bp-cands">${rows}</div>
+        </section>`;
     }).join('');
 
+    body.innerHTML = `
+      <div class="bp-mast">
+        <div class="bp-mast-flag">Pulse Vote Hub &middot; Official Ballot</div>
+        <div class="bp-mast-title">${esc(title)}</div>
+      </div>
+      <div class="bp-sheet">
+        <div class="bp-instructions">Mark your choice in the box beside the candidate of your choice.</div>
+        ${sections}
+      </div>`;
+
     // Resolve stored photo paths to usable file URLs.
-    body.querySelectorAll('.ballot-avatar[data-photo]').forEach((el) => {
+    body.querySelectorAll('.bp-avatar[data-photo]').forEach((el) => {
       if (!el.dataset.photo) return;
       const img = document.createElement('img');
-      img.className = 'ballot-avatar';
+      img.className = 'bp-avatar';
       img.alt = '';
       window.pvh.candidatePhotoUrl(el.dataset.photo).then((url) => { if (url) img.src = url; });
       el.replaceWith(img);
