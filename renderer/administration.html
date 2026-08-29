@@ -57,6 +57,19 @@
         <button class="btn btn-secondary" id="export-election-btn"><span class="icon btn-icon" data-icon="upload"></span>Export election JSON</button>
       </div>
       <p class="auth-error" id="backup-msg"></p>
+
+      <div class="delete-stripe">
+        <div class="inline-form">
+          <div class="field">
+            <label class="label" for="delete-election">Election</label>
+            <select class="select" id="delete-election">
+              <option value="">— Select an election —</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-danger" id="delete-election-btn"><span class="icon btn-icon" data-icon="trash"></span>Delete election</button>
+        </div>
+        <p class="auth-error" id="delete-msg"></p>
+      </div>
     </section>
 
     <!-- My account -->

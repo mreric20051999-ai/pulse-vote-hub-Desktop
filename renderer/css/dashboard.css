@@ -91,6 +91,11 @@ body.is-admin .admin-only.inline { display: inline-block; }
   min-width: 260px;
   margin: 0;
 }
+.delete-stripe {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
 
 /* ---------- Active elections ---------- */
 
