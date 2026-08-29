@@ -213,8 +213,8 @@
   window.stationConfirmCheckIn = async function (id) {
     const b = $('mCiBtn'); b.disabled = true; b.textContent = 'Checking in…';
     const res = await window.pvh.stationCheckin(id, { officerName: session.name });
-    if (res.ok) { closeModal(); logEvent('checkin', 'Voter checked in.'); await loadDashboard(); showToast('Voter checked in — send them to the ballot page.'); }
-    else { b.disabled = false; b.textContent = 'Confirm Check In'; showToast(res.error || 'Check-in failed', true); }
+    if (res.ok) { closeModal(); logEvent('checkin', 'Voter checked in.'); if (window.pvhAudio) window.pvhAudio.playSuccess(); await loadDashboard(); showToast('Voter checked in — send them to the ballot page.'); }
+    else { b.disabled = false; b.textContent = 'Confirm Check In'; if (window.pvhAudio) window.pvhAudio.playError(); showToast(res.error || 'Check-in failed', true); }
   };
 
   // ---- Actions ----
@@ -316,6 +316,7 @@
 
   // toast helper (minimal)
   function showToast(msg, isError) {
+    if (isError && window.pvhAudio) window.pvhAudio.playError();
     const t = document.createElement('div');
     t.className = 'toast' + (isError ? ' toast-error' : '');
     t.textContent = msg;

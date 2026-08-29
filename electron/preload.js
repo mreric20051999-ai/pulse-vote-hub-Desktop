@@ -96,6 +96,10 @@ contextBridge.exposeInMainWorld('pvh', {
   // Integrity verification
   verifyIntegrity: () => ipcRenderer.invoke('integrity:verify'),
 
+  // Kiosk lockdown
+  kioskEnter: () => ipcRenderer.invoke('kiosk:enter'),
+  kioskExit: () => ipcRenderer.invoke('kiosk:exit'),
+
   // LAN networking
   lanStatus: () => ipcRenderer.invoke('lan:status'),
   lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {})),

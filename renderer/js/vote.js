@@ -136,6 +136,7 @@
       const vid = idInput.value.trim();
       const pwd = passInput.value;
       if (!vid || !pwd) {
+        if (window.pvhAudio) window.pvhAudio.playError();
         err.textContent = 'Please enter both your voter ID and password.';
         err.style.display = '';
         return;
@@ -143,6 +144,7 @@
       const res = await window.pvh.verifyVoter(election.id, vid, pwd);
       if (!res.ok) {
         if (res.code === 'already-voted') { showBlocked('You have already voted in this election.', true); return; }
+        if (window.pvhAudio) window.pvhAudio.playError();
         err.textContent = res.error || 'Sign in failed. Try again.';
         err.style.display = '';
         return;
@@ -203,6 +205,7 @@
       else if (scheme !== 'index-only' && scheme !== 'range') details.name = extra.value.trim();
       const res = await window.pvh.verifyVoterDetails(election.id, details);
       if (!res.ok) {
+        if (window.pvhAudio) window.pvhAudio.playError();
         err.textContent = res.error || 'Could not verify those details.';
         err.style.display = '';
         return;
@@ -375,6 +378,7 @@
   // ------------------------------------------------------------
   function showConfirm() {
     setBackVisible(true);
+    if (window.pvhAudio) window.pvhAudio.playConfirm();
     const total = positions.reduce((n, p) => n + selectedFor(p.id).length, 0);
     // Block empty ballots
     const groups = positions.filter((p) => selectedFor(p.id).length);
@@ -459,7 +463,7 @@
         <button class="btn btn-primary btn-lg" id="done-btn" style="margin-top:var(--space-8);">Next voter</button>
       </div>`;
 
-    playSuccessChime();
+    playSuccess();
     celebrate();
 
     let done = false;
@@ -476,28 +480,31 @@
   }
 
   // Short, pleasant two-tone chime via Web Audio (no asset file needed).
-  function playSuccessChime() {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = new Ctx();
-      const now = ctx.currentTime;
-      [660, 880].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        const t = now + i * 0.15;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.5);
-      });
-      setTimeout(() => ctx.close().catch(() => {}), 1200);
-    } catch (e) { /* audio unavailable */ }
+  function playSuccess() {
+    if (window.pvhAudio) window.pvhAudio.playSuccess();
+    else {
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const now = ctx.currentTime;
+        [660, 880].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          const t = now + i * 0.15;
+          gain.gain.setValueAtTime(0.0001, t);
+          gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.5);
+        });
+        setTimeout(() => ctx.close().catch(() => {}), 1200);
+      } catch (e) { /* audio unavailable */ }
+    }
   }
 
   // Dependency-free canvas confetti celebration.
@@ -553,6 +560,7 @@
   // Blocked / info states
   // ------------------------------------------------------------
   function showBlocked(msg, withBack) {
+    if (window.pvhAudio) window.pvhAudio.playError();
     setTitle('Pulse Vote Hub');
     setBackVisible(true);
     content.innerHTML = `
@@ -579,6 +587,7 @@
 
   // Exit to Dashboard returns to the officer app.
   $('kiosk-dashboard').addEventListener('click', () => {
+    if (window.pvhKiosk) window.pvhKiosk.exit();
     window.location.assign('dashboard.html');
   });
 

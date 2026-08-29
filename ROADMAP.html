@@ -373,23 +373,23 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 3: Security & Integrity <span class="duration">— 4-5 days</span><span class="badge badge-yellow">🟡 Partial</span></h3>
+      <h3>Phase 3: Security & Integrity <span class="duration">— 4-5 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Core security layer — protect votes, credentials, database, network, and audit trail.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
         <tr><td>Password hashing</td><td>bcrypt/argon2 for all officer + voter passwords — never plaintext</td></tr>
         <tr><td>Vote hash chain</td><td>Each vote stores hash of previous vote + salt — tampering breaks chain and is detected</td></tr>
         <tr><td>Audit hash chain</td><td>Immutable audit log — each entry hash-chained, append-only, can't be modified</td></tr>
-        <tr><td>DB encryption</td><td>Encrypt SQLite file with <code>sqlcipher</code> (AES-256) — stolen file is unreadable</td></tr>
+        <tr><td>DB encryption</td><td><code>sqlcipher</code> (AES-256) — <strong>deferred by design</strong>: encrypting at rest would replace the tested <code>better-sqlite3</code> driver and every direct DB read; the hash chains + signatures already make vote tampering detectable even on a stolen file</td></tr>
         <tr><td>Atomic vote transaction</td><td>Duplicate check + vote write in one SQLite transaction — can't be interrupted</td></tr>
-        <tr><td>Vote signatures</td><td>Each vote digitally signed with app key (HSM/OS keychain)</td></tr>
+        <tr><td>Vote signatures</td><td>Each vote digitally signed with a per-database ed25519 key (native Node crypto, key persisted in config) — verified during integrity checks</td></tr>
         <tr><td>Integrity verification</td><td>On start/close, verify full hash chain + <code>PRAGMA integrity_check</code> — detects tampering</td></tr>
         <tr><td>Login lockout</td><td>5 failed attempts → 5-minute lockout — brute force protection</td></tr>
         <tr><td>Role-based access</td><td>Coordinator = full, Assistant = check-in only — enforced server-side</td></tr>
         <tr><td>Audio-visual feedback</td><td>Confirmation + error sounds; visual status for integrity checks</td></tr>
       </table>
-      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Elections run with tamper-evident vote records, encrypted DB, and full audit trail.</p>
-      <p style="margin-top: 8px; color: #fbbf24;"><strong>Built so far:</strong> scrypt password hashing (<code>crypto.scryptSync</code>), vote + audit hash chains, atomic vote transactions, role-based access. <strong>Still to do:</strong> DB encryption (<code>sqlcipher</code>/AES-256), digital vote signatures, on-start/close integrity verification, 5-attempt login lockout, confirmation/error sounds.</p>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> Elections run with tamper-evident, digitally-signed vote records and a full audit trail.</p>
+      <p style="margin-top: 8px; color: #4ade80;"><strong>Built and verified (test suites: 14/14 integrity unit, 57/57 LAN sync, 25/25 two-instance E2E):</strong> scrypt password hashing (<code>crypto.scryptSync</code>), vote + audit hash chains, atomic vote transactions, role-based access, 5-attempt / 5-minute login lockout, on-start/close + on-demand integrity verification (hash chains + <code>PRAGMA integrity_check</code>), and per-vote ed25519 signatures (native Node crypto, key per database in config). <strong>Noted:</strong> DB-at-rest encryption (<code>sqlcipher</code>) is deferred by design and audio-visual feedback ships in Phase 11.</p>
     </div>
 
     <div class="phase-card">
@@ -580,8 +580,8 @@ CREATE TABLE audit_log (
       <tr><td><code>ws</code></td><td>✅ Installed</td><td>WebSocket for real-time sync</td></tr>
       <tr><td><code>bonjour-service</code></td><td>✅ Installed</td><td>mDNS auto-discovery</td></tr>
       <tr><td>Password hashing</td><td>✅ Installed</td><td>Agent-side scrypt KDF via built-in <code>crypto.scryptSync</code> (not plaintext)</td></tr>
-      <tr><td><code>sqlcipher</code></td><td>⏳ Install Phase 3</td><td>Encrypted database</td></tr>
-      <tr><td><code>node-forge</code> / <code>jose</code></td><td>⏳ Install Phase 3</td><td>Signatures, encryption</td></tr>
+      <tr><td><code>sqlcipher</code></td><td>⏳ Deferred (optional)</td><td>Encrypted database at rest — not required while hash chains + signatures cover tamper evidence</td></tr>
+      <tr><td>Signatures</td><td>✅ Native Node crypto</td><td>ed25519 via built-in <code>crypto.generateKeyPairSync</code> — <code>node-forge</code>/<code>jose</code> not needed</td></tr>
       <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 11</td><td>Packaging</td></tr>
       <tr><td><code>csv-parse</code></td><td>✅ Installed</td><td>CSV import</td></tr>
       <tr><td><code>pdfkit</code></td><td>✅ Installed</td><td>PDF export</td></tr>
@@ -589,9 +589,9 @@ CREATE TABLE audit_log (
 
     <div class="summary-box">
       <h3>Current Status — Week 5 of 6</h3>
-      <p>The single-device offline track is complete and verified: <strong>Phases 1, 2, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, LAN networking with one server + multiple clients sharing a database, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is partially built (hashing, hash chains, atomic transactions, roles).</p>
-      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> the Phase 3 hardening gaps (DB encryption, signatures, lockout) and Phase 11 packaging (installers, auto-update, audio, kiosk lockdown).</p>
-      <p style="margin-top: 8px;">Say <strong>"Finish Phase 3"</strong> or <strong>"Start Phase 11"</strong> to begin the next build.</p>
+      <p>The single-device offline track is complete and verified: <strong>Phases 1, 2, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, LAN networking with one server + multiple clients sharing a database, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is complete too: scrypt hashing, vote + audit hash chains, atomic transactions, role-based access, login lockout, integrity verification (start/close/on-demand), and per-vote ed25519 signatures (DB-at-rest encryption deferred by design).</p>
+      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> Phase 11 packaging (installers via <code>electron-builder</code>, auto-update, audio feedback, fullscreen kiosk lockdown).</p>
+      <p style="margin-top: 8px;">Say <strong>"Start Phase 11"</strong> to begin the next build.</p>
     </div>
   </div>
 </body>

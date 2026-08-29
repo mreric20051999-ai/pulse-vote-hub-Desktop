@@ -70,12 +70,23 @@ function createMainWindow() {
     minWidth: 1024,
     minHeight: 680,
     show: false,
+    autoHideMenuBar: true,
     backgroundColor: getComputedBg(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
+  });
+
+  // Kiosk lockdown: swallow reload / devtools / close / fullscreen shortcuts
+  // while a kiosk screen (vote.html) is active in this window.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (!isKiosk) return;
+    const key = String(input.key || '').toLowerCase();
+    const mod = input.control || input.meta || input.alt;
+    if (mod && ['r', 'w', 'q', 'i', 'j', 'u', '+', '-', '0'].includes(key)) event.preventDefault();
+    else if (['f11', 'f5', 'f7', 'f12', 'escape'].includes(key)) event.preventDefault();
   });
 
   mainWindow.loadFile(path.join(rendererDir(), 'index.html'));
@@ -295,6 +306,22 @@ const integrityStatus = () => {
 };
 
 ipcMain.handle('integrity:verify', () => integrityStatus());
+
+// ---- Kiosk lockdown (public voting screens) ----
+
+ipcMain.handle('kiosk:enter', () => {
+  isKiosk = true;
+  try { mainWindow.setMenuBarVisibility(false); } catch (e) { /* noop */ }
+  try { mainWindow.setFullScreen(true); } catch (e) { /* noop */ }
+  return { ok: true };
+});
+
+ipcMain.handle('kiosk:exit', () => {
+  isKiosk = false;
+  try { mainWindow.setMenuBarVisibility(true); } catch (e) { /* noop */ }
+  try { mainWindow.setFullScreen(false); } catch (e) { /* noop */ }
+  return { ok: true };
+});
 
 // ---- Admin / superuser IPC ----
 
