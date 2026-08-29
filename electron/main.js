@@ -7,6 +7,13 @@ const fs = require('fs');
 // and loads a stale, separate database.
 app.setName('pulse-vote-hub-desktop');
 
+// Two-instance LAN testing override: point this instance at an isolated data
+// directory (e.g. PVH_USER_DATA=/tmp/pvh-client) so two processes share one
+// network but keep separate databases and device identities.
+if (process.env.PVH_USER_DATA) {
+  app.setPath('userData', process.env.PVH_USER_DATA);
+}
+
 const db = require('./db');
 const auth = require('./auth');
 const election = require('./election');
@@ -14,6 +21,13 @@ const voter = require('./voter');
 const station = require('./station');
 const results = require('./results');
 const merge = require('./merge');
+const { LanManager } = require('./lan');
+
+let lan = null;
+function getLan() {
+  if (!lan) lan = new LanManager({ getD: () => db.get(), version: app.getVersion() });
+  return lan;
+}
 
 let mainWindow = null;
 let splashWindow = null;
@@ -91,6 +105,14 @@ app.whenReady().then(() => {
     console.error('Database init failed:', err);
   }
 
+  // LAN networking: restore the persisted mode (host/client) from last run and
+  // forward live sync status to whichever window is focused.
+  getLan().onStatus((status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('lan:status', status);
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('lan:status', status);
+  });
+  getLan().resume().catch((err) => console.error('LAN resume failed:', err));
+
   createSplashWindow();
   setTimeout(createMainWindow, 600);
 
@@ -107,6 +129,14 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+});
+
+app.on('before-quit', () => {
+  try { getLan().stop(); } catch (err) { /* noop */ }
+});
+
+app.on('will-quit', () => {
+  try { getLan().stop(); } catch (err) { /* noop */ }
 });
 
 // ---------- IPC ----------
@@ -459,10 +489,22 @@ ipcMain.handle('voter:import', (_e, electionId, csvText, officerId) => guardElec
 ipcMain.handle('voter:autogen', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.autoGenerate(electionId, opts || {})));
 ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.deleteVoter(electionId, voterId)));
 ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId)));
-ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.unvoteVoter(electionId, voterId)));
+ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => {
+  const res = guardElection(electionId, officerId, () => voter.unvoteVoter(electionId, voterId));
+  if (res && res.ok) {
+    try { getLan().onLocalUnvote(electionId, voterId); } catch (err) { console.error('LAN unvote hook failed:', err.message); }
+  }
+  return res;
+});
 ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
 ipcMain.handle('voter:verify-details', (_e, electionId, details) => voter.verifyVoterDetails(electionId, details || {}));
-ipcMain.handle('voter:cast', (_e, electionId, voterId, selection) => voter.castVote(electionId, voterId, selection));
+ipcMain.handle('voter:cast', (_e, electionId, voterId, selection) => {
+  const res = voter.castVote(electionId, voterId, selection);
+  if (res && res.ok) {
+    try { getLan().onLocalVote(electionId, voterId, selection, res.timestamp); } catch (err) { console.error('LAN vote hook failed:', err.message); }
+  }
+  return res;
+});
 
 // ---- Voter roll export (CSV / HTML / PDF / Print) ----
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -650,7 +692,13 @@ ipcMain.handle('station:close', (_e, id, opts, officerId) => {
 });
 ipcMain.handle('station:close-queue-now', safeStation((id, opts) => station.closeQueueNow(id, opts || {})));
 ipcMain.handle('station:submit', safeStation((id, opts) => station.submitPacket(id, opts || {})));
-ipcMain.handle('station:checkin', safeStation((voterId, opts) => station.checkInVoter(voterId, opts || {})));
+ipcMain.handle('station:checkin', safeStation((voterId, opts) => {
+  const res = station.checkInVoter(voterId, opts || {});
+  if (res && res.ok && res.voter) {
+    try { getLan().onLocalCheckin(res.voter, (opts && opts.officerName) || 'Officer'); } catch (err) { console.error('LAN checkin hook failed:', err.message); }
+  }
+  return res;
+}));
 ipcMain.handle('station:ballot-cast', safeStation((voterId, opts) => station.markBallotCast(voterId, opts || {})));
 ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardElection(electionId, officerId, () => station.stationDashboard(electionId, stationId)));
 
@@ -728,4 +776,35 @@ ipcMain.handle('merge:export-json', async (_e, { content, defaultName }) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+// ---------- LAN Networking (Phase 2) ----------
+
+ipcMain.handle('lan:status', () => {
+  try { return getLan().status(); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('lan:set-mode', async (_e, payload) => {
+  try { return await getLan().setMode(payload && payload.mode, payload || {}); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('lan:stop', async () => {
+  try { await getLan().setMode('off'); return { ok: true }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('lan:set-name', (_e, name) => {
+  try { return getLan().setName(name); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('lan:discover', async (_e, ms) => {
+  try { return { ok: true, services: await getLan().discovers(ms || 4000) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('lan:local-addresses', () => {
+  try { return { ok: true, addresses: getLan().status().addresses }; }
+  catch (err) { return { ok: false, error: err.message }; }
 });

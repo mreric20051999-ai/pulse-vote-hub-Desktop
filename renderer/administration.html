@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/officers.css">
   <link rel="stylesheet" href="css/results.css">
   <link rel="stylesheet" href="css/merge.css">
+  <link rel="stylesheet" href="css/lan.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -44,6 +45,7 @@
     <nav class="section-links" id="section-links">
       <a href="#backup" class="sub-link" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
       <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
+      <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -105,6 +107,79 @@
       <div id="merge-work" style="display:none;"></div>
     </section>
 
+    <!-- LAN sync -->
+    <section class="card panel ofc-section" id="lan-sync">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">LAN sync</div>
+          <p class="text-muted panel-sub">Share one live, authoritative database across polling devices on the same network. One device runs the hub; the rest stay in sync even when the network drops.</p>
+        </div>
+        <div class="lan-pill" id="lan-pill"><span class="lan-dot" id="lan-dot"></span><span id="lan-pill-text">Standalone</span></div>
+      </div>
+
+      <div class="lan-device-name">
+        <div class="field">
+          <label class="label" for="lan-dev-name">Device name</label>
+          <input class="input" id="lan-dev-name" type="text" placeholder="Polling device 1" maxlength="40">
+        </div>
+        <button class="btn btn-secondary" id="lan-save-name-btn"><span class="icon btn-icon" data-icon="check"></span>Save name</button>
+      </div>
+
+      <div class="lan-mode-row">
+        <label class="lan-radio"><input type="radio" name="lan-mode" value="off" data-lmode="off"><span>Standalone</span></label>
+        <label class="lan-radio"><input type="radio" name="lan-mode" value="host" data-lmode="host"><span><span class="icon btn-icon" data-icon="broadcast"></span>Host server</span></label>
+        <label class="lan-radio"><input type="radio" name="lan-mode" value="client" data-lmode="client"><span><span class="icon btn-icon" data-icon="lan"></span>Connect to a hub</span></label>
+      </div>
+
+      <div id="lan-host-box" class="lan-box" style="display:none;">
+        <p class="text-muted lan-hint">This device becomes the hub. Every ballot cast on the network is written here first — this database is the single source of truth.</p>
+        <div class="inline-form">
+          <div class="field">
+            <label class="label" for="lan-port">Port</label>
+            <input class="input" id="lan-port" type="number" value="7380" min="1" max="65535" style="max-width:110px;">
+          </div>
+          <button class="btn btn-primary" id="lan-start-host-btn"><span class="icon btn-icon" data-icon="broadcast"></span>Start hub</button>
+          <button class="btn btn-secondary" id="lan-stop-host-btn" style="display:none;"><span class="icon btn-icon" data-icon="x"></span>Stop hub</button>
+        </div>
+        <p class="auth-error" id="lan-host-msg"></p>
+        <div id="lan-host-info" style="display:none;">
+          <p class="text-muted lan-hint">Hub is running at <strong id="lan-address"></strong>. Other devices can connect there, or discover this device automatically &mdash; they will see <strong id="lan-advert-name"></strong>.</p>
+          <p class="text-muted lan-hint">Connected devices: <strong id="lan-peer-list" class="lan-peer-list">none</strong></p>
+        </div>
+      </div>
+
+      <div id="lan-client-box" class="lan-box" style="display:none;">
+        <p class="text-muted lan-hint">This device mirrors the hub in real time. If the connection drops, votes cast here are queued and pushed automatically once it reconnects.</p>
+        <div class="lan-discover-row">
+          <button class="btn btn-secondary" id="lan-scan-btn"><span class="icon btn-icon" data-icon="search"></span>Search the network</button>
+        </div>
+        <div id="lan-found" class="lan-found"></div>
+        <div class="inline-form">
+          <div class="field">
+            <label class="label" for="lan-host-url">Hub address</label>
+            <input class="input" id="lan-host-url" type="text" placeholder="192.168.1.20:7380">
+          </div>
+          <button class="btn btn-primary" id="lan-connect-btn"><span class="icon btn-icon" data-icon="lan"></span>Connect</button>
+          <button class="btn btn-secondary" id="lan-disconnect-btn" style="display:none;"><span class="icon btn-icon" data-icon="x"></span>Disconnect</button>
+        </div>
+        <p class="auth-error" id="lan-client-msg"></p>
+        <div id="lan-client-info" style="display:none;">
+          <p class="text-muted lan-hint">
+            Hub: <strong id="lan-client-hub"></strong>
+            &middot; Link: <strong id="lan-client-state"></strong>
+            &middot; Queued events: <strong id="lan-client-queue">0</strong>
+            &middot; Votes pending accept: <strong id="lan-client-unsynced">0</strong>
+          </p>
+        </div>
+      </div>
+
+      <div class="lan-stats">
+        <div class="lan-stat"><div class="lan-stat-num" id="lan-stat-votes">0</div><div class="lan-stat-label">Votes in database</div></div>
+        <div class="lan-stat"><div class="lan-stat-num" id="lan-stat-devices">0</div><div class="lan-stat-label">Connected devices</div></div>
+        <div class="lan-stat"><div class="lan-stat-num" id="lan-stat-synced">0</div><div class="lan-stat-label">Pending sync</div></div>
+      </div>
+    </section>
+
     <!-- My account -->
     <section class="card panel ofc-section" id="my-account">
       <div class="panel-head">
@@ -129,5 +204,6 @@
   <script src="js/merge-core.js"></script>
   <script src="js/administration.js"></script>
   <script src="js/merge.js"></script>
+  <script src="js/lan.js"></script>
 </body>
 </html>

@@ -1,0 +1,119 @@
+/* LAN sync panel (Administration > LAN sync). Follows the app's existing
+   neutral dark surface tokens from styles.css. */
+
+.lan-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--border, #334155);
+  border-radius: 999px;
+  background: var(--surface-2, #283549);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text, #f1f5f9);
+  white-space: nowrap;
+}
+
+.lan-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #64748b;
+  transition: background .2s ease;
+}
+
+.lan-pill.ok .lan-dot { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, .18); }
+.lan-pill.warn .lan-dot { background: #facc15; box-shadow: 0 0 0 3px rgba(250, 204, 21, .18); }
+.lan-pill.bad .lan-dot { background: #f87171; box-shadow: 0 0 0 3px rgba(248, 113, 113, .18); }
+
+.lan-device-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin: 4px 0 16px;
+}
+.lan-device-name .field { max-width: 280px; margin: 0; }
+
+.lan-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.lan-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--border, #334155);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface, #1e293b);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #f1f5f9);
+  transition: border-color .15s ease, background .15s ease;
+  user-select: none;
+}
+.lan-radio:hover { border-color: #475569; }
+.lan-radio.active {
+  border-color: #B30202;
+  background: rgba(179, 2, 2, .12);
+  color: #fff;
+}
+.lan-radio input { accent-color: #B30202; }
+
+.lan-box {
+  margin: 0 0 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--border, #334155);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface-2, #283549);
+}
+.lan-hint { margin: 0 0 12px; font-size: 13px; line-height: 1.6; }
+.lan-hint:last-child { margin-bottom: 0; }
+.lan-hint strong { color: var(--text, #f1f5f9); font-weight: 700; }
+
+.lan-discover-row { margin-bottom: 12px; }
+
+.lan-found {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.lan-found .lan-empty { grid-column: 1 / -1; color: var(--text-muted, #94a3b8); font-size: 13px; }
+.lan-svc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #334155);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface, #1e293b);
+}
+.lan-svc-meta { min-width: 0; }
+.lan-svc-name { font-size: 13px; font-weight: 700; color: var(--text, #f1f5f9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lan-svc-host { font-size: 11.5px; color: var(--text-muted, #94a3b8); margin-top: 2px; }
+
+.lan-peer-list { font-weight: 700; color: #4ade80; }
+.lan-peer-list.idle { color: var(--text-muted, #94a3b8); }
+
+.lan-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+.lan-stat {
+  padding: 14px 16px;
+  border: 1px solid var(--border, #334155);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface, #1e293b);
+}
+.lan-stat-num { font-size: 24px; font-weight: 800; color: var(--text, #f1f5f9); line-height: 1.1; }
+.lan-stat-label { margin-top: 4px; font-size: 12px; color: var(--text-muted, #94a3b8); }

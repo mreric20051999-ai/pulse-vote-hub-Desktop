@@ -22,9 +22,12 @@
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "bonjour-service": "^1.4.4",
     "csv-parse": "^7.0.2",
+    "express": "^5.2.1",
     "pdfkit": "^0.20.1",
-    "uuid": "^14.0.2"
+    "uuid": "^14.0.2",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "electron": "^43.4.1",

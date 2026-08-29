@@ -117,6 +117,7 @@ CREATE TABLE IF NOT EXISTS checkins (
   device_id TEXT,
   timestamp INTEGER,
   hash TEXT,
+  synced INTEGER DEFAULT 0,
   UNIQUE(election_id, voter_id)
 );
 
@@ -133,6 +134,15 @@ CREATE TABLE IF NOT EXISTS votes (
   vote_hash TEXT,
   signature TEXT,
   synced INTEGER DEFAULT 0
+);
+
+-- LAN networking: offline event queue (server is the source of truth, so a
+-- disconnected client keeps its events here until it can push them to the hub).
+CREATE TABLE IF NOT EXISTS lan_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -189,6 +199,7 @@ function migrate() {
   addColumn('voters', 'plain_password', 'TEXT');
   addColumn('voters', 'phone', 'TEXT');
   addColumn('elections', 'voter_scheme', 'TEXT');
+  addColumn('checkins', 'synced', 'INTEGER DEFAULT 0');
   db.exec(`
     CREATE TABLE IF NOT EXISTS stations (
       id TEXT PRIMARY KEY,

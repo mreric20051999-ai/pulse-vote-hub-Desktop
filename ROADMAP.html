@@ -310,11 +310,14 @@ CREATE TABLE audit_log (
 │   ├── printer.js                   # Voter card + results printing
 │   ├── audio.js                     # Peep sound + audio feedback
 │   ├── kiosk.js                     # Kiosk lockdown
-│   ├── lan-server.js                # Secure Express + WSS server
-│   ├── lan-client.js                # Secure WebSocket client
-│   └── lan-discovery.js             # mDNS auto-discovery of server
-├── renderer/                        # Frontend (HTML/CSS/JS)
-│   ├── index.html                   # Login / first-run setup
+│   ├── lan/                          # LAN networking modules
+│   │   ├── hub.js                    # Express + WebSocket server (source of truth)
+│   │   ├── peer.js                   # WebSocket client + auto-reconnect + offline queue flush
+│   │   ├── sync.js                   # Wire protocol, symbolic refs, snapshot reconciliation
+│   │   ├── discovery.js              # mDNS advertise/scan (bonjour-service)
+│   │   └── index.js                  # LanManager facade + IPC status
+├── renderer/                         # Frontend (HTML/CSS/JS)
+│   ├── index.html                    # Login / first-run setup
 │   ├── dashboard.html               # Admin dashboard
 │   ├── election-setup.html          # Create election
 │   ├── voter-management.html        # Import/manage voters
@@ -353,20 +356,20 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 2: LAN Networking <span class="duration">— 3-4 days</span><span class="badge badge-red">⏳ Not started</span></h3>
+      <h3>Phase 2: LAN Networking <span class="duration">— 3-4 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Multiple devices at the same location connect over local network.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
-        <tr><td>LAN server</td><td>Express + WebSocket server on host device — serves election data and accepts votes</td></tr>
-        <tr><td>LAN client</td><td>WebSocket client connects to server — sends votes, receives updates</td></tr>
-        <tr><td>mDNS discovery</td><td>Auto-discover server on local network — no manual IP entry required</td></tr>
-        <tr><td>Real-time sync</td><td>When a vote is cast on any device, server broadcasts update to all connected clients</td></tr>
-        <tr><td>Connection status</td><td>UI shows: 🟢 Connected to server / 🟡 Searching... / 🔴 Offline (caching locally)</td></tr>
-        <tr><td>Offline fallback</td><td>If server unavailable, client caches votes locally in SQLite, syncs when reconnected</td></tr>
-        <tr><td>Conflict resolution</td><td>Server is source of truth — client data is discarded if server has different state</td></tr>
-        <tr><td>Auto-reconnect</td><td>Client automatically reconnects if connection drops</td></tr>
+        <tr><td>LAN server</td><td>Express + WebSocket server on host device (<code>lan/hub.js</code>) — source of truth, accepts + broadcasts events</td></tr>
+        <tr><td>LAN client</td><td>WebSocket client (<code>lan/peer.js</code>) — sends votes/check-ins, applies hub snapshots and broadcasts</td></tr>
+        <tr><td>mDNS discovery</td><td><code>bonjour-service</code> auto-discover hub on local network — no manual IP entry required</td></tr>
+        <tr><td>Real-time sync</td><td>Votes/check-ins/unvotes broadcast instantly to every connected device; full snapshot reconciles on connect</td></tr>
+        <tr><td>Connection status</td><td>LAN sync admin panel shows live pill, hub address, peer list, queue + pending counts</td></tr>
+        <tr><td>Offline fallback</td><td>If hub unavailable, client caches events in SQLite <code>lan_queue</code>, flushes on reconnect</td></tr>
+        <tr><td>Conflict resolution</td><td>Hub is source of truth — votes the hub rejects are discarded, state restored via snapshot</td></tr>
+        <tr><td>Auto-reconnect</td><td>Backoff reconnect (1.2s → 10s) resumes and re-syncs automatically</td></tr>
       </table>
-      <p style="margin-top: 12px;"><strong>Deliverable:</strong> 5-10 devices can vote simultaneously on same network, all sharing one database.</p>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> 5-10 devices can vote simultaneously on same network, all sharing one database. Verified by a two-instance end-to-end harness (cross-device vote, double-vote conflict, host broadcast, offline queue + reconnect flush, report parity).</p>
     </div>
 
     <div class="phase-card">
@@ -573,9 +576,9 @@ CREATE TABLE audit_log (
       <tr><td>npm</td><td>✅ Installed</td><td>Package manager</td></tr>
       <tr><td>Electron</td><td>✅ Installed</td><td>Desktop runtime</td></tr>
       <tr><td><code>better-sqlite3</code></td><td>✅ Installed</td><td>Local database</td></tr>
-      <tr><td>Express</td><td>⏳ Install Phase 2</td><td>LAN server</td></tr>
-      <tr><td><code>ws</code></td><td>⏳ Install Phase 2</td><td>WebSocket for real-time sync</td></tr>
-      <tr><td><code>bonjour-service</code></td><td>⏳ Install Phase 2</td><td>mDNS auto-discovery</td></tr>
+      <tr><td>Express</td><td>✅ Installed</td><td>LAN server</td></tr>
+      <tr><td><code>ws</code></td><td>✅ Installed</td><td>WebSocket for real-time sync</td></tr>
+      <tr><td><code>bonjour-service</code></td><td>✅ Installed</td><td>mDNS auto-discovery</td></tr>
       <tr><td>Password hashing</td><td>✅ Installed</td><td>Agent-side scrypt KDF via built-in <code>crypto.scryptSync</code> (not plaintext)</td></tr>
       <tr><td><code>sqlcipher</code></td><td>⏳ Install Phase 3</td><td>Encrypted database</td></tr>
       <tr><td><code>node-forge</code> / <code>jose</code></td><td>⏳ Install Phase 3</td><td>Signatures, encryption</td></tr>
@@ -586,9 +589,9 @@ CREATE TABLE audit_log (
 
     <div class="summary-box">
       <h3>Current Status — Week 5 of 6</h3>
-      <p>The single-device offline track is complete and verified: <strong>Phases 1, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is partially built (hashing, hash chains, atomic transactions, roles).</p>
-      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> Phase 2 (LAN networking — Express + WebSocket + mDNS + offline fallback), the Phase 3 hardening gaps (DB encryption, signatures, lockout), and Phase 11 packaging (installers, auto-update, audio, kiosk lockdown).</p>
-      <p style="margin-top: 8px;">Say <strong>"Start Phase 2"</strong>, <strong>"Finish Phase 3"</strong>, or <strong>"Start Phase 11"</strong> to begin the next build.</p>
+      <p>The single-device offline track is complete and verified: <strong>Phases 1, 2, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, LAN networking with one server + multiple clients sharing a database, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is partially built (hashing, hash chains, atomic transactions, roles).</p>
+      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> the Phase 3 hardening gaps (DB encryption, signatures, lockout) and Phase 11 packaging (installers, auto-update, audio, kiosk lockdown).</p>
+      <p style="margin-top: 8px;">Say <strong>"Finish Phase 3"</strong> or <strong>"Start Phase 11"</strong> to begin the next build.</p>
     </div>
   </div>
 </body>

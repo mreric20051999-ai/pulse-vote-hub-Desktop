@@ -92,4 +92,17 @@ contextBridge.exposeInMainWorld('pvh', {
   // Multi-location merge
   pickMergeFiles: () => ipcRenderer.invoke('merge:pick-files'),
   exportJson: (content, defaultName) => ipcRenderer.invoke('merge:export-json', { content, defaultName }),
+
+  // LAN networking
+  lanStatus: () => ipcRenderer.invoke('lan:status'),
+  lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {})),
+  lanStop: () => ipcRenderer.invoke('lan:stop'),
+  lanSetName: (name) => ipcRenderer.invoke('lan:set-name', name),
+  lanDiscover: (ms) => ipcRenderer.invoke('lan:discover', ms),
+  lanLocalAddresses: () => ipcRenderer.invoke('lan:local-addresses'),
+  onLanStatus: (cb) => {
+    ipcRenderer.removeAllListeners('lan:status');
+    ipcRenderer.on('lan:status', (_e, s) => cb(s));
+    return () => ipcRenderer.removeAllListeners('lan:status');
+  },
 });
