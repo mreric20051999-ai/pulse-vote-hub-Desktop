@@ -115,3 +115,8 @@
 .station-filter select { padding: 9px 14px; border: 1px solid var(--border, #334155); border-radius: var(--radius-sm, 6px); background: var(--surface, #1e293b); color: var(--text, #f1f5f9); font-size: 13px; font-weight: 600; font-family: var(--font-body, sans-serif); max-width: 340px; width: 100%; }
 
 @media (max-width: 680px) { .charts-grid { grid-template-columns: 1fr; } }
+
+/* Report panel eases in when an election is picked */
+#report-panel {
+  animation: rowIn 260ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+}

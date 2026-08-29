@@ -491,6 +491,12 @@
   background: var(--surface-2);
 }
 
+/* ---------- View switches animate in ---------- */
+#list-view,
+#builder-view {
+  animation: rowIn 240ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+}
+
 /* ---------- Elegant ballot-paper preview ---------- */
 .ballot-paper {
   background: var(--bg);

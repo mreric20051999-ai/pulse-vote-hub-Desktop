@@ -528,6 +528,9 @@ tbody tr:hover {
   background: var(--accent-soft);
   color: var(--accent);
 }
+body.is-admin .nav-item.admin-only {
+  display: flex;
+}
 .nav-item i, .nav-item .nav-ic {
   width: 22px;
   text-align: center;
@@ -567,6 +570,14 @@ tbody tr:hover {
 .page-header p {
   color: var(--text-muted);
   font-size: var(--fs-md);
+}
+.page-header .page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 /* ---------- Custom dropdown (shared across pages; opens downward) ---------- */
@@ -659,4 +670,40 @@ tbody tr:hover {
 .pdd-option.selected {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+/* ---------- Motion ---------- */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Page content eases in on navigation */
+.main,
+.auth-body {
+  animation: pageIn 360ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+}
+
+/* Shared dropdowns drop open instead of appearing abruptly */
+.pdd-menu {
+  animation: dropIn 180ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+  transform-origin: top center;
+}
+
+/* Table row hover fades instead of snapping */
+tbody tr {
+  transition: background var(--transition);
+}
+
+/* Tactile press feedback on buttons */
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.995);
 }

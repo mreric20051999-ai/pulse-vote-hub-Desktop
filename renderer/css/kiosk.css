@@ -102,6 +102,11 @@
   margin: 0 auto;
 }
 
+/* Each kiosk screen (picker, ballot, review) enters smoothly */
+.kiosk-body > * {
+  animation: slideUp 260ms cubic-bezier(0.2, 0.6, 0.25, 1) both;
+}
+
 /* ---------- Kiosk auth panel ---------- */
 .kiosk-panel {
   width: 100%;
