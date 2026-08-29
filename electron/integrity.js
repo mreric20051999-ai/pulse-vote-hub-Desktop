@@ -5,6 +5,7 @@
 // `PRAGMA integrity_check` as well.
 const crypto = require('crypto');
 const db = require('./db');
+const sig = require('./signature');
 
 function sha256(raw) {
   return crypto.createHash('sha256').update(String(raw)).digest('hex');
@@ -55,6 +56,33 @@ function verifyAuditChain(d) {
   return verifyChain(d, 'audit_log', rows, 'entry_hash', 'prev_hash', auditHashes);
 }
 
+// Every vote carries an ed25519 signature over the same raw that produced its
+// hash. Verifies each one; rows written before signing existed are counted as
+// unsigned (never a failure) so upgrading an existing database stays clean.
+function verifyVoteSignatures(d) {
+  const rows = d.prepare(
+    'SELECT id, election_id, candidate_id, voter_id, timestamp, signature FROM votes ORDER BY id'
+  ).all();
+  let signed = 0, valid = 0, invalid = 0, unsigned = 0, firstBad = null;
+  for (const r of rows) {
+    if (!r.signature) { unsigned += 1; continue; }
+    signed += 1;
+    const v = sig.verifyRaw(d, `${r.election_id}|${r.candidate_id}|${r.voter_id}|${r.timestamp}`, r.signature);
+    if (v === true) { valid += 1; continue; }
+    invalid += 1;
+    if (firstBad === null) firstBad = r.id;
+  }
+  return {
+    ok: invalid === 0,
+    signed,
+    valid,
+    invalid,
+    unsigned,
+    at: firstBad,
+    fingerprint: signed ? sig.publicFingerprint(d) : null,
+  };
+}
+
 // SQLite's built-in page-level check.
 function verifyPragma(d) {
   try {
@@ -69,18 +97,20 @@ function verifyPragma(d) {
 function verifyAll() {
   const d = db.get();
   const started = Date.now();
-  let voteChain, auditChain, pragma;
+  let voteChain, auditChain, pragma, signatures;
   try { voteChain = verifyVoteChain(d); } catch (e) { voteChain = { ok: false, reason: e.message }; }
   try { auditChain = verifyAuditChain(d); } catch (e) { auditChain = { ok: false, reason: e.message }; }
   try { pragma = verifyPragma(d); } catch (e) { pragma = { ok: false, result: e.message }; }
+  try { signatures = verifyVoteSignatures(d); } catch (e) { signatures = { ok: false, reason: e.message }; }
   return {
-    ok: !!(voteChain.ok && auditChain.ok && pragma.ok),
+    ok: !!(voteChain.ok && auditChain.ok && pragma.ok && signatures.ok),
     checkedAt: started,
     durationMs: Date.now() - started,
     voteChain,
     auditChain,
     pragma,
+    signatures,
   };
 }
 
-module.exports = { verifyAll, verifyVoteChain, verifyAuditChain, verifyPragma };
+module.exports = { verifyAll, verifyVoteChain, verifyAuditChain, verifyPragma, verifyVoteSignatures };

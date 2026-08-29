@@ -5,6 +5,7 @@ const db = require('./db');
 const auth = require('./auth');
 const { computedStatus } = require('./election');
 const station = require('./station');
+const sig = require('./signature');
 
 // ---- Voter management ----
 
@@ -348,8 +349,8 @@ function castVote(electionId, voterId, selection) {
   }
 
   const insertVote = d.prepare(`
-    INSERT INTO votes (election_id, position_id, candidate_id, voter_id, timestamp, prev_hash, vote_hash, synced)
-    VALUES (@election_id, @position_id, @candidate_id, @voter_id, @timestamp, @prev_hash, @vote_hash, 0)
+    INSERT INTO votes (election_id, position_id, candidate_id, voter_id, timestamp, prev_hash, vote_hash, signature, synced)
+    VALUES (@election_id, @position_id, @candidate_id, @voter_id, @timestamp, @prev_hash, @vote_hash, @signature, 0)
   `);
 
   const now = Date.now();
@@ -380,6 +381,7 @@ function castVote(electionId, voterId, selection) {
         timestamp: now,
         prev_hash: prevHash,
         vote_hash: voteHash,
+        signature: sig.signRaw(d, raw),
       });
       prevHash = voteHash;
       votedPositions.add(sel.positionId);

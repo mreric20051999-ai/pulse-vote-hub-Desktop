@@ -27,9 +27,18 @@
       }
       return `<div class="integrity-row"><span class="integrity-row-label">${label}</span>${body}</div>`;
     };
+    const signatureRow = (p) => {
+      if (!p) return '';
+      const cls = p.invalid === 0 ? 'integrity-row-ok' : 'integrity-row-bad';
+      const state = p.invalid > 0 ? `FAILED — invalid signature at vote #${p.at}` :
+        `${p.signed} signed valid · ${p.unsigned} unsigned (legacy)`;
+      const fp = p.fingerprint ? ` · key ${p.fingerprint}` : '';
+      return `<div class="integrity-row"><span class="integrity-row-label">Vote signatures</span><span class="${cls}">${state}${fp}</span></div>`;
+    };
     report.innerHTML = `
       ${rows('Vote hash chain', check.voteChain)}
       ${rows('Audit hash chain', check.auditChain)}
+      ${signatureRow(check.signatures)}
       ${rows('SQLite integrity check', check.pragma)}
       <div class="integrity-row"><span class="integrity-row-label">Checked at</span>
         <span class="integrity-row-meta">${new Date(check.checkedAt).toLocaleString()} (${check.durationMs}ms)</span></div>

@@ -7,6 +7,7 @@
 // resolves them against its own ids. Voters are keyed by (election_id, voter_id).
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
+const sig = require('../signature');
 
 // ---------- device identity ----------
 
@@ -90,8 +91,8 @@ function writeVoteRows(d, electionId, voterRow, selections) {
     const raw = `${electionId}|${sel.candidate_id}|${voterRow.voter_id}|${scrubTs(sel.timestamp, now)}`;
     const voteHash = crypto.createHash('sha256').update(raw).digest('hex');
     d.prepare(`
-      INSERT INTO votes (election_id, position_id, candidate_id, voter_id, device_id, station_id, timestamp, prev_hash, vote_hash, synced)
-      VALUES (@election_id, @position_id, @candidate_id, @voter_id, @device_id, @station_id, @timestamp, @prev_hash, @vote_hash, 1)
+      INSERT INTO votes (election_id, position_id, candidate_id, voter_id, device_id, station_id, timestamp, prev_hash, vote_hash, signature, synced)
+      VALUES (@election_id, @position_id, @candidate_id, @voter_id, @device_id, @station_id, @timestamp, @prev_hash, @vote_hash, @signature, 1)
     `).run({
       election_id: electionId,
       position_id: sel.position_id,
@@ -102,6 +103,7 @@ function writeVoteRows(d, electionId, voterRow, selections) {
       timestamp: scrubbedNow(sel.timestamp),
       prev_hash: prevHash,
       vote_hash: voteHash,
+      signature: sig.signRaw(d, raw),
     });
     prevHash = voteHash;
   }
@@ -202,17 +204,18 @@ function applyRemoteVote(d, row) {
   ).get(electionId, voterRow.voter_id, cand.position_id);
   const now = scrubbedNow(row.timestamp);
   if (existing) {
+    const raw2 = `${electionId}|${cand.id}|${voterRow.voter_id}|${now}`;
     d.prepare(`
-      UPDATE votes SET candidate_id = ?, device_id = ?, station_id = ?, timestamp = ?, synced = 1 WHERE id = ?
-    `).run(cand.id, row.device_id || null, row.station_id || null, now, existing.id);
+      UPDATE votes SET candidate_id = ?, device_id = ?, station_id = ?, timestamp = ?, signature = ?, synced = 1 WHERE id = ?
+    `).run(cand.id, row.device_id || null, row.station_id || null, now, sig.signRaw(d, raw2), existing.id);
   } else {
     const raw = `${electionId}|${cand.id}|${voterRow.voter_id}|${now}`;
     const voteHash = crypto.createHash('sha256').update(raw).digest('hex');
     let prev = d.prepare('SELECT vote_hash FROM votes ORDER BY id DESC LIMIT 1').get();
     d.prepare(`
-      INSERT INTO votes (election_id, position_id, candidate_id, voter_id, device_id, station_id, timestamp, prev_hash, vote_hash, synced)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-    `).run(electionId, cand.position_id, cand.id, voterRow.voter_id, row.device_id || null, row.station_id || null, now, prev ? prev.vote_hash : null, voteHash);
+      INSERT INTO votes (election_id, position_id, candidate_id, voter_id, device_id, station_id, timestamp, prev_hash, vote_hash, signature, synced)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    `).run(electionId, cand.position_id, cand.id, voterRow.voter_id, row.device_id || null, row.station_id || null, now, prev ? prev.vote_hash : null, voteHash, sig.signRaw(d, raw));
   }
   const label = row.candidate_name || cand.name;
   d.prepare('UPDATE voters SET has_voted = 1, voted_at = ?, position_voted = ?, ballot_cast = 1 WHERE id = ?')
