@@ -4,6 +4,71 @@ const db = require('./db');
 
 const SCRYPT_OPTS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
+// Brute-force protection: N failed logins within a window freezes the account
+// for LOCKOUT_MS. Failures are tracked per attempted officer ID (persisted in
+// the config table so restarting the app does not bypass the lockout).
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 5 * 60 * 1000;
+const LOCKOUT_PREFIX = 'lockout:';
+
+function lockoutKey(officerId) {
+  return LOCKOUT_PREFIX + String(officerId).trim().toUpperCase();
+}
+
+function readLockout(officerId) {
+  const raw = db.getConfig(lockoutKey(officerId));
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+function writeLockout(officerId, record) {
+  db.setConfig(lockoutKey(officerId), JSON.stringify(record));
+}
+
+// Remaining freeze time for an officer ID, or 0 if they can log in.
+function remainingLockoutMs(officerId) {
+  const rec = readLockout(officerId);
+  if (!rec || !rec.until) return 0;
+  const ms = rec.until - Date.now();
+  return ms > 0 ? ms : 0;
+}
+
+// Login with lockout enforcement. Unlike `login`, failures for unknown IDs are
+// also tracked so the lockout cannot be defeated by targeting a real account.
+function attemptLogin(officerId, password) {
+  const key = lockoutKey(officerId);
+  const now = Date.now();
+
+  const held = remainingLockoutMs(officerId);
+  if (held > 0) {
+    return { ok: false, code: 'locked', error: 'Too many failed attempts. Try again in a few minutes.', retryAfterMs: held };
+  }
+
+  const row = findByOfficerId(officerId);
+  const ok = row && decodeHash(row.password)
+    ? (() => {
+        const d = decodeHash(row.password);
+        const expected = Buffer.from(d.hash, 'hex');
+        const actual = Buffer.from(hashPassword(String(password), d.salt), 'hex');
+        return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+      })()
+    : false;
+
+  if (ok) {
+    writeLockout(officerId, { n: 0, until: 0 });
+    return { ok: true, officer: publicOfficer(row) };
+  }
+
+  const rec = readLockout(officerId) || { n: 0, until: 0 };
+  const n = rec.n + 1;
+  if (n >= MAX_ATTEMPTS) {
+    writeLockout(officerId, { n: 0, until: now + LOCKOUT_MS });
+    return { ok: false, code: 'locked', error: 'Too many failed attempts. Account is locked for 5 minutes.', retryAfterMs: LOCKOUT_MS, remaining: 0 };
+  }
+  writeLockout(officerId, { n, until: 0 });
+  return { ok: false, code: 'invalid', error: 'Invalid officer ID or password', remaining: MAX_ATTEMPTS - n };
+}
+
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, 64, SCRYPT_OPTS).toString('hex');
 }
@@ -200,6 +265,8 @@ module.exports = {
   setupAdmin,
   setupCoordinator,
   login,
+  attemptLogin,
+  remainingLockoutMs,
   listOfficers,
   findById,
   addOfficer,

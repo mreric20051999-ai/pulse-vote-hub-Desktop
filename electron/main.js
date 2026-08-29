@@ -116,6 +116,13 @@ app.whenReady().then(() => {
   createSplashWindow();
   setTimeout(createMainWindow, 600);
 
+  // Verify the vote + audit hash chains and SQLite page integrity at startup.
+  try {
+    const check = integrity.verifyAll();
+    if (check.ok) console.log('[integrity] all checks passed', JSON.stringify({ votes: check.voteChain.rows, audit: check.auditChain.rows }));
+    else console.error('[integrity] verification FAILED at startup:', JSON.stringify(check));
+  } catch (err) { console.error('[integrity] startup check failed:', err.message); }
+
   // Auto-transition elections by schedule (start_date/end_date) every minute.
   try { election.applySchedule(); } catch (err) { console.error('applySchedule init failed:', err); }
   setInterval(() => {
@@ -133,6 +140,13 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   try { getLan().stop(); } catch (err) { /* noop */ }
+  try {
+    // Append a close-time audit marker, then verify the chains once more so the
+    // audit entry itself leaves a verifiable record of when the app last ran.
+    election.audit('system', 'Application shutdown');
+    const check = integrity.verifyAll();
+    if (!check.ok) console.error('[integrity] verification failed at shutdown:', JSON.stringify({ votes: check.voteChain, audit: check.auditChain, pragma: check.pragma }));
+  } catch (err) { /* noop */ }
 });
 
 app.on('will-quit', () => {
@@ -262,14 +276,25 @@ ipcMain.handle('auth:setup-admin', (_e, { name, officerId, password }) => {
 
 ipcMain.handle('auth:login', (_e, { officerId, password }) => {
   try {
-    const officer = auth.login(officerId, password);
-    if (!officer) return { ok: false, error: 'Invalid officer ID or password' };
-    if (officer.suspended) return { ok: false, error: 'This account has been suspended. Contact the administrator.', code: 'suspended' };
-    return { ok: true, officer: stripSecret(officer) };
+    const res = auth.attemptLogin(officerId, password);
+    if (!res.ok) return res;
+    if (res.officer.suspended) return { ok: false, error: 'This account has been suspended. Contact the administrator.', code: 'suspended' };
+    return { ok: true, officer: stripSecret(res.officer) };
   } catch (err) {
     return { ok: false, error: err.message };
   }
 });
+
+// ---- Integrity verification (hash chains + PRAGMA integrity_check) ----
+
+const integrity = require('./integrity');
+let lastIntegrity = null;
+const integrityStatus = () => {
+  try { lastIntegrity = integrity.verifyAll(); } catch (err) { lastIntegrity = { ok: false, error: err.message, checkedAt: Date.now() }; }
+  return lastIntegrity;
+};
+
+ipcMain.handle('integrity:verify', () => integrityStatus());
 
 // ---- Admin / superuser IPC ----
 

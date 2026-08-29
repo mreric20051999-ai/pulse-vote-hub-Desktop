@@ -38,7 +38,7 @@ function addStation({ electionId, name, location, code }) {
     VALUES (?, ?, ?, ?, ?, 'not_opened', ?)
   `).run(id, electionId, String(name).trim(), location || null, (code && String(code).trim()) || id, now);
 
-  electionMod_audit(`Added station "${name}" to election "${electionId}"`);
+  electionMod_audit(`Added station "${name}" to election "${electionId}"`, null);
   return { ok: true, station: getStation(id) };
 }
 
@@ -49,7 +49,7 @@ function updateStation(id, { name, location, code }) {
   if (s.status === 'submitted') return { ok: false, error: 'This station has already submitted its results and is locked.' };
   db.get().prepare('UPDATE stations SET name = ?, location = ?, code = ? WHERE id = ?')
     .run(name !== undefined ? String(name).trim() : s.name, location !== undefined ? location : s.location, code !== undefined ? String(code).trim() : s.code, id);
-  electionMod_audit(`Updated station "${id}"`);
+  electionMod_audit(`Updated station "${id}"`, null);
   return { ok: true, station: getStation(id) };
 }
 
@@ -61,7 +61,7 @@ function removeStation(id) {
     d.prepare('UPDATE voters SET station_id = NULL WHERE station_id = ?').run(id);
     d.prepare('DELETE FROM stations WHERE id = ?').run(id);
   })();
-  electionMod_audit(`Removed station "${id}"`);
+  electionMod_audit(`Removed station "${id}"`, null);
   return { ok: true };
 }
 
@@ -76,7 +76,7 @@ function openPolls(stationId, { officerName = 'Officer' } = {}) {
   db.get().prepare(`
     UPDATE stations SET status = 'open', opened_at = ?, zero_report = 1, opened_by_name = ? WHERE id = ?
   `).run(now, officerName, stationId);
-  electionMod_audit(`Opened polls at station "${stationId}" (zero report) by ${officerName}`);
+  electionMod_audit(`Opened polls at station "${stationId}" (zero report) by ${officerName}`, null);
   return { ok: true, station: getStation(stationId) };
 }
 
@@ -93,7 +93,7 @@ function closePolls(stationId, { graceMinutes = 0, officerName = 'Officer' } = {
     UPDATE stations SET status = ?, closed_at = ?, closed_by_name = ?, grace_minutes = ?,
       grace_ends_at = ?, queue_closed_at = ? WHERE id = ?
   `).run(next, now, officerName, grace, grace > 0 ? (now + grace * 60000) : null, now, stationId);
-  electionMod_audit(`Closed polls at station "${stationId}" with ${grace}m grace by ${officerName}`);
+  electionMod_audit(`Closed polls at station "${stationId}" with ${grace}m grace by ${officerName}`, null);
   return { ok: true, station: getStation(stationId) };
 }
 
@@ -106,7 +106,7 @@ function closeQueueNow(stationId, { officerName = 'Officer' } = {}) {
   db.get().prepare(`
     UPDATE stations SET status = 'counted', grace_minutes = 0, grace_ends_at = null, queue_closed_at = ? WHERE id = ?
   `).run(now, stationId);
-  electionMod_audit(`Closed queue at station "${stationId}" immediately by ${officerName}`);
+  electionMod_audit(`Closed queue at station "${stationId}" immediately by ${officerName}`, null);
   return { ok: true, station: getStation(stationId) };
 }
 
@@ -126,7 +126,7 @@ function submitPacket(stationId, { figures, categories, checks, officerName = 'O
   };
   db.get().prepare('UPDATE stations SET status = ?, final_submit_json = ? WHERE id = ?')
     .run('submitted', JSON.stringify(packet), stationId);
-  electionMod_audit(`Results submitted for station "${stationId}" by ${officerName} — packet sealed`);
+  electionMod_audit(`Results submitted for station "${stationId}" by ${officerName} — packet sealed`, null);
   return { ok: true, station: getStation(stationId), packet };
 }
 
@@ -144,7 +144,7 @@ function checkInVoter(voterId, { officerName = 'Officer' } = {}) {
   const now = Date.now();
   d.prepare('UPDATE voters SET checked_in = 1, checked_in_at = ?, checked_in_by = ? WHERE id = ?')
     .run(now, officerName, voterId);
-  electionMod_audit(`Checked in voter "${voterId}" at station "${station.id}" by ${officerName}`);
+  electionMod_audit(`Checked in voter "${voterId}" at station "${station.id}" by ${officerName}`, null);
   return { ok: true, voter: d.prepare('SELECT * FROM voters WHERE id = ?').get(voterId) };
 }
 
@@ -174,7 +174,7 @@ function markBallotCast(voterId, { gracePeriod = false, officerName = 'Officer' 
   if (station && !isOpen(effectiveStatus(station))) return { ok: false, error: 'Polls are not accepting ballots at this station.' };
   d.prepare('UPDATE voters SET ballot_cast = 1, grace_period = ?, has_voted = 1 WHERE id = ?')
     .run(gracePeriod ? 1 : 0, voterId);
-  electionMod_audit(`Voter "${voterId}" cast ballot at station "${v.station_id}"${gracePeriod ? ' (grace)' : ''}`);
+  electionMod_audit(`Voter "${voterId}" cast ballot at station "${v.station_id}"${gracePeriod ? ' (grace)' : ''}`, null);
   return { ok: true, voter: d.prepare('SELECT * FROM voters WHERE id = ?').get(voterId) };
 }
 
@@ -210,6 +210,11 @@ function stationDashboard(electionId, stationId) {
 }
 
 function electionMod_audit(context, details) {
+  // NOTE: callers MUST pass an explicit second argument. An omitted argument
+  // leaves `details === undefined`, which hashes as the string "undefined" in
+  // the raw and is silently persisted as NULL — a formula mismatch vs every
+  // other audit writer (election.js, hub.js). Pass `null` to hash as "null".
+  if (arguments.length < 2) details = arguments.length === 1 ? null : details;
   try {
     const d = db.get();
     const prev = d.prepare('SELECT id, entry_hash FROM audit_log ORDER BY id DESC LIMIT 1').get();

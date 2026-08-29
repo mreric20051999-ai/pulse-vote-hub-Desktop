@@ -93,6 +93,9 @@ contextBridge.exposeInMainWorld('pvh', {
   pickMergeFiles: () => ipcRenderer.invoke('merge:pick-files'),
   exportJson: (content, defaultName) => ipcRenderer.invoke('merge:export-json', { content, defaultName }),
 
+  // Integrity verification
+  verifyIntegrity: () => ipcRenderer.invoke('integrity:verify'),
+
   // LAN networking
   lanStatus: () => ipcRenderer.invoke('lan:status'),
   lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {})),

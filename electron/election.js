@@ -400,6 +400,7 @@ function audit(context, details) {
 }
 
 module.exports = {
+  audit,
   createElection,
   listElections,
   getElection,

@@ -24,6 +24,34 @@
     if (el) el.focus();
   }
 
+  // Format a lockout delay like "3m 45s" for the error text.
+  function formatRetry(ms) {
+    const s = Math.max(1, Math.ceil(ms / 1000));
+    if (s >= 60) return `${Math.floor(s / 60)}m ${s % 60}s`;
+    return `${s}s`;
+  }
+
+  // Shared handling for both login forms: normalizes the auth result message
+  // and disables the form while an account is locked out.
+  function applyAuthResult(res, errEl, btn, idleLabel) {
+    if (res.code === 'locked') {
+      errEl.textContent = res.error + (res.retryAfterMs ? ` Retry in ${formatRetry(res.retryAfterMs)}.` : '');
+      btn.disabled = true;
+      btn.textContent = 'Locked';
+      setTimeout(() => {
+        errEl.textContent = '';
+        btn.disabled = false;
+        btn.textContent = idleLabel;
+      }, Math.min(res.retryAfterMs || 0, 2147483647));
+      return;
+    }
+    if (res.code === 'invalid' && res.remaining && res.remaining <= 3) {
+      errEl.textContent = `${res.error}. ${res.remaining} attempt${res.remaining === 1 ? '' : 's'} remaining before lockout.`;
+      return;
+    }
+    errEl.textContent = res.error || 'Sign in failed';
+  }
+
   // Version footer
   window.pvh.platform().then((info) => {
     $('auth-version').textContent = `v${info.version}`;
@@ -132,9 +160,7 @@
     if (res.ok) {
       completeLogin(res.officer);
     } else {
-      errors.login.textContent = res.error || 'Sign in failed';
-      btn.disabled = false;
-      btn.textContent = 'Sign in';
+      applyAuthResult(res, errors.login, $('login-btn'), 'Sign in');
       $('login-pass').value = '';
       $('login-pass').focus();
     }
@@ -163,9 +189,7 @@
       }
       completeLogin(res.officer);
     } else {
-      errors.adminLogin.textContent = res.error || 'Sign in failed';
-      btn.disabled = false;
-      btn.textContent = 'Sign in';
+      applyAuthResult(res, errors.adminLogin, $('admin-login-btn'), 'Sign in');
       $('admin-login-pass').value = '';
       $('admin-login-pass').focus();
     }

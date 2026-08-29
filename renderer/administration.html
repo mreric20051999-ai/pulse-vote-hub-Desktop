@@ -46,6 +46,7 @@
       <a href="#backup" class="sub-link" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
       <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
+      <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -180,6 +181,22 @@
       </div>
     </section>
 
+    <!-- Integrity check -->
+    <section class="card panel ofc-section" id="integrity">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Integrity check</div>
+          <p class="text-muted panel-sub">Verify the vote and audit hash chains plus SQLite page integrity — every edit breaks the chain at the exact row it touched.</p>
+        </div>
+        <span class="lan-pill" id="integrity-pill"><span class="lan-dot" id="integrity-dot"></span><span id="integrity-pill-text">Unknown</span></span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="integrity-run-btn"><span class="icon btn-icon" data-icon="lock"></span>Verify now</button>
+      </div>
+      <p class="auth-error" id="integrity-msg"></p>
+      <div id="integrity-report" class="integrity-report" style="display:none;"></div>
+    </section>
+
     <!-- My account -->
     <section class="card panel ofc-section" id="my-account">
       <div class="panel-head">
@@ -205,5 +222,6 @@
   <script src="js/administration.js"></script>
   <script src="js/merge.js"></script>
   <script src="js/lan.js"></script>
+  <script src="js/integrity.js"></script>
 </body>
 </html>
