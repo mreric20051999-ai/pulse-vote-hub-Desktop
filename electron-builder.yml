@@ -1,0 +1,46 @@
+appId: com.pulsevotehub.desktop
+productName: Pulse Vote Hub
+copyright: Copyright © 2026 Pulse Vote Hub
+
+compression: normal
+
+directories:
+  output: dist
+  buildResources: res
+
+files:
+  - electron/**/*
+  - renderer/**/*
+  - package.json
+
+asar: true
+npmRebuild: true
+
+# Native modules must be loaded from disk, not from inside the asar archive.
+asarUnpack:
+  - "**/*.node"
+
+mac:
+  category: public.app-category.education
+  target:
+    - dmg
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  # Ad-hoc (unsigned) for now; add a Developer ID identity + notary service
+  # for public distribution.
+  identity: null
+
+dmg:
+  title: "${productName} ${version}"
+  sign: false
+
+win:
+  target:
+    - nsis
+  artifactName: "${productName}-Setup-${version}.${ext}"
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Pulse Vote Hub

@@ -511,21 +511,21 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 11: Polish & Packaging <span class="duration">— 2-3 days</span><span class="badge badge-yellow">🟡 Partial</span></h3>
+      <h3>Phase 11: Polish & Packaging <span class="duration">— 2-3 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Kiosk lockdown, audio, printing, distribution.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
-        <tr><td>Kiosk mode</td><td>Fullscreen, disable keyboard shortcuts, hide cursor</td></tr>
-        <tr><td>Audio feedback</td><td>Peep sound on vote confirmation, error sounds</td></tr>
+        <tr><td>Kiosk mode</td><td>Fullscreen, disable keyboard shortcuts, hide cursor, lock vote screen (Esc re-locks)</td></tr>
+        <tr><td>Audio feedback</td><td>Peep sound on vote confirmation, error sounds (Web Audio, no assets)</td></tr>
         <tr><td>Voter card printing</td><td>Format and print voter ID cards</td></tr>
         <tr><td>Results printing</td><td>Format and print results certificates</td></tr>
-        <tr><td>Auto-update</td><td><code>electron-updater</code> for seamless updates</td></tr>
+        <tr><td>Auto-update</td><td><code>electron-updater</code> for seamless updates — <strong>deferred/optional</strong>: requires a release host + signed builds; app is distributed by installer rebuild instead</td></tr>
         <tr><td>First-run wizard</td><td>Guided setup: station name, audio test, credentials</td></tr>
-        <tr><td>Windows build</td><td><code>.exe</code> installer via <code>electron-builder</code></td></tr>
-        <tr><td>macOS build</td><td><code>.dmg</code> via <code>electron-builder</code></td></tr>
+        <tr><td>Windows build</td><td><code>.exe</code> installer via <code>electron-builder</code> (NSIS, oneClick-off, desktop shortcut)</td></tr>
+        <tr><td>macOS build</td><td><code>.dmg</code> via <code>electron-builder</code> (ad-hoc signed; add Developer ID + notary for store distribution)</td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Packaged app ready for distribution to polling stations.</p>
-      <p style="margin-top: 8px; color: #fbbf24;"><strong>Built so far:</strong> kiosk voting/check-in screens and kiosk styling (cursor hiding class, kiosk layout), print/export flows. <strong>Still to do:</strong> fullscreen kiosk lockdown + hidden cursor, audio feedback, `electron-builder` installers (.exe / .dmg), and `electron-updater` auto-update.</p>
+      <p style="margin-top: 8px; color: #4ade80;"><strong>Built and verified:</strong> fullscreen kiosk lockdown (menu-bar auto-hide, before-input-event shortcut guard while kiosk, cursor auto-hide, context-menu block), audio feedback (synthesized success/confirm/error tones) on voting + check-in screens, and distribution installers — <code>electron-builder</code> configured in <code>electron-builder.yml</code> (appId <code>com.pulsevotehub.desktop</code>, asar with <code>better-sqlite3</code> unpacked, logo icon 1024²) producing macOS <code>.dmg</code> (x64, boots with integrity checks passing) and Windows NSIS <code>.exe</code> (cross-built on macOS). <strong>Deferred:</strong> auto-update (<code>electron-updater</code>) — optional, needs a release host and signed builds.</p>
     </div>
 
     <h2>Timeline</h2>
@@ -582,7 +582,7 @@ CREATE TABLE audit_log (
       <tr><td>Password hashing</td><td>✅ Installed</td><td>Agent-side scrypt KDF via built-in <code>crypto.scryptSync</code> (not plaintext)</td></tr>
       <tr><td><code>sqlcipher</code></td><td>⏳ Deferred (optional)</td><td>Encrypted database at rest — not required while hash chains + signatures cover tamper evidence</td></tr>
       <tr><td>Signatures</td><td>✅ Native Node crypto</td><td>ed25519 via built-in <code>crypto.generateKeyPairSync</code> — <code>node-forge</code>/<code>jose</code> not needed</td></tr>
-      <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 11</td><td>Packaging</td></tr>
+      <tr><td><code>electron-builder</code></td><td>✅ Installed (26.x)</td><td>Packaging — macOS .dmg + Windows NSIS .exe (<code>electron-builder.yml</code>)</td></tr>
       <tr><td><code>csv-parse</code></td><td>✅ Installed</td><td>CSV import</td></tr>
       <tr><td><code>pdfkit</code></td><td>✅ Installed</td><td>PDF export</td></tr>
     </table>
@@ -590,7 +590,7 @@ CREATE TABLE audit_log (
     <div class="summary-box">
       <h3>Current Status — Week 5 of 6</h3>
       <p>The single-device offline track is complete and verified: <strong>Phases 1, 2, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, LAN networking with one server + multiple clients sharing a database, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is complete too: scrypt hashing, vote + audit hash chains, atomic transactions, role-based access, login lockout, integrity verification (start/close/on-demand), and per-vote ed25519 signatures (DB-at-rest encryption deferred by design).</p>
-      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> Phase 11 packaging (installers via <code>electron-builder</code>, auto-update, audio feedback, fullscreen kiosk lockdown).</p>
+      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> none on the core build — Phases 1–11 are complete. Optional follow-ups: auto-update (<code>electron-updater</code>), a signed/notarized macOS build, and a Windows CI build station.</p>
       <p style="margin-top: 8px;">Say <strong>"Start Phase 11"</strong> to begin the next build.</p>
     </div>
   </div>
