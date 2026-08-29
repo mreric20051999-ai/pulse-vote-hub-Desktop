@@ -255,7 +255,9 @@
         const input = block.querySelector('.cand-name');
         const name = input.value.trim();
         if (!name) { alert('Enter a candidate name.'); return; }
-        await window.pvh.addCandidate({ electionId: currentElection.id, positionId: p.id, name, photo_path: selectedPhoto });
+        await window.pvhUI.busy(block.querySelector('.cand-add-btn'), 'Adding…', async () => {
+          await window.pvh.addCandidate({ electionId: currentElection.id, positionId: p.id, name, photo_path: selectedPhoto });
+        });
         input.value = '';
         selectedPhoto = null;
         const prev = block.querySelector('.cand-photo-preview');
@@ -263,6 +265,7 @@
         prev.removeAttribute('src');
         currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
         renderPositions();
+        window.pvhUI.toast(`"${name}" added to ${p.title}.`, 'success');
       };
 
       candList.querySelectorAll('.rm-cand').forEach((b) =>
@@ -270,12 +273,14 @@
           await window.pvh.removeCandidate(b.dataset.id);
           currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
           renderPositions();
+          window.pvhUI.toast('Candidate removed.', 'success');
         }));
       block.querySelector('.rm-pos').addEventListener('click', async () => {
         if (!confirm(`Remove category "${p.title}" and its candidates?`)) return;
         await window.pvh.removePosition(p.id);
         await refreshBuilderData();
         renderPositions();
+        window.pvhUI.toast('Category removed.', 'success');
       });
       block.querySelector('.cand-add-btn').addEventListener('click', addCandidate);
       block.querySelector('.cand-name').addEventListener('keydown', (e) => {
@@ -388,12 +393,15 @@
     const maxVotes = Number($('pmax').value) || 1;
     if (!title) { alert('Enter a category name.'); return; }
     if (!(await ensureElectionSaved())) return;
-    await window.pvh.addPosition(currentElection.id, title, maxVotes);
+    await window.pvhUI.busy($('add-position'), 'Adding…', async () => {
+      await window.pvh.addPosition(currentElection.id, title, maxVotes);
+    });
     $('ptitle').value = '';
     await refreshBuilderData();
     renderPositions();
     const newInput = document.querySelector('.position-block:last-child .cand-name');
     if (newInput) newInput.focus();
+    window.pvhUI.toast(`Category "${title}" added.`, 'success');
   });
 
   // Creates the election from the form if it doesn't exist yet, so the user
@@ -414,6 +422,7 @@
     await window.pvh.setElectionStatus(currentElection.id, status);
     await refreshBuilderData();
     renderPositions();
+    window.pvhUI.toast('Election created.', 'success');
     return true;
   }
 
@@ -426,18 +435,21 @@
     if (schedule.start_date != null && schedule.end_date != null && schedule.end_date < schedule.start_date) {
       return alert('End date/time must be after start date/time.');
     }
-    if (currentElection.id) {
-      await window.pvh.updateElection(currentElection.id, { title, type, ...schedule });
-      await window.pvh.setElectionStatus(currentElection.id, status);
-    } else {
-      const res = await window.pvh.createElection({ title, type, ...schedule });
-      if (!res.ok) return alert(res.error || 'Failed to create');
-      currentElection = res.election;
-      await window.pvh.setElectionStatus(currentElection.id, status);
-    }
-    await refreshBuilderData();
-    $('builder-title').textContent = currentElection.title;
-    renderStatusPill(currentElection.status);
+    await window.pvhUI.busy($('save-election'), 'Saving…', async () => {
+      if (currentElection.id) {
+        await window.pvh.updateElection(currentElection.id, { title, type, ...schedule });
+        await window.pvh.setElectionStatus(currentElection.id, status);
+      } else {
+        const res = await window.pvh.createElection({ title, type, ...schedule });
+        if (!res.ok) { window.pvhUI.toast(res.error || 'Failed to create', 'error'); return; }
+        currentElection = res.election;
+        await window.pvh.setElectionStatus(currentElection.id, status);
+      }
+      await refreshBuilderData();
+      $('builder-title').textContent = currentElection.title;
+      renderStatusPill(currentElection.status);
+      window.pvhUI.toast('Election saved.', 'success');
+    });
   });
 
   // Publish: compute status from the schedule (web-app model). A school
@@ -452,13 +464,17 @@
       return alert('Set both a Start and End date/time before publishing.');
     }
     if (schedule.end_date < schedule.start_date) return alert('End date/time must be after start date/time.');
-    await window.pvh.updateElection(currentElection.id, { ...schedule });
-    const voterCount = (currentElection.voters != null) ? currentElection.voters : undefined;
-    const res = await window.pvh.publishElection(currentElection.id, voterCount != null ? { schoolVoterCount: voterCount } : {});
-    if (!res.ok) { alert(res.error || 'Failed to publish'); return; }
-    currentElection = res.election;
-    estatusDD.set(currentElection.status);
-    await refreshBuilderData();
+    await window.pvhUI.busy($('publish-election'), 'Publishing…', async () => {
+      await window.pvh.updateElection(currentElection.id, { ...schedule });
+      const voterCount = (currentElection.voters != null) ? currentElection.voters : undefined;
+      const res = await window.pvh.publishElection(currentElection.id, voterCount != null ? { schoolVoterCount: voterCount } : {});
+      if (!res.ok) { window.pvhUI.toast(res.error || 'Failed to publish', 'error'); return; }
+      currentElection = res.election;
+      estatusDD.set(currentElection.status);
+      await refreshBuilderData();
+      const live = currentElection.status === 'active';
+      window.pvhUI.toast(live ? 'Election published — voting is live.' : 'Election published.', 'success');
+    });
   });
 
   // Re-apply the config lock whenever the status changes (e.g. admin closes or

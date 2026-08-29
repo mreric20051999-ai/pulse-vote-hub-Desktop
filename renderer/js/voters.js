@@ -153,25 +153,29 @@
 
   // ---- Actions ----
   $('add-voter-btn').addEventListener('click', async () => {
-    const res = await window.pvh.addVoter({
-      electionId: currentElectionId,
-      voterId: $('v-voter-id').value,
-      name: $('v-name').value,
-      assignedStation: $('v-station').value,
+    await window.pvhUI.busy($('add-voter-btn'), 'Adding…', async () => {
+      const res = await window.pvh.addVoter({
+        electionId: currentElectionId,
+        voterId: $('v-voter-id').value,
+        name: $('v-name').value,
+        assignedStation: $('v-station').value,
+      });
+      if (!res.ok) { window.pvhUI.toast(res.error || 'Could not add voter', 'error'); return; }
+      $('v-voter-id').value = ''; $('v-name').value = ''; $('v-station').value = '';
+      window.pvhUI.toast(`Added ${res.voter.voter_id} — password: ${res.voter.password}`, 'success');
+      refresh();
     });
-    if (!res.ok) { alert(res.error || 'Could not add voter'); return; }
-    $('v-voter-id').value = ''; $('v-name').value = ''; $('v-station').value = '';
-    alert(`Added ${res.voter.voter_id} — password: ${res.voter.password}`);
-    refresh();
   });
 
   $('import-btn').addEventListener('click', async () => {
-    const csv = $('csv-input').value;
-    const res = await window.pvh.importVoters(currentElectionId, csv);
-    if (!res.ok) { alert(res.error || 'Import failed'); return; }
-    $('csv-input').value = '';
-    alert(`Imported ${res.added} voter(s), skipped ${res.skipped}`);
-    refresh();
+    await window.pvhUI.busy($('import-btn'), 'Importing…', async () => {
+      const csv = $('csv-input').value;
+      const res = await window.pvh.importVoters(currentElectionId, csv);
+      if (!res.ok) { window.pvhUI.toast(res.error || 'Import failed', 'error'); return; }
+      $('csv-input').value = '';
+      window.pvhUI.toast(`Imported ${res.added} voter(s), skipped ${res.skipped}`, 'success');
+      refresh();
+    });
   });
 
   // Auto-generate scheme label updates
@@ -210,13 +214,17 @@
     const res = await window.pvh.autoGenerateVoters(currentElectionId, opts);
     btn.disabled = false;
     btn.textContent = 'Auto-generate';
-    if (!res.ok) { alert(res.error || 'Generation failed'); return; }
+    if (!res.ok) {
+      window.pvhUI.toast(res.error || 'Generation failed', 'error');
+      return;
+    }
     const creds = res.created && res.created.length
       ? '\n\n' + res.created.slice(0, 10)
           .map((c) => `${c.voter_id}\t·\t${c.password}${c.name ? ` (${c.name})` : ''}`).join('\n')
         + (res.created.length > 10 ? `\n… and ${res.created.length - 10} more` : '')
       : '';
     alert(`Generated ${res.count} voter(s)${res.from != null ? ` (V-range ${res.from} → ${res.to})` : ''}${res.assignedStation ? ` — assigned to ${res.assignedStation}` : ''}. Passwords are required for ballot access:${creds}`);
+    window.pvhUI.toast(`Generated ${res.count} voter(s).`, 'success');
     $('autogen-list').value = '';
     refresh();
   });
@@ -227,23 +235,27 @@
     try {
       const res = await window.pvh.exportVoters(currentElectionId, format);
       if (res.ok) {
-        if (format === 'print') { alert('Sent to printer.'); }
-        else { alert(`Exported to ${format.toUpperCase()}: ${res.path}`); }
+        if (format === 'print') { window.pvhUI.toast('Sent to printer.', 'success'); }
+        else { window.pvhUI.toast(`Exported to ${format.toUpperCase()}: ${res.path}`, 'success'); }
       } else if (res.error && res.error !== 'Export cancelled') {
-        alert(`Export failed: ${res.error}`);
+        window.pvhUI.toast(`Export failed: ${res.error}`, 'error');
       }
     } catch (err) {
-      alert(`Export failed: ${err.message}`);
+      window.pvhUI.toast(`Export failed: ${err.message}`, 'error');
     }
   }
-  $('export-csv').addEventListener('click', () => doExport('csv'));
-  $('export-pdf').addEventListener('click', () => doExport('pdf'));
-  $('export-html').addEventListener('click', () => doExport('html'));
-  $('export-print').addEventListener('click', () => doExport('print'));
+  const exportBtnMap = { csv: 'export-csv', pdf: 'export-pdf', html: 'export-html', print: 'export-print' };
+  const exportLabelMap = { csv: 'Exporting CSV…', pdf: 'Exporting PDF…', html: 'Exporting HTML…', print: 'Preparing…' };
+  Object.keys(exportBtnMap).forEach((fmt) => {
+    $(exportBtnMap[fmt]).addEventListener('click', async (e) => {
+      await window.pvhUI.busy(e.currentTarget, exportLabelMap[fmt], () => doExport(fmt));
+    });
+  });
 
   $('clear-btn').addEventListener('click', async () => {
     if (!confirm('Remove ALL voters for this election? This cannot be undone.')) return;
     await window.pvh.clearVoters(currentElectionId);
+    window.pvhUI.toast('All voters removed.', 'success');
     refresh();
   });
 

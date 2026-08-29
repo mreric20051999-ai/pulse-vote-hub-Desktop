@@ -117,8 +117,13 @@
         const stationId = sel.dataset.station;
         const officerId = sel.value || null;
         const res = await window.pvh.assignStationOfficer(officerId, stationId, currentElectionId);
-        if (!res.ok) { alert(res.error || 'Could not assign officer'); renderStations(); return; }
+        if (!res.ok) {
+          window.pvhUI.toast(res.error || 'Could not assign officer', 'error');
+          renderStations();
+          return;
+        }
         renderStations();
+        window.pvhUI.toast('Officer assigned to station.', 'success');
       });
     });
     body.querySelectorAll('.st-remove').forEach((btn) => {
@@ -130,7 +135,8 @@
           if (off) await window.pvh.assignStationOfficer(off.id, null, null);
         }
         const res = await window.pvh.removeStation(btn.dataset.id);
-        if (!res.ok) alert(res.error || 'Could not remove station');
+        if (!res.ok) window.pvhUI.toast(res.error || 'Could not remove station', 'error');
+        else window.pvhUI.toast('Station removed.', 'success');
         renderStations();
       });
     });
@@ -152,19 +158,24 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       $('st-error').textContent = '';
-      const res = await window.pvh.addStation({
-        electionId: currentElectionId,
-        name: $('st-name').value,
-        location: $('st-location').value,
-        code: $('st-code').value,
+      const submitBtn = $('st-submit');
+      await window.pvhUI.busy(submitBtn, 'Adding…', async () => {
+        const res = await window.pvh.addStation({
+          electionId: currentElectionId,
+          name: $('st-name').value,
+          location: $('st-location').value,
+          code: $('st-code').value,
+        });
+        if (res.ok) {
+          overlay.hidden = true;
+          form.reset();
+          window.pvhUI.toast(`Station "${res.station ? res.station.name : ''}" added.`, 'success');
+          renderStations();
+        } else {
+          $('st-error').textContent = res.error || 'Failed to add station';
+          window.pvhUI.toast(res.error || 'Failed to add station', 'error');
+        }
       });
-      if (res.ok) {
-        overlay.hidden = true;
-        form.reset();
-        renderStations();
-      } else {
-        $('st-error').textContent = res.error || 'Failed to add station';
-      }
     });
   }
 
@@ -180,18 +191,22 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       $('of-error').textContent = '';
-      const res = await window.pvh.addOfficer({
-        name: $('of-name').value,
-        officerId: $('of-id').value,
-        password: $('of-pass').value,
-        role: 'assistant',
+      await window.pvhUI.busy($('of-submit'), 'Creating…', async () => {
+        const res = await window.pvh.addOfficer({
+          name: $('of-name').value,
+          officerId: $('of-id').value,
+          password: $('of-pass').value,
+          role: 'assistant',
+        });
+        if (res.ok) {
+          closeModal();
+          window.pvhUI.toast('Officer account created.', 'success');
+          if (currentElectionId) renderStations();
+        } else {
+          $('of-error').textContent = res.error || 'Failed to create officer';
+          window.pvhUI.toast(res.error || 'Failed to create officer', 'error');
+        }
       });
-      if (res.ok) {
-        closeModal();
-        if (currentElectionId) renderStations();
-      } else {
-        $('of-error').textContent = res.error || 'Failed to create officer';
-      }
     });
   }
 

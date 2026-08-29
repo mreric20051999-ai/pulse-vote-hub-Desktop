@@ -50,21 +50,25 @@
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       err.textContent = '';
-      const res = await window.pvh.addOfficer({
-        name: $('ao-name').value,
-        officerId: $('ao-id').value,
-        password: $('ao-pass').value,
-        role: isAdmin ? ($('ao-role').value || 'assistant') : 'assistant',
+      await window.pvhUI.busy($('ao-submit'), 'Creating…', async () => {
+        const res = await window.pvh.addOfficer({
+          name: $('ao-name').value,
+          officerId: $('ao-id').value,
+          password: $('ao-pass').value,
+          role: isAdmin ? ($('ao-role').value || 'assistant') : 'assistant',
+        });
+        if (res.ok) {
+          form.reset();
+          $('ao-name').focus();
+          window.pvhUI.toast('Officer account created.', 'success');
+          loadOfficers();
+          loadPasswordTargets();
+          renderAssignElections();
+        } else {
+          err.textContent = res.error || 'Failed to create officer';
+          window.pvhUI.toast(res.error || 'Failed to create officer', 'error');
+        }
       });
-      if (res.ok) {
-        form.reset();
-        $('ao-name').focus();
-        loadOfficers();
-        loadPasswordTargets();
-        renderAssignElections();
-      } else {
-        err.textContent = res.error || 'Failed to create officer';
-      }
     });
   }
 
@@ -117,11 +121,13 @@
       b.addEventListener('click', async () => {
         if (!confirm('Suspend this officer? They will be unable to sign in.')) return;
         await window.pvh.setOfficerSuspended(b.dataset.id, true);
+        window.pvhUI.toast('Officer suspended.', 'success');
         loadOfficers();
       }));
     body.querySelectorAll('.activate').forEach((b) =>
       b.addEventListener('click', async () => {
         await window.pvh.setOfficerSuspended(b.dataset.id, false);
+        window.pvhUI.toast('Officer activated.', 'success');
         loadOfficers();
       }));
     body.querySelectorAll('.setpass').forEach((b) => {
@@ -137,7 +143,8 @@
       b.addEventListener('click', async () => {
         if (!confirm('Remove this officer account entirely?')) return;
         const res = await window.pvh.removeOfficer(b.dataset.id, session.id);
-        if (!res.ok) alert(res.error || 'Failed to remove');
+        if (!res.ok) window.pvhUI.toast(res.error || 'Failed to remove', 'error');
+        else window.pvhUI.toast('Officer removed.', 'success');
         loadOfficers();
         loadPasswordTargets();
         renderAssignElections();
@@ -165,10 +172,17 @@
       const id = $('pw-target').value;
       const pw = $('pw-new').value;
       if (!id) { err.textContent = 'Select an officer first.'; return; }
-      const res = await window.pvh.changePassword(id, pw);
-      err.textContent = res.ok ? '' : (res.error || 'Failed to update password');
-      err.className = res.ok ? 'notice-ok' : 'auth-error';
-      if (res.ok) $('pw-new').value = '';
+      await window.pvhUI.busy($('pw-submit'), 'Updating…', async () => {
+        const res = await window.pvh.changePassword(id, pw);
+        err.textContent = res.ok ? '' : (res.error || 'Failed to update password');
+        err.className = res.ok ? 'notice-ok' : 'auth-error';
+        if (res.ok) {
+          $('pw-new').value = '';
+          window.pvhUI.toast('Password updated.', 'success');
+        } else {
+          window.pvhUI.toast(res.error || 'Failed to update password', 'error');
+        }
+      });
     });
   }
 
@@ -281,7 +295,8 @@
     body.querySelectorAll('.officer-assign').forEach((selEl) => {
       selEl.addEventListener('change', async () => {
         const res = await window.pvh.assignStationOfficer(selEl.value || null, selEl.dataset.station, electionId);
-        if (!res.ok) { alert(res.error || 'Could not assign officer'); }
+        if (!res.ok) window.pvhUI.toast(res.error || 'Could not assign officer', 'error');
+        else window.pvhUI.toast('Officer assigned to station.', 'success');
         renderAssignStations();
       });
     });

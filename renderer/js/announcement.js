@@ -376,7 +376,8 @@
     const base = safeBase(lastReport.election.title);
     const html = await buildStandaloneHtml();
     window.pvh.exportFile(html, `${base}_declaration`, 'html').then((res) => {
-      if (!res || !res.ok) handleExportError(res, 'HTML');
+      if (res && res.ok) window.pvhUI.toast(`HTML exported to ${res.path}.`, 'success');
+      else handleExportError(res, 'HTML');
     });
   }
 
@@ -385,12 +386,14 @@
     const base = safeBase(lastReport.election.title);
     const html = await buildStandaloneHtml();
     window.pvh.exportPdf(html, `${base}_declaration`).then((res) => {
-      if (!res || !res.ok) handleExportError(res, 'PDF');
+      if (res && res.ok) window.pvhUI.toast(`PDF exported to ${res.path}.`, 'success');
+      else handleExportError(res, 'PDF');
     });
   }
 
   async function printDeclaration() {
     if (!lastReport) return;
+    window.pvhUI.toast('Sending declaration to the printer…', 'info');
     const html = await buildStandaloneHtml();
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
@@ -500,8 +503,12 @@ body.print-body{font-family:'Segoe UI',Georgia,serif,sans-serif;color:#0f172a;ba
     window.location.href = 'results.html' + (currentElectionId ? '?id=' + encodeURIComponent(currentElectionId) : '');
   });
   $('print-btn').addEventListener('click', printDeclaration);
-  $('export-html-btn').addEventListener('click', exportHtml);
-  $('export-pdf-btn').addEventListener('click', exportPdf);
+  $('export-html-btn').addEventListener('click', async (e) => {
+    await window.pvhUI.busy(e.currentTarget, 'Exporting HTML…', exportHtml);
+  });
+  $('export-pdf-btn').addEventListener('click', async (e) => {
+    await window.pvhUI.busy(e.currentTarget, 'Exporting PDF…', exportPdf);
+  });
 
   // Clicking outside an open popover closes it.
   document.addEventListener('click', (e) => {

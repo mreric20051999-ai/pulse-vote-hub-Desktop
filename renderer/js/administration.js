@@ -37,22 +37,29 @@
     const msg = $('backup-msg');
     $('backup-db-btn').addEventListener('click', async () => {
       msg.textContent = '';
-      const res = await window.pvh.backupDatabase();
-      msg.textContent = res.ok ? `Backup saved to ${res.path}` : (res.error || 'Backup failed');
-      msg.className = res.ok ? 'notice-ok' : 'auth-error';
+      await window.pvhUI.busy($('backup-db-btn'), 'Backing up…', async () => {
+        const res = await window.pvh.backupDatabase();
+        msg.textContent = res.ok ? `Backup saved to ${res.path}` : (res.error || 'Backup failed');
+        msg.className = res.ok ? 'notice-ok' : 'auth-error';
+        window.pvhUI.toast(res.ok ? 'Backup created.' : (res.error || 'Backup failed'), res.ok ? 'success' : 'error');
+      });
     });
     $('export-election-btn').addEventListener('click', async () => {
       msg.textContent = '';
-      const list = await window.pvh.listElections();
-      if (!list.length) {
-        msg.textContent = 'No elections to export yet.';
-        msg.className = 'auth-error';
-        return;
-      }
-      const target = list.find((e) => e.status === 'active') || list[0];
-      const res = await window.pvh.exportElection(target.id);
-      msg.textContent = res.ok ? `Exported "${target.title}" to ${res.path}` : (res.error || 'Export failed');
-      msg.className = res.ok ? 'notice-ok' : 'auth-error';
+      await window.pvhUI.busy($('export-election-btn'), 'Exporting…', async () => {
+        const list = await window.pvh.listElections();
+        if (!list.length) {
+          msg.textContent = 'No elections to export yet.';
+          msg.className = 'auth-error';
+          window.pvhUI.toast('No elections to export yet.', 'error');
+          return;
+        }
+        const target = list.find((e) => e.status === 'active') || list[0];
+        const res = await window.pvh.exportElection(target.id);
+        msg.textContent = res.ok ? `Exported "${target.title}" to ${res.path}` : (res.error || 'Export failed');
+        msg.className = res.ok ? 'notice-ok' : 'auth-error';
+        window.pvhUI.toast(res.ok ? `Exported "${target.title}".` : (res.error || 'Export failed'), res.ok ? 'success' : 'error');
+      });
     });
 
     // ---------- Delete election ----------
@@ -152,10 +159,17 @@
         msg.className = 'auth-error';
         return;
       }
-      const res = await window.pvh.changePassword(session.id, pw);
-      msg.textContent = res.ok ? 'Password updated.' : (res.error || 'Failed to update password');
-      msg.className = res.ok ? 'notice-ok' : 'auth-error';
-      if (res.ok) $('my-new-pass').value = '';
+      await window.pvhUI.busy($('my-password-submit'), 'Updating…', async () => {
+        const res = await window.pvh.changePassword(session.id, pw);
+        msg.textContent = res.ok ? 'Password updated.' : (res.error || 'Failed to update password');
+        msg.className = res.ok ? 'notice-ok' : 'auth-error';
+        if (res.ok) {
+          $('my-new-pass').value = '';
+          window.pvhUI.toast('Password updated.', 'success');
+        } else {
+          window.pvhUI.toast(res.error || 'Failed to update password', 'error');
+        }
+      });
     });
   }
 

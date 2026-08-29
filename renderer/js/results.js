@@ -493,7 +493,8 @@
     if (!lastReport || !lastReport.ok) return;
     const base = safeBase(lastReport.election.title);
     window.pvh.exportFile(buildCsv(lastReport), `${base}_results`, 'csv').then((res) => {
-      if (!res || !res.ok) handleExportError(res, 'CSV');
+      if (res && res.ok) window.pvhUI.toast(`CSV exported to ${res.path}.`, 'success');
+      else handleExportError(res, 'CSV');
     });
   }
 
@@ -501,7 +502,8 @@
     if (!lastReport || !lastReport.ok) return;
     const base = safeBase(lastReport.election.title);
     window.pvh.exportFile(buildStandaloneHtml(), `${base}_report`, 'html').then((res) => {
-      if (!res || !res.ok) handleExportError(res, 'HTML');
+      if (res && res.ok) window.pvhUI.toast(`HTML report exported to ${res.path}.`, 'success');
+      else handleExportError(res, 'HTML');
     });
   }
 
@@ -509,13 +511,16 @@
     if (!lastReport || !lastReport.ok) return;
     const base = safeBase(lastReport.election.title);
     window.pvh.exportPdf(buildStandaloneHtml(), `${base}_report`).then((res) => {
-      if (!res || !res.ok) handleExportError(res, 'PDF');
+      if (res && res.ok) window.pvhUI.toast(`PDF report exported to ${res.path}.`, 'success');
+      else handleExportError(res, 'PDF');
     });
   }
 
   function handleExportError(res, label) {
     if (res && res.canceled) return;
-    alert((res && res.error) || `${label} export failed.`);
+    const msg = (res && res.error) || `${label} export failed.`;
+    alert(msg);
+    window.pvhUI.toast(msg, 'error');
   }
 
   function buildStandaloneHtml() {
@@ -622,10 +627,22 @@ body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:
       }
     });
   }
-  $('print-btn').addEventListener('click', () => window.print());
-  $('export-csv-btn').addEventListener('click', exportCsv);
-  $('export-html-btn').addEventListener('click', exportHtml);
-  $('export-pdf-btn').addEventListener('click', exportPdf);
+  $('print-btn').addEventListener('click', () => {
+    window.pvhUI.toast('Sending report to the printer…', 'info');
+    window.print();
+  });
+  $('export-csv-btn').addEventListener('click', async (e) => {
+    if (!lastReport || !lastReport.ok) return;
+    await window.pvhUI.busy(e.currentTarget, 'Exporting CSV…', exportCsv);
+  });
+  $('export-html-btn').addEventListener('click', async (e) => {
+    if (!lastReport || !lastReport.ok) return;
+    await window.pvhUI.busy(e.currentTarget, 'Exporting HTML…', exportHtml);
+  });
+  $('export-pdf-btn').addEventListener('click', async (e) => {
+    if (!lastReport || !lastReport.ok) return;
+    await window.pvhUI.busy(e.currentTarget, 'Exporting PDF…', exportPdf);
+  });
 
   // ---------- Init ----------
   const q = new URLSearchParams(window.location.search);

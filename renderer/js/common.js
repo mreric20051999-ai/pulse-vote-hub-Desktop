@@ -26,6 +26,54 @@
 
   if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
+  // ---- Global action feedback: toasts + busy buttons ----
+  const toastsRoot = (() => {
+    const root = document.createElement('div');
+    root.className = 'toasts';
+    document.body.appendChild(root);
+    return root;
+  })();
+
+  function toast(msg, type, ms) {
+    type = type || 'info';
+    const el = document.createElement('div');
+    el.className = 'toast toast-' + type;
+    el.textContent = msg;
+    toastsRoot.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('toast-leave');
+      setTimeout(() => { if (el.parentNode) el.remove(); }, 300);
+    }, ms || 2800);
+    return el;
+  }
+
+  // Temporarily switch a button into a busy (spinner + label) state while `fn`
+  // runs, then restore it exactly. Returns whatever `fn` resolves to.
+  async function busy(btn, busyLabel, fn) {
+    if (!btn) return fn ? await fn() : undefined;
+    if (btn.disabled) return fn ? await fn() : undefined;
+    const prev = { html: btn.innerHTML, disabled: btn.disabled };
+    btn.disabled = true;
+    btn.classList.add('is-busy');
+    btn.innerHTML = '';
+    const sp = document.createElement('span');
+    sp.className = 'btn-spinner';
+    sp.setAttribute('aria-hidden', 'true');
+    btn.appendChild(sp);
+    const lbl = document.createElement('span');
+    lbl.textContent = busyLabel || 'Please wait…';
+    btn.appendChild(lbl);
+    try {
+      return await fn();
+    } finally {
+      btn.innerHTML = prev.html;
+      btn.disabled = prev.disabled;
+      btn.classList.remove('is-busy');
+    }
+  }
+
+  window.pvhUI = { toast, busy };
+
   const nav = document.getElementById('nav');
   if (nav) {
     // Highlight current page based on data-nav matching active class already set

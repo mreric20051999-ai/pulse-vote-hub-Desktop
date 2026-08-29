@@ -93,63 +93,94 @@
 
   $('lan-save-name-btn').addEventListener('click', async () => {
     const res = await window.pvh.lanSetName($('lan-dev-name').value);
-    if (res && res.ok) refresh();
+    if (res && res.ok) {
+      window.pvhUI.toast('Device name saved.', 'success');
+      refresh();
+    } else {
+      window.pvhUI.toast((res && res.error) || 'Could not save name', 'error');
+    }
   });
 
-  $('lan-start-host-btn').addEventListener('click', async () => {
-    const res = await window.pvh.lanSetMode('host', { port: Number($('lan-port').value) || 7380 });
-    setMsg('lan-host-msg', res, 'Server started.');
-    if (res && res.ok) refresh();
+  $('lan-start-host-btn').addEventListener('click', async (e) => {
+    await window.pvhUI.busy(e.currentTarget, 'Starting…', async () => {
+      const res = await window.pvh.lanSetMode('host', { port: Number($('lan-port').value) || 7380 });
+      setMsg('lan-host-msg', res, 'Server started.');
+      if (res && res.ok) {
+        window.pvhUI.toast('Server started.', 'success');
+        refresh();
+      } else {
+        window.pvhUI.toast((res && res.error) || 'Could not start server', 'error');
+      }
+    });
   });
 
   $('lan-stop-host-btn').addEventListener('click', async () => {
     const res = await window.pvh.lanStop();
     setMsg('lan-host-msg', res, 'Server stopped.');
+    if (res && res.ok) window.pvhUI.toast('Server stopped.', 'success');
+    else window.pvhUI.toast((res && res.error) || 'Could not stop server', 'error');
     refresh();
   });
 
-  $('lan-connect-btn').addEventListener('click', async () => {
-    const res = await window.pvh.lanSetMode('client', { host: $('lan-host-url').value });
-    setMsg('lan-client-msg', res, 'Connecting…');
-    if (res && res.ok) refresh();
+  $('lan-connect-btn').addEventListener('click', async (e) => {
+    await window.pvhUI.busy(e.currentTarget, 'Connecting…', async () => {
+      const res = await window.pvh.lanSetMode('client', { host: $('lan-host-url').value });
+      setMsg('lan-client-msg', res, 'Connecting…');
+      if (res && res.ok) {
+        window.pvhUI.toast('Connected to hub.', 'success');
+        refresh();
+      } else {
+        window.pvhUI.toast((res && res.error) || 'Could not connect', 'error');
+      }
+    });
   });
 
   $('lan-disconnect-btn').addEventListener('click', async () => {
     const res = await window.pvh.lanStop();
     setMsg('lan-client-msg', res, 'Disconnected.');
+    if (res && res.ok) window.pvhUI.toast('Disconnected.', 'success');
+    else window.pvhUI.toast((res && res.error) || 'Could not disconnect', 'error');
     refresh();
   });
 
-  $('lan-scan-btn').addEventListener('click', async () => {
-    const box = $('lan-found');
-    box.innerHTML = '<div class="lan-empty">Searching for hubs…</div>';
-    const res = await window.pvh.lanDiscover(3000);
-    if (!res || !res.ok) {
-      box.innerHTML = `<div class="lan-empty">${esc((res && res.error) || 'Discovery unavailable')}</div>`;
-      return;
-    }
-    if (!res.services.length) {
-      box.innerHTML = '<div class="lan-empty">No hubs found. Connect by address below, or start the hub on the host device.</div>';
-      return;
-    }
-    box.innerHTML = res.services.map((svc, i) => {
-      const host = (svc.addresses && svc.addresses[0]) || svc.host || '';
-      const url = host ? `${host}:${svc.port}` : '';
-      return `<div class="lan-svc">
-        <div class="lan-svc-meta">
-          <div class="lan-svc-name">${esc(svc.name || 'Pulse Device')}</div>
-          <div class="lan-svc-host">${esc(url || 'no address')}</div>
-        </div>
-        ${url ? `<button class="btn btn-secondary lan-svc-connect" data-url="${esc(url)}"><span class="icon btn-icon" data-icon="lan"></span>Connect</button>` : ''}
-      </div>`;
-    }).join('');
-    box.querySelectorAll('.lan-svc-connect').forEach((b) => {
-      b.addEventListener('click', async () => {
-        $('lan-host-url').value = b.dataset.url;
-        const res = await window.pvh.lanSetMode('client', { host: b.dataset.url });
-        setMsg('lan-client-msg', res, 'Connecting…');
-        if (res && res.ok) refresh();
+  $('lan-scan-btn').addEventListener('click', async (e) => {
+    await window.pvhUI.busy(e.currentTarget, 'Scanning…', async () => {
+      const box = $('lan-found');
+      box.innerHTML = '<div class="lan-empty">Searching for hubs…</div>';
+      const res = await window.pvh.lanDiscover(3000);
+      if (!res || !res.ok) {
+        box.innerHTML = `<div class="lan-empty">${esc((res && res.error) || 'Discovery unavailable')}</div>`;
+        return;
+      }
+      if (!res.services.length) {
+        box.innerHTML = '<div class="lan-empty">No hubs found. Connect by address below, or start the hub on the host device.</div>';
+        return;
+      }
+      box.innerHTML = res.services.map((svc, i) => {
+        const host = (svc.addresses && svc.addresses[0]) || svc.host || '';
+        const url = host ? `${host}:${svc.port}` : '';
+        return `<div class="lan-svc">
+          <div class="lan-svc-meta">
+            <div class="lan-svc-name">${esc(svc.name || 'Pulse Device')}</div>
+            <div class="lan-svc-host">${esc(url || 'no address')}</div>
+          </div>
+          ${url ? `<button class="btn btn-secondary lan-svc-connect" data-url="${esc(url)}"><span class="icon btn-icon" data-icon="lan"></span>Connect</button>` : ''}
+        </div>`;
+      }).join('');
+      box.querySelectorAll('.lan-svc-connect').forEach((b) => {
+        b.addEventListener('click', async () => {
+          $('lan-host-url').value = b.dataset.url;
+          const res = await window.pvh.lanSetMode('client', { host: b.dataset.url });
+          setMsg('lan-client-msg', res, 'Connecting…');
+          if (res && res.ok) {
+            window.pvhUI.toast('Connected to hub.', 'success');
+            refresh();
+          } else {
+            window.pvhUI.toast((res && res.error) || 'Could not connect', 'error');
+          }
+        });
       });
+      window.pvhUI.toast(`Found ${res.services.length} hub(s) on the network.`, 'success');
     });
   });
   window.pvhIcons.inject('.lan-found .lan-svc-connect');
