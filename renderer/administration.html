@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/dashboard.css">
   <link rel="stylesheet" href="css/officers.css">
+  <link rel="stylesheet" href="css/results.css">
+  <link rel="stylesheet" href="css/merge.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -40,7 +42,8 @@
 
     <!-- Section sub-menu -->
     <nav class="section-links" id="section-links">
-      <a href="#backup" class="sub-link active" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
+      <a href="#backup" class="sub-link" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
+      <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -72,6 +75,36 @@
       </div>
     </section>
 
+    <!-- Merge results -->
+    <section class="card panel ofc-section" id="merge">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Merge results</div>
+          <p class="text-muted panel-sub">Combine exported election files from every polling location. Duplicate voters are detected and resolved so no ballot counts twice.</p>
+        </div>
+        <div class="btn-row merge-actions" id="merge-actions" style="display:none;">
+          <button class="btn btn-secondary" id="merge-csv-btn" title="Export the merged results to CSV"><span class="icon btn-icon" data-icon="download"></span>CSV</button>
+          <button class="btn btn-secondary" id="merge-html-btn" title="Export merged results as a standalone HTML report"><span class="icon btn-icon" data-icon="download"></span>HTML</button>
+          <button class="btn btn-secondary" id="merge-pdf-btn" title="Save the merged results as a PDF report"><span class="icon btn-icon" data-icon="download"></span>PDF</button>
+          <button class="btn btn-secondary" id="merge-json-btn" title="Save the merged dataset as a JSON snapshot"><span class="icon btn-icon" data-icon="upload"></span>JSON snapshot</button>
+          <button class="btn btn-secondary" id="merge-dup-csv-btn" title="Export the duplicate detection report"><span class="icon btn-icon" data-icon="download"></span>Duplicates</button>
+        </div>
+      </div>
+
+      <div class="merge-intro">
+        <p>Each location exports the election as JSON (<strong>Administration &rarr; Backup &amp; export &rarr; Export election JSON</strong>). Pick those files here; the tool combines the voter rolls, flags any voter registered or voted at more than one location, and lets you resolve each before tallying.</p>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="pick-files-btn"><span class="icon btn-icon" data-icon="upload"></span>Choose election files&hellip;</button>
+          <button class="btn btn-secondary" id="merge-reset-btn" title="Start a fresh merge" style="display:none;"><span class="icon btn-icon" data-icon="x"></span>Reset</button>
+        </div>
+        <p class="merge-msg" id="merge-msg"></p>
+      </div>
+
+      <div id="merge-files-wrap" style="display:none;"></div>
+      <div id="merge-group-wrap" style="display:none;"></div>
+      <div id="merge-work" style="display:none;"></div>
+    </section>
+
     <!-- My account -->
     <section class="card panel ofc-section" id="my-account">
       <div class="panel-head">
@@ -93,6 +126,8 @@
 
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
+  <script src="js/merge-core.js"></script>
   <script src="js/administration.js"></script>
+  <script src="js/merge.js"></script>
 </body>
 </html>

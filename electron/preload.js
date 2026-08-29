@@ -88,4 +88,8 @@ contextBridge.exposeInMainWorld('pvh', {
   // Backup / export
   backupDatabase: () => ipcRenderer.invoke('backup:database'),
   exportElection: (electionId) => ipcRenderer.invoke('backup:election', electionId, oid()),
+
+  // Multi-location merge
+  pickMergeFiles: () => ipcRenderer.invoke('merge:pick-files'),
+  exportJson: (content, defaultName) => ipcRenderer.invoke('merge:export-json', { content, defaultName }),
 });

@@ -1,0 +1,69 @@
+/* Multi-location merge workspace (Administration > Merge results)
+   Reuses report/rank classes from results.css for the merged report markup. */
+
+.merge-intro { margin-bottom: 18px; }
+.merge-intro p { margin: 0 0 12px; color: var(--text-muted, #94a3b8); font-size: 13.5px; line-height: 1.6; max-width: 720px; }
+.merge-intro strong, .merge-intro b { color: var(--text, #f1f5f9); }
+.btn-row.merge-actions { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+.merge-msg { margin: 12px 0 0; font-size: 13px; }
+.merge-msg.notice-ok { color: #4ade80; }
+.merge-msg.auth-error { color: #f87171; }
+
+/* ---- File list ---- */
+.merge-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 14px; }
+.file-chip { border: 1px solid var(--border, #334155); border-radius: var(--radius-md, 10px); background: var(--surface-2, #283549); padding: 14px 16px; }
+.file-chip.invalid { border-color: rgba(248, 113, 113, .45); background: rgba(127, 29, 29, .18); }
+.file-chip-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.file-chip-head b { font-size: 13.5px; color: var(--text, #f1f5f9); word-break: break-word; }
+.file-chip .fstatus { margin-left: auto; flex-shrink: 0; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; }
+.file-chip.valid .fstatus { background: rgba(74, 222, 128, .15); color: #4ade80; }
+.file-chip.invalid .fstatus { background: rgba(248, 113, 113, .15); color: #f87171; }
+.file-chip .fmuted { font-size: 12px; color: var(--text-muted, #94a3b8); }
+.file-counts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; }
+.file-counts .fstat { font-size: 12px; color: var(--text, #f1f5f9); }
+.file-counts .fstat b { color: var(--text, #f1f5f9); }
+.file-counts .fstat span { color: var(--text-muted, #94a3b8); }
+.file-errors { margin-top: 10px; font-size: 12.5px; color: #f87171; line-height: 1.5; }
+.file-warns { margin-top: 8px; font-size: 12px; color: #fcd34d; line-height: 1.5; }
+
+/* ---- Group picker ---- */
+.merge-group-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; margin-top: 16px; padding: 14px 16px; border: 1px dashed var(--border, #334155); border-radius: var(--radius-md, 10px); background: var(--surface, #1e293b); }
+.merge-group-bar .field { min-width: 320px; }
+.merge-section-title { margin: 22px 0 10px; font-size: 14px; font-weight: 800; color: var(--text, #f1f5f9); letter-spacing: .02em; display: flex; align-items: center; gap: 10px; }
+.merge-section-title .count-badge { font-size: 11px; font-weight: 700; color: var(--text-muted, #94a3b8); background: var(--surface-3, #31405a); padding: 3px 10px; border-radius: 999px; }
+
+/* ---- Duplicate table ---- */
+.dup-table { width: 100%; border-collapse: collapse; margin: 10px 0 6px; color: var(--text, #f1f5f9); }
+.dup-table th { background: var(--surface-3, #31405a); color: var(--text-muted, #94a3b8); font-size: 12px; font-weight: 700; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border, #334155); }
+.dup-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, #334155); font-size: 13px; vertical-align: middle; }
+.dup-table tr.dup-double td { background: rgba(251, 191, 36, .07); }
+.dup-table tbody tr:hover td { background: var(--surface-2, #283549); }
+.dup-vid { font-weight: 700; color: var(--text, #f1f5f9); }
+.dup-name { color: var(--text, #f1f5f9); }
+.dup-badge { display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+.dup-badge.double { background: rgba(251, 146, 60, .18); color: #fb923c; }
+.dup-badge.reg { background: rgba(96, 165, 250, .16); color: #60a5fa; }
+.dup-badge.one { background: rgba(74, 222, 128, .15); color: #4ade80; }
+.dup-files { color: var(--text-muted, #94a3b8); font-size: 12.5px; line-height: 1.5; }
+.dup-files b { color: var(--text, #f1f5f9); }
+.dup-resolve .select { min-width: 240px; }
+.dup-empty { padding: 14px 0; color: #4ade80; font-size: 13px; font-weight: 600; }
+.dup-hint { color: var(--text-muted, #94a3b8); font-size: 12.5px; margin: 6px 0 0; }
+
+/* ---- Merge summary strip ---- */
+.merge-summary { margin-top: 4px; }
+.merge-summary .report-stat { background: var(--surface-2, #283549); }
+.merge-warn-banner { margin: 14px 0 4px; padding: 12px 14px; border: 1px solid rgba(251, 146, 60, .4); border-radius: var(--radius-md, 10px); background: rgba(180, 83, 9, .12); color: #fdba74; font-size: 13px; line-height: 1.55; }
+.merge-warn-banner b { color: #fff7ed; }
+
+/* ---- Location contributions ---- */
+.merge-loc-tbl { width: 100%; border-collapse: collapse; margin: 10px 0 6px; color: var(--text, #f1f5f9); }
+.merge-loc-tbl th { background: var(--surface-3, #31405a); color: var(--text-muted, #94a3b8); font-size: 12px; font-weight: 700; text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border, #334155); }
+.merge-loc-tbl td { padding: 9px 12px; border-bottom: 1px solid var(--border, #334155); font-size: 13px; }
+.merge-loc-tbl .loc-name { font-weight: 600; color: var(--text, #f1f5f9); word-break: break-word; }
+
+/* ---- Merged report slot ---- */
+.merge-report-slot { margin-top: 8px; }
+.merge-report-slot .report-head h2 { font-size: 22px; }
+.merge-empty-note { color: var(--text-muted, #94a3b8); font-size: 13.5px; padding: 8px 0; }

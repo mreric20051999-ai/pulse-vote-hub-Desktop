@@ -491,7 +491,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 10: Multi-Location Merge <span class="duration">— 1-2 days</span><span class="badge badge-red">⏳ Not started</span></h3>
+      <h3>Phase 10: Multi-Location Merge <span class="duration">— 1-2 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations with global duplicate detection.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -504,6 +504,7 @@ CREATE TABLE audit_log (
         <tr><td>Export merged</td><td>Export merged results to JSON/CSV/PDF</td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Admin can combine results from Location A + B + C into one report.</p>
+      <p style="margin-top: 8px; color: #4ade80;"><strong>Built:</strong> full snapshot export on the Device tier (`backup:election` now exports positions/candidates/voters/votes), "Merge results" screen under Administration — select multiple snapshot files (validated per-file), auto-group by election, workspace showing per-location contributions, global duplicate detection (double ballots + multiple registrations), per-voter resolution (keep earliest-cast ballot by default, keep a specific location, or exclude), live recomputed merged report, and exports of merged results (JSON snapshot, CSV, HTML, PDF) plus a duplicates CSV report. Verified end-to-end with 2 fabricated location files (11 registered / 10 cast / double-voter resolved / 1-vote win after resolution override).</p>
     </div>
 
     <div class="phase-card">
@@ -585,9 +586,9 @@ CREATE TABLE audit_log (
 
     <div class="summary-box">
       <h3>Current Status — Week 5 of 6</h3>
-      <p>The single-device offline track is complete and verified: <strong>Phases 1, 4, 5, 6, 7, 8, 9</strong> (foundation, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration). <strong>Phase 3</strong> is partially built (hashing, hash chains, atomic transactions, roles).</p>
-      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> Phase 2 (LAN networking — Express + WebSocket + mDNS + offline fallback), Phase 10 (multi-location merge tool with global duplicate detection), the Phase 3 hardening gaps (DB encryption, signatures, lockout), and Phase 11 packaging (installers, auto-update, audio, kiosk lockdown).</p>
-      <p style="margin-top: 8px;">Say <strong>"Start Phase 2"</strong>, <strong>"Start Phase 10"</strong>, or <strong>"Finish Phase 3"</strong> to begin the next build.</p>
+      <p>The single-device offline track is complete and verified: <strong>Phases 1, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is partially built (hashing, hash chains, atomic transactions, roles).</p>
+      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> Phase 2 (LAN networking — Express + WebSocket + mDNS + offline fallback), the Phase 3 hardening gaps (DB encryption, signatures, lockout), and Phase 11 packaging (installers, auto-update, audio, kiosk lockdown).</p>
+      <p style="margin-top: 8px;">Say <strong>"Start Phase 2"</strong>, <strong>"Finish Phase 3"</strong>, or <strong>"Start Phase 11"</strong> to begin the next build.</p>
     </div>
   </div>
 </body>
