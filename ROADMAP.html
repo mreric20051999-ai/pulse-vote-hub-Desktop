@@ -139,7 +139,7 @@
       <tr><td>Election Setup</td><td>Create election: title, positions, candidates (manual or CSV)</td></tr>
       <tr><td>Voter Management</td><td>Import CSV, auto-generate voters, print voter cards</td></tr>
       <tr><td>Officer Management</td><td>Add officers (Coordinator + Assistant roles), assign to devices</td></tr>
-      <tr><td>Results</td><td>View results after voting ends, export to file, print</td></tr>
+      <tr><td>Results</td><td>View results after voting ends, official declaration page (separate screen), export to file, print</td></tr>
     </table>
 
     <h3>Check-In Desk (Officer)</h3>
@@ -477,6 +477,7 @@ CREATE TABLE audit_log (
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
         <tr><td>Results screen</td><td>Bar charts / table showing votes per candidate</td></tr>
+        <tr><td>Official declaration page</td><td>Dedicated screen, opened via the "Official Declaration" button on the Results screen — formal certified declaration (seal, party ribbon, election identity, duly elected candidates, signature blocks, declared date) with print / HTML / PDF export. Only published once the election closes; otherwise a locked unpublished notice is shown. "Certified results by category" is an interactive accordion: category buttons expand into square candidate cards with photo; clicking a card drops down its total votes + share with a progress bar</td></tr>
         <tr><td>Position results</td><td>Results broken down by position</td></tr>
         <tr><td>Turnout stats</td><td>Total voters, votes cast, turnout percentage</td></tr>
         <tr><td>Export to JSON</td><td>Full election data as JSON file</td></tr>

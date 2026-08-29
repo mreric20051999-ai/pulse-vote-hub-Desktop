@@ -62,7 +62,7 @@
     if (!currentElectionId) return;
     reportPanel.style.display = '';
     reportRoot.innerHTML = '<p class="text-muted hint">Crunching the numbers…</p>';
-    actions.style.display = 'inline-flex';
+    actions.style.display = '';
     let r;
     try { r = await window.pvh.resultsReport(currentElectionId, currentStationId); } catch (e) { r = { ok: false, error: String(e) }; }
     if (!r || !r.ok) {
@@ -614,6 +614,14 @@ body.print-body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:
   }
 
   // ---------- Print ----------
+  const declBtn = $('declaration-btn');
+  if (declBtn) {
+    declBtn.addEventListener('click', () => {
+      if (currentElectionId) {
+        window.location.href = 'announcement.html?id=' + encodeURIComponent(currentElectionId);
+      }
+    });
+  }
   $('print-btn').addEventListener('click', () => window.print());
   $('export-csv-btn').addEventListener('click', exportCsv);
   $('export-html-btn').addEventListener('click', exportHtml);
