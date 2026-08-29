@@ -336,7 +336,7 @@ CREATE TABLE audit_log (
     <h2>Development Roadmap</h2>
 
     <div class="phase-card">
-      <h3>Phase 1: Project Foundation <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 1: Project Foundation <span class="duration">— 2-3 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Scaffold Electron app with SQLite, login, and basic navigation.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -353,7 +353,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 2: LAN Networking <span class="duration">— 3-4 days</span></h3>
+      <h3>Phase 2: LAN Networking <span class="duration">— 3-4 days</span><span class="badge badge-red">⏳ Not started</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Multiple devices at the same location connect over local network.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -370,7 +370,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 3: Security & Integrity <span class="duration">— 4-5 days</span></h3>
+      <h3>Phase 3: Security & Integrity <span class="duration">— 4-5 days</span><span class="badge badge-yellow">🟡 Partial</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Core security layer — protect votes, credentials, database, network, and audit trail.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -386,10 +386,11 @@ CREATE TABLE audit_log (
         <tr><td>Audio-visual feedback</td><td>Confirmation + error sounds; visual status for integrity checks</td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Elections run with tamper-evident vote records, encrypted DB, and full audit trail.</p>
+      <p style="margin-top: 8px; color: #fbbf24;"><strong>Built so far:</strong> scrypt password hashing (<code>crypto.scryptSync</code>), vote + audit hash chains, atomic vote transactions, role-based access. <strong>Still to do:</strong> DB encryption (<code>sqlcipher</code>/AES-256), digital vote signatures, on-start/close integrity verification, 5-attempt login lockout, confirmation/error sounds.</p>
     </div>
 
     <div class="phase-card">
-      <h3>Phase 4: Election Management <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 4: Election Management <span class="duration">— 2-3 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Create elections, add positions, add candidates.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -404,7 +405,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 5: Voter Management <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 5: Voter Management <span class="duration">— 2-3 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Import voters, auto-generate credentials, assign stations, print voter cards.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -419,7 +420,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 6: Officer Management <span class="duration">— 1-2 days</span></h3>
+      <h3>Phase 6: Officer Management <span class="duration">— 1-2 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Add election officers, assign roles, manage check-in devices.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -434,7 +435,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 7: Check-In Flow <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 7: Check-In Flow <span class="duration">— 2-3 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Officer check-in desk — verify voter identity before voting.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -450,7 +451,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 8: Voting Flow <span class="duration">— 3-4 days</span></h3>
+      <h3>Phase 8: Voting Flow <span class="duration">— 3-4 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Full voting kiosk — voter auth → select candidate → confirm → next voter. Supports multiple devices via LAN. Requires check-in first.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -472,7 +473,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 9: Results & Reporting <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 9: Results & Reporting <span class="duration">— 2-3 days</span><span class="badge badge-green">✅ Complete</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">View results, export to file, print.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -490,7 +491,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 10: Multi-Location Merge <span class="duration">— 1-2 days</span></h3>
+      <h3>Phase 10: Multi-Location Merge <span class="duration">— 1-2 days</span><span class="badge badge-red">⏳ Not started</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Combine results from multiple polling stations with global duplicate detection.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -506,7 +507,7 @@ CREATE TABLE audit_log (
     </div>
 
     <div class="phase-card">
-      <h3>Phase 11: Polish & Packaging <span class="duration">— 2-3 days</span></h3>
+      <h3>Phase 11: Polish & Packaging <span class="duration">— 2-3 days</span><span class="badge badge-yellow">🟡 Partial</span></h3>
       <p style="color: #94a3b8; margin-bottom: 12px;">Kiosk lockdown, audio, printing, distribution.</p>
       <table>
         <tr><th>Task</th><th>Detail</th></tr>
@@ -520,6 +521,7 @@ CREATE TABLE audit_log (
         <tr><td>macOS build</td><td><code>.dmg</code> via <code>electron-builder</code></td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Packaged app ready for distribution to polling stations.</p>
+      <p style="margin-top: 8px; color: #fbbf24;"><strong>Built so far:</strong> kiosk voting/check-in screens and kiosk styling (cursor hiding class, kiosk layout), print/export flows. <strong>Still to do:</strong> fullscreen kiosk lockdown + hidden cursor, audio feedback, `electron-builder` installers (.exe / .dmg), and `electron-updater` auto-update.</p>
     </div>
 
     <h2>Timeline</h2>
@@ -573,7 +575,7 @@ CREATE TABLE audit_log (
       <tr><td>Express</td><td>⏳ Install Phase 2</td><td>LAN server</td></tr>
       <tr><td><code>ws</code></td><td>⏳ Install Phase 2</td><td>WebSocket for real-time sync</td></tr>
       <tr><td><code>bonjour-service</code></td><td>⏳ Install Phase 2</td><td>mDNS auto-discovery</td></tr>
-      <tr><td><code>bcrypt</code></td><td>⏳ Install Phase 3</td><td>Password hashing</td></tr>
+      <tr><td>Password hashing</td><td>✅ Installed</td><td>Agent-side scrypt KDF via built-in <code>crypto.scryptSync</code> (not plaintext)</td></tr>
       <tr><td><code>sqlcipher</code></td><td>⏳ Install Phase 3</td><td>Encrypted database</td></tr>
       <tr><td><code>node-forge</code> / <code>jose</code></td><td>⏳ Install Phase 3</td><td>Signatures, encryption</td></tr>
       <tr><td><code>electron-builder</code></td><td>⏳ Install Phase 11</td><td>Packaging</td></tr>
@@ -582,8 +584,10 @@ CREATE TABLE audit_log (
     </table>
 
     <div class="summary-box">
-      <h3>Ready to Build</h3>
-      <p>When you're ready, say <strong>"Start Phase 1"</strong> and I'll scaffold the Electron project, install dependencies, create the main process, preload bridge, SQLite schema, login screen, and dashboard shell.</p>
+      <h3>Current Status — Week 5 of 6</h3>
+      <p>The single-device offline track is complete and verified: <strong>Phases 1, 4, 5, 6, 7, 8, 9</strong> (foundation, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration). <strong>Phase 3</strong> is partially built (hashing, hash chains, atomic transactions, roles).</p>
+      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> Phase 2 (LAN networking — Express + WebSocket + mDNS + offline fallback), Phase 10 (multi-location merge tool with global duplicate detection), the Phase 3 hardening gaps (DB encryption, signatures, lockout), and Phase 11 packaging (installers, auto-update, audio, kiosk lockdown).</p>
+      <p style="margin-top: 8px;">Say <strong>"Start Phase 2"</strong>, <strong>"Start Phase 10"</strong>, or <strong>"Finish Phase 3"</strong> to begin the next build.</p>
     </div>
   </div>
 </body>

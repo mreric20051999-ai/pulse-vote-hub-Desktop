@@ -152,6 +152,13 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Reserve the vertical scrollbar on every page so the custom 10px scrollbar
+   never pops in/out during sidebar navigation (scrollbar-gutter is ignored
+   for overlay scrollbars on macOS, so force the track) */
+html {
+  overflow-y: scroll;
+}
+
 /* Prevent text selection in kiosk mode */
 body.kiosk {
   user-select: none;
