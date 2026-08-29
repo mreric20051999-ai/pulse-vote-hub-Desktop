@@ -42,8 +42,8 @@ function rendererDir() {
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
-    width: 640,
-    height: 480,
+    width: 760,
+    height: 560,
     frame: false,
     transparent: false,
     resizable: false,
@@ -85,7 +85,7 @@ function createMainWindow() {
     setTimeout(() => {
       if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
       mainWindow.show();
-    }, 800);
+    }, 2000);
   });
 
   mainWindow.on('closed', () => {

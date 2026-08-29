@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="css/styles.css">
   <style>
     /* Splash screen specific styles */
+    html, body {
+      margin: 0;
+      overflow: hidden;
+    }
     body {
       margin: 0;
       width: 100vw;
@@ -19,6 +23,9 @@
       justify-content: center;
       overflow: hidden;
       background: var(--bg);
+    }
+    html::-webkit-scrollbar, body::-webkit-scrollbar {
+      display: none;
     }
 
     .splash {
@@ -33,15 +40,15 @@
     }
 
     .splash-logo {
-      width: 112px;
-      height: 112px;
-      border-radius: 26px;
+      width: 136px;
+      height: 136px;
+      border-radius: 30px;
       background: var(--surface);
       border: 1px solid var(--border);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 18px;
+      padding: 22px;
       box-shadow: var(--shadow-lg);
       animation: logoFloat 2s ease-in-out infinite;
     }
@@ -53,14 +60,14 @@
 
     .splash-title {
       font-family: var(--font-heading);
-      font-size: 1.75rem;
+      font-size: 2.1rem;
       font-weight: var(--fw-bold);
       color: var(--text);
       letter-spacing: -0.02em;
     }
     .splash-tagline {
       font-family: var(--font-body);
-      font-size: var(--fs-sm);
+      font-size: 0.95rem;
       font-weight: var(--fw-medium);
       color: var(--text-muted);
       margin-top: -8px;
