@@ -314,14 +314,10 @@
       '<div class="inc-msg">' + esc(l.detail) + ' <span style="color:var(--text-dim);">— ' + esc(l.byName) + '</span></div></div>').join('');
   }
 
-  // toast helper (minimal)
+  // toast helper (minimal) — delegates to the shared pvhUI toasts
   function showToast(msg, isError) {
     if (isError && window.pvhAudio) window.pvhAudio.playError();
-    const t = document.createElement('div');
-    t.className = 'toast' + (isError ? ' toast-error' : '');
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(() => { if (t.parentNode) t.remove(); }, 4000);
+    if (window.pvhUI) window.pvhUI.toast(msg, isError ? 'error' : 'info');
   }
 
   // ---- Init ----
