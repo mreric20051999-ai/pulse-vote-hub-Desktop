@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
+  <script src="js/theme.js"></script>
   <link rel="stylesheet" href="css/dashboard.css">
   <link rel="stylesheet" href="css/officers.css">
   <link rel="stylesheet" href="css/results.css">
@@ -43,12 +44,29 @@
 
     <!-- Section sub-menu -->
     <nav class="section-links" id="section-links">
+      <a href="#inbox" class="sub-link" data-target="inbox"><span class="icon" data-icon="mail"></span>Inbox</a>
       <a href="#backup" class="sub-link" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
       <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
+
+    <!-- Inbox -->
+    <section class="card panel ofc-section" id="inbox">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Inbox</div>
+          <p class="text-muted panel-sub">Messages officers send you via “Speak to admin” in their Profile menu.</p>
+        </div>
+        <div class="btn-row inbox-actions">
+          <span class="lan-pill" id="inbox-pill"><span class="lan-dot" id="inbox-dot"></span><span id="inbox-pill-text">Inbox</span></span>
+          <button class="btn btn-secondary" id="inbox-mark-all-btn" style="display:none;"><span class="icon btn-icon" data-icon="check"></span>Mark all as read</button>
+          <button class="btn btn-danger" id="inbox-clear-btn" style="display:none;"><span class="icon btn-icon" data-icon="trash"></span>Clear all</button>
+        </div>
+      </div>
+      <div id="inbox-list" class="inbox-list"></div>
+    </section>
 
     <!-- Backup & export -->
     <section class="card panel ofc-section" id="backup">

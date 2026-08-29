@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -21,6 +21,7 @@ const voter = require('./voter');
 const station = require('./station');
 const results = require('./results');
 const merge = require('./merge');
+const messages = require('./messages');
 const { LanManager } = require('./lan');
 
 let lan = null;
@@ -859,4 +860,61 @@ ipcMain.handle('lan:discover', async (_e, ms) => {
 ipcMain.handle('lan:local-addresses', () => {
   try { return { ok: true, addresses: getLan().status().addresses }; }
   catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---------- In-app messaging ("Speak to admin") ----------
+
+ipcMain.handle('messages:send', (_e, body, officerId) => {
+  try { return messages.send(resolveActor(officerId) ? officerId : null, body); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Admin-only: list inbox + unread count. Non-admins get an empty inbox.
+ipcMain.handle('messages:list', (_e, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor || actor.role !== 'admin') return { ok: true, messages: [] };
+  try { return { ok: true, messages: messages.list() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('messages:unread', (_e, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor || actor.role !== 'admin') return { ok: true, count: 0 };
+  try { return { ok: true, count: messages.unreadCount() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('messages:mark-read', (_e, id, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor || actor.role !== 'admin') return { ok: false, error: 'Admins only' };
+  try { return messages.markRead(id); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('messages:delete', (_e, id, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor) return { ok: false, error: 'Not signed in' };
+  try { return messages.del(id, actor); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('messages:clear', (_e, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor) return { ok: false, error: 'Not signed in' };
+  try { return messages.clearAll(actor); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---------- External links (open the web version in the default browser) ----------
+
+const ALLOWED_EXTERNAL_HOSTS = new Set(['pulse-vote-hub-app.web.app']);
+
+ipcMain.handle('shell:open-external', async (_e, url) => {
+  try {
+    const u = new URL(String(url || ''));
+    if (!['https:', 'http:'].includes(u.protocol)) return { ok: false, error: 'Unsupported link' };
+    if (!ALLOWED_EXTERNAL_HOSTS.has(u.hostname)) return { ok: false, error: 'Unsupported link' };
+    await shell.openExternal(u.href);
+    return { ok: true };
+  } catch (err) { return { ok: false, error: 'Invalid link' }; }
 });

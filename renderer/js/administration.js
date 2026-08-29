@@ -173,6 +173,141 @@
     });
   }
 
+  // ---------- Inbox ("Speak to admin") ----------
+  function timeAgo(ts) {
+    const sec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return min + 'm ago';
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    const day = Math.floor(hr / 24);
+    return day === 1 ? 'yesterday' : day + 'd ago';
+  }
+
+  function bindInbox() {
+    const listEl = $('inbox-list');
+    const pillText = $('inbox-pill-text');
+    const dot = $('inbox-dot');
+    const markAll = $('inbox-mark-all-btn');
+    const clearAll = $('inbox-clear-btn');
+    let items = [];
+
+    function refreshBadge() {
+      const unread = items.filter((m) => !m.read).length;
+      pillText.textContent = unread ? unread + ' unread' : 'Inbox';
+      dot.classList.toggle('lan-dot-active', unread > 0);
+      markAll.style.display = unread > 0 ? '' : 'none';
+      clearAll.style.display = items.length > 0 ? '' : 'none';
+      if (window.pvhUI && window.pvhUI.refreshInboxBadge) window.pvhUI.refreshInboxBadge();
+    }
+
+    function renderList() {
+      if (!items.length) {
+        listEl.innerHTML = '<div class="inbox-empty">No messages yet. Officers can write to you from “Speak to admin” in their Profile menu.</div>';
+        refreshBadge();
+        return;
+      }
+      const delIcon = (window.pvhIcons && window.pvhIcons.icon) ? window.pvhIcons.icon('trash', 15) : 'Delete';
+      listEl.innerHTML = items.map((m) => `
+        <article class="msg${m.read ? '' : ' msg-unread'}" data-id="${esc(m.id)}" role="button" tabindex="0" aria-label="${m.read ? 'Read' : 'Unread'} message from ${esc(m.from_name)}">
+          <div class="msg-head">
+            <span class="msg-from">${esc(m.from_name)}</span>
+            ${m.read ? '' : '<span class="msg-unread-tag">New</span>'}
+            <span class="msg-time">${timeAgo(m.created_at)}</span>
+          </div>
+          <p class="msg-body">${esc(m.body)}</p>
+          <div class="msg-actions">
+            <button type="button" class="msg-del" data-del="${esc(m.id)}" title="Delete message" aria-label="Delete message from ${esc(m.from_name)}">${delIcon}</button>
+          </div>
+        </article>`).join('');
+    }
+
+    function refresh() {
+      window.pvh.listMessages().then((res) => {
+        if (!res || !res.ok) return;
+        items = res.messages;
+        renderList();
+        refreshBadge();
+      });
+    }
+
+    function markOne(article) {
+      const item = items.find((m) => m.id === article.dataset.id);
+      if (!item || item.read) return;
+      window.pvh.markMessageRead(item.id).then((res) => {
+        if (!res || !res.ok) return;
+        item.read = 1;
+        article.classList.remove('msg-unread');
+        const tag = article.querySelector('.msg-unread-tag');
+        if (tag) tag.remove();
+        refreshBadge();
+      });
+    }
+
+    function removeOne(id) {
+      window.pvh.deleteMessage(id).then((res) => {
+        if (!res || !res.ok) {
+          window.pvhUI.toast((res && res.error) || 'Could not delete the message.', 'error');
+          return;
+        }
+        items = items.filter((m) => m.id !== id);
+        renderList();
+        refreshBadge();
+        window.pvhUI.toast('Message deleted.', 'success');
+      });
+    }
+
+    listEl.addEventListener('click', (e) => {
+      const del = e.target.closest('.msg-del');
+      if (del) {
+        const item = items.find((m) => m.id === del.dataset.del);
+        if (!item) return;
+        if (!confirm(`Delete the message from ${item.from_name}? This cannot be undone.`)) return;
+        removeOne(item.id);
+        return;
+      }
+      const article = e.target.closest('.msg');
+      if (article) markOne(article);
+    });
+    listEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const del = e.target.closest('.msg-del');
+      if (del) { e.preventDefault(); del.click(); return; }
+      const article = e.target.closest('.msg');
+      if (article) { e.preventDefault(); markOne(article); }
+    });
+    markAll.addEventListener('click', () => {
+      window.pvh.markMessageRead('all').then((res) => {
+        if (!res || !res.ok) {
+          window.pvhUI.toast((res && res.error) || 'Could not update the inbox.', 'error');
+          return;
+        }
+        items.forEach((m) => (m.read = 1));
+        renderList();
+        refreshBadge();
+        window.pvhUI.toast('Inbox marked as read.', 'success');
+      });
+    });
+    clearAll.addEventListener('click', () => {
+      if (!items.length) return;
+      if (!confirm('Delete ALL messages in the inbox? This cannot be undone.')) return;
+      window.pvh.clearMessages().then((res) => {
+        if (!res || !res.ok) {
+          window.pvhUI.toast((res && res.error) || 'Could not clear the inbox.', 'error');
+          return;
+        }
+        items = [];
+        renderList();
+        refreshBadge();
+        window.pvhUI.toast('Inbox cleared.', 'success');
+      });
+    });
+
+    refresh();
+  }
+
   bindBackup();
   bindMyPassword();
+  bindInbox();
 })();

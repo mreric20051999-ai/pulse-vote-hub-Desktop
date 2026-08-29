@@ -1,5 +1,5 @@
 (function () {
-  // Shared session guard + sidebar footer for authed pages
+  // Shared session guard + sidebar profile for authed pages
   const session = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
   if (!session) {
     window.location.assign('index.html');
@@ -8,25 +8,172 @@
 
   if (session.role === 'admin') document.body.classList.add('is-admin');
 
-  const footer = document.getElementById('sidebar-footer');
-  if (footer) {
+  applyTheme();
+
+  const WEB_URL = 'https://pulse-vote-hub-app.web.app';
+  const WEB_BLOG_URL = 'https://pulse-vote-hub-app.web.app/blog.html';
+
+  const ic = (name, size) => (window.pvhIcons && window.pvhIcons.icon(name, size || 18)) || '';
+  const roleLabel = (r) => (r === 'admin' ? 'Administrator' : 'Coordinator');
+  const initials = (name) =>
+    String(name || '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join('') || '?';
+
+  function getPrefs() {
+    try { return JSON.parse(window.localStorage.getItem('pvh_prefs') || '{}'); } catch (e) { return {}; }
+  }
+  function setPref(key, val) {
+    const p = getPrefs();
+    p[key] = val;
+    window.localStorage.setItem('pvh_prefs', JSON.stringify(p));
+  }
+
+  // Apply the theme to the document. Explicit 'light'/'dark' wins; 'system'
+  // (the default) asks the main process, which follows the OS + any theme:set.
+  async function applyTheme() {
+    const pref = getPrefs().theme || 'system';
+    let resolved = null;
+    if (pref === 'light') resolved = 'light';
+    else if (pref === 'dark') resolved = 'dark';
+    else if (window.pvh && window.pvh.getTheme) {
+      try { resolved = await window.pvh.getTheme(); } catch (e) { resolved = null; }
+    }
+    if (resolved === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+    return resolved || 'dark';
+  }
+
+  // ---------- Sidebar profile (avatar + menu) ----------
+
+  function buildProfile(footer) {
+    const isAdmin = session.role === 'admin';
     footer.innerHTML = `
-      <div class="officer-chip">
-        <div class="officer-name"></div>
-        <div class="officer-role"></div>
-        <button class="btn btn-ghost btn-sm logout-btn" id="logout-btn">Sign out</button>
+      <div class="profile" id="profile">
+        <button type="button" class="profile-trigger" id="profile-trigger" aria-haspopup="true" aria-expanded="false">
+          <span class="profile-avatar" aria-hidden="true">${initials(session.name)}</span>
+          <span class="profile-meta">
+            <span class="profile-name">${session.name}</span>
+            <span class="profile-role">${roleLabel(session.role)}</span>
+          </span>
+          <span class="profile-caret">${ic('chevron', 16)}</span>
+        </button>
+        <div class="profile-menu" id="profile-menu" role="menu" aria-label="Profile menu" hidden>
+          <div class="profile-menu-head">
+            <span class="profile-avatar" aria-hidden="true">${initials(session.name)}</span>
+            <span class="profile-menu-ident">
+              <span class="profile-menu-name">${session.name}</span>
+              <span class="profile-menu-role">${roleLabel(session.role)}</span>
+            </span>
+          </div>
+          <button type="button" class="profile-item" role="menuitem" data-action="preferences">${ic('settings')} Preferences</button>
+          <button type="button" class="profile-item" role="menuitem" data-action="guide">${ic('help')} User guide</button>
+          <button type="button" class="profile-item" role="menuitem" data-action="faq">${ic('help')} FAQ</button>
+          <button type="button" class="profile-item" role="menuitem" data-action="privacy">${ic('privacy')} Privacy policy</button>
+          ${isAdmin
+            ? '<button type="button" class="profile-item" role="menuitem" data-action="inbox">' + ic('mail') + ' Admin inbox <span class="profile-badge" id="inbox-badge" hidden></span></button>'
+            : '<button type="button" class="profile-item" role="menuitem" data-action="speak">' + ic('message') + ' Speak to admin</button>'}
+          <button type="button" class="profile-item" role="menuitem" data-action="website">${ic('globe')} Visit website</button>
+          <button type="button" class="profile-item" role="menuitem" data-action="blog">${ic('newspaper')} Blog</button>
+          <div class="profile-divider"></div>
+          <button type="button" class="profile-item profile-item-danger" role="menuitem" data-action="signout">${ic('logout')} Sign out</button>
+        </div>
       </div>`;
-    footer.querySelector('.officer-name').textContent = session.name;
-    footer.querySelector('.officer-role').textContent = session.role;
-    footer.querySelector('#logout-btn').addEventListener('click', () => {
-      window.localStorage.removeItem('pvh_session');
-      window.location.assign('index.html');
+
+    const trigger = footer.querySelector('#profile-trigger');
+    const menu = footer.querySelector('#profile-menu');
+    window.pvhUI.inboxBadge = footer.querySelector('#inbox-badge');
+
+    function setOpen(open) {
+      menu.hidden = !open;
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function closeMenu() {
+      if (menu.hidden) return;
+      setOpen(false);
+      document.removeEventListener('mousedown', onDocMouse);
+      document.removeEventListener('keydown', onDocKey);
+    }
+    function onDocMouse(e) {
+      if (!footer.contains(e.target)) closeMenu();
+    }
+    function onDocKey(e) {
+      if (e.key === 'Escape') closeMenu();
+    }
+    trigger.addEventListener('click', () => {
+      if (menu.hidden) {
+        setOpen(true);
+        refreshInboxBadge();
+        document.addEventListener('mousedown', onDocMouse);
+        document.addEventListener('keydown', onDocKey);
+      } else {
+        closeMenu();
+      }
+    });
+
+    menu.addEventListener('click', async (e) => {
+      const item = e.target.closest('.profile-item');
+      if (!item) return;
+      const action = item.dataset.action;
+      closeMenu();
+      if (action === 'signout') {
+        window.localStorage.removeItem('pvh_session');
+        window.location.assign('index.html');
+        return;
+      }
+      if (action === 'website' || action === 'blog') {
+        const url = action === 'blog' ? WEB_BLOG_URL : WEB_URL;
+        if (window.pvh && window.pvh.openExternal) {
+          const res = await window.pvh.openExternal(url);
+          toast(res && res.ok ? 'Opened in your browser.' : (res && res.error) || 'Could not open the link.', res && res.ok ? 'success' : 'error');
+        } else {
+          window.open(url, '_blank');
+        }
+        return;
+      }
+      if (action === 'inbox') {
+        const target = 'administration.html#inbox';
+        if (window.location.pathname.split('/').pop() === 'administration.html') {
+          const el = document.getElementById('inbox');
+          if (el) el.scrollIntoView({ behavior: 'auto', block: 'start' });
+        } else {
+          window.location.assign(target);
+        }
+        return;
+      }
+      if (action === 'guide') {
+        window.location.assign('guide.html');
+        return;
+      }
+      if (action === 'preferences') prefsModal();
+      if (action === 'faq') faqModal();
+      if (action === 'privacy') privacyModal();
+      if (action === 'speak') speakModal();
     });
   }
 
-  if (window.pvhIcons) window.pvhIcons.inject('.icon');
+  function refreshInboxBadge() {
+    if (session.role !== 'admin' || !window.pvh || !window.pvh.unreadMessages) return;
+    window.pvh.unreadMessages().then((res) => {
+      const n = (res && res.ok) ? res.count : 0;
+      if (window.pvhUI.inboxBadge) {
+        window.pvhUI.inboxBadge.textContent = n;
+        window.pvhUI.inboxBadge.hidden = !(n > 0);
+      }
+      const navBadge = document.querySelector('.nav-item[data-nav="admin"] .nav-badge');
+      if (navBadge) {
+        navBadge.textContent = n;
+        navBadge.hidden = !(n > 0);
+      }
+    }).catch(() => {});
+  }
 
-  // ---- Global action feedback: toasts + busy buttons ----
+  // ---------- Toast + busy feedback ----------
+
   const toastsRoot = (() => {
     const root = document.createElement('div');
     root.className = 'toasts';
@@ -72,10 +219,214 @@
     }
   }
 
-  window.pvhUI = { toast, busy };
+  window.pvhUI = { toast, busy, inboxBadge: null, refreshInboxBadge };
+
+  // ---------- Shared modal ----------
+
+  function openModal({ title, body, width, onMount }) {
+    const old = document.querySelector('.pvh-modal-overlay');
+    if (old) old.remove();
+    const overlay = document.createElement('div');
+    overlay.className = 'pvh-modal-overlay';
+    overlay.innerHTML = `
+      <div class="pvh-modal" role="dialog" aria-modal="true"${width ? ` style="width:min(${width},92vw)"` : ''}>
+        <header class="pvh-modal-head">
+          <h2 class="pvh-modal-title">${title}</h2>
+          <button type="button" class="pvh-modal-close" aria-label="Close">${ic('x', 20)}</button>
+        </header>
+        <div class="pvh-modal-body"></div>
+      </div>`;
+    const bodyEl = overlay.querySelector('.pvh-modal-body');
+    bodyEl.innerHTML = body;
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('.pvh-modal-close').addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(overlay);
+    if (onMount) onMount(bodyEl, close);
+    return { close, el: overlay };
+  }
+
+  // ---------- FAQ ----------
+
+  const FAQ_ITEMS = [
+    ['Is my data stored online?',
+     'No. Every vote, voter record and setting lives on this computer (or your local network hub). Nothing is uploaded anywhere, and the app works fully offline.'],
+    ['How do I set up an election?',
+     'Go to Elections, create an election, add positions and candidates, enrol voters, then Publish. From Stations you can open and manage the polling station, and Results gives you live tallies.'],
+    ['Can a voter vote more than once?',
+     'One enrolled voter equals one vote. Votes are stored as an unbroken, signed hash-chain, so a duplicate cast is immediately detectable — with a clear integrity report if anything is ever tampered with.'],
+    ['What happens if the network goes down at a station?',
+     'Stations work offline. Votes are recorded locally, then synced over your local network hub once it is back — and every vote is still re-verified for integrity.'],
+    ['How do I combine results from several stations?',
+     'Use the Merge section: export an election snapshot from each machine and import them here with your admin key. The app verifies each file’s signature before merging anything into the totals.'],
+    ['Someone forgot their password.',
+     'From Administration > Officers, an admin can reset any officer’s password. Voter access credentials can be reset from the Voters list for the election.'],
+    ['How secure is the ballot?',
+     'Ballots are cryptographically signed, the vote and audit trails are hash-chained, and admin actions are immutably recorded. You can run Verify integrity anytime to get a full report.'],
+    ['Where can I get more help?',
+     'Open your Profile menu and choose “User guide” for the full manual, or use “Speak to admin” and your admin will read it from Administration > Inbox. The latest news is on our website (pulse-vote-hub-app.web.app) and blog.'],
+  ];
+
+  function faqModal() {
+    const items = FAQ_ITEMS
+      .map(([q, a]) => `<details class="pvh-faq"><summary>${q}</summary><p>${a}</p></details>`)
+      .join('');
+    openModal({
+      title: 'Frequently asked questions',
+      width: '560px',
+      body: `<div class="pvh-faq-wrap">${items}</div>`,
+    });
+  }
+
+  // ---------- Privacy policy ----------
+
+  const PRIVACY_SECTIONS = [
+    ['Your data stays on your machine',
+     'Pulse Vote Hub is an offline-first desktop application. Names, voter rolls, ballots, settings and messages are stored only in a local database on the device you are using. Nothing is sent to us.'],
+    ['No tracking, no telemetry',
+     'The app does not collect analytics, track usage, or phone home. When you open the web version from the app, you leave the desktop application and web usage is governed by that website’s own policy.'],
+    ['Who can see what',
+     'Only the officers and admins you create can sign in. Administration and the inbox are visible to admins only, and every administrative action is recorded in an immutable audit trail.'],
+    ['Vote integrity',
+     'Ballots and audit events are cryptographically signed and chained so any modification is detectable. Integrity reports are available to you at any time and are part of your own backup files.'],
+    ['Backups are your responsibility',
+     'You can export backups and election snapshots whenever you like; those files belong to you and never leave your control unless you share them.'],
+    ['Contact',
+     'For questions about this policy, use “Speak to admin” inside the app — an admin at your organisation will see it in Administration > Inbox.'],
+  ];
+
+  function privacyModal() {
+    const html = PRIVACY_SECTIONS
+      .map(([h, p]) => `<section class="pvh-privacy"><h3>${h}</h3><p>${p}</p></section>`)
+      .join('');
+    openModal({ title: 'Privacy policy', width: '560px', body: `<div class="pvh-privacy-wrap">${html}</div>` });
+  }
+
+  // ---------- Preferences ----------
+
+  function prefsModal() {
+    const soundOn = getPrefs().sound !== 'off';
+    const theme = getPrefs().theme || 'system';
+    const seg = (v, label) => `<button type="button" class="pvh-seg-btn${theme === v ? ' active' : ''}" data-theme-value="${v}">${label}</button>`;
+    openModal({
+      title: 'Preferences',
+      width: '480px',
+      body: `
+        <div class="pvh-prefs">
+          <div class="pvh-pref-row">
+            <label for="pref-sound">
+              <span class="pvh-pref-label">Sound effects</span>
+              <span class="pvh-pref-hint">Plays chimes, ticks and alerts while you use the app.</span>
+            </label>
+            <span class="switch"><input type="checkbox" id="pref-sound"${soundOn ? ' checked' : ''}><span class="switch-track"></span></span>
+          </div>
+          <div class="pvh-pref-row pvh-pref-row-stack">
+            <span class="pvh-pref-label">Appearance</span>
+            <span class="pvh-pref-hint">Light, dark, or match your computer’s setting.</span>
+            <div class="pvh-seg" role="radiogroup" aria-label="Theme">
+              ${seg('system', 'System')}${seg('light', 'Light')}${seg('dark', 'Dark')}
+            </div>
+          </div>
+          <div class="pvh-pref-actions">
+            <button type="button" class="btn btn-ghost" id="pref-test-sound"${soundOn ? '' : ' disabled'}>Test sound</button>
+            <button type="button" class="btn btn-ghost" id="pref-website">${ic('globe', 16)} Open web version</button>
+          </div>
+        </div>`,
+      onMount(body, close) {
+        const cb = body.querySelector('#pref-sound');
+        const test = body.querySelector('#pref-test-sound');
+        cb.addEventListener('change', () => {
+          setPref('sound', cb.checked ? 'on' : 'off');
+          test.disabled = !cb.checked;
+          toast(cb.checked ? 'Sound effects enabled.' : 'Sound effects muted.', 'success');
+        });
+        test.addEventListener('click', () => {
+          if (getPrefs().sound === 'off') { toast('Sound is muted — enable it in Preferences.', 'error'); return; }
+          if (window.pvhAudio && window.pvhAudio.playConfirm) window.pvhAudio.playConfirm();
+        });
+        body.querySelectorAll('.pvh-seg-btn').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const v = btn.dataset.themeValue;
+            body.querySelectorAll('.pvh-seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
+            setPref('theme', v);
+            if (window.pvh && window.pvh.setTheme) {
+              try { await window.pvh.setTheme(v); } catch (e) { /* still apply below */ }
+            }
+            await applyTheme();
+            toast(v === 'system' ? 'Theme set to System.' : `${v.charAt(0).toUpperCase() + v.slice(1)} theme applied.`, 'success');
+          });
+        });
+        body.querySelector('#pref-website').addEventListener('click', async () => {
+          if (window.pvh && window.pvh.openExternal) {
+            const res = await window.pvh.openExternal(WEB_URL);
+            toast(res && res.ok ? 'Opened the web version in your browser.' : (res && res.error) || 'Could not open the link.', res && res.ok ? 'success' : 'error');
+          }
+        });
+      },
+    });
+  }
+
+  // ---------- Speak to admin ----------
+
+  function speakModal() {
+    openModal({
+      title: 'Speak to admin',
+      width: '520px',
+      body: `
+        <div class="pvh-speak">
+          <p class="pvh-speak-hint">Write a short note for your admin. It is saved on this device and read from Administration > Inbox.</p>
+          <textarea id="speak-body" class="pvh-speak-input" maxlength="2000" rows="5" placeholder="Type your message…"></textarea>
+          <div class="pvh-speak-foot">
+            <span class="pvh-speak-count" id="speak-count">0 / 2000</span>
+            <button type="button" class="btn btn-primary" id="speak-send">Send message</button>
+          </div>
+        </div>`,
+      onMount(body, close) {
+        const ta = body.querySelector('#speak-body');
+        const count = body.querySelector('#speak-count');
+        const send = body.querySelector('#speak-send');
+        ta.addEventListener('input', () => { count.textContent = ta.value.length + ' / 2000'; });
+        ta.focus();
+        send.addEventListener('click', async () => {
+          if (!window.pvh || !window.pvh.sendMessage) { toast('Messaging is unavailable.', 'error'); return; }
+          const res = await busy(send, 'Sending…', () => window.pvh.sendMessage(ta.value));
+          if (res && res.ok) {
+            toast('Message sent to the admin.', 'success');
+            close();
+          } else {
+            toast((res && res.error) || 'Could not send the message.', 'error');
+          }
+        });
+      },
+    });
+  }
+
+  // ---------- Render ----------
+
+  const footer = document.getElementById('sidebar-footer');
+  if (footer) buildProfile(footer);
+
+  if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
   const nav = document.getElementById('nav');
   if (nav) {
+    if (session.role === 'admin') {
+      const adminNav = nav.querySelector('.nav-item[data-nav="admin"]');
+      if (adminNav) {
+        const b = document.createElement('span');
+        b.className = 'nav-badge';
+        b.hidden = true;
+        adminNav.appendChild(b);
+      }
+    }
     // Highlight current page based on data-nav matching active class already set
     nav.querySelectorAll('.nav-item').forEach((a) => {
       a.addEventListener('click', (e) => {
@@ -99,5 +450,10 @@
         window.location.assign(target);
       });
     });
+  }
+
+  if (session.role === 'admin') {
+    refreshInboxBadge();
+    setInterval(refreshInboxBadge, 20000);
   }
 })();

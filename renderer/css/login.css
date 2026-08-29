@@ -101,3 +101,10 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+.auth-footer a.guide-link {
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--transition);
+}
+.auth-footer a.guide-link:hover { color: var(--accent); }

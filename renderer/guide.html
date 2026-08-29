@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Guide &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/guide.css">
+</head>
+<body>
+  <header class="guide-top">
+    <div class="guide-brand">
+      <img src="assets/images/logo.png" alt="">
+      <span>Pulse Vote Hub</span>
+      <span class="guide-tag">Official User Guide</span>
+    </div>
+    <div class="guide-actions">
+      <button type="button" class="btn btn-ghost" id="guide-print"><span class="icon btn-icon" data-icon="download"></span>Print</button>
+      <button type="button" class="btn btn-primary" id="guide-open-app"><span class="icon btn-icon" data-icon="arrowLeft"></span>Open the app</button>
+    </div>
+  </header>
+
+  <main class="guide-wrap">
+    <section class="guide-hero">
+      <div class="guide-kicker">Pulse Vote Hub &middot; Desktop Election System</div>
+      <h1>User Guide</h1>
+      <p>A complete manual for running secure, offline-first elections with Pulse Vote Hub — from your first account right through to the official declaration of results. Everything runs locally on your machines: no internet connection is required, no data ever leaves your devices.</p>
+    </section>
+
+    <nav class="guide-toc" id="toc">
+      <a href="#start"><span class="toc-num">1</span>Getting started</a>
+      <a href="#dashboard"><span class="toc-num">2</span>Dashboard</a>
+      <a href="#elections"><span class="toc-num">3</span>Elections &amp; ballot</a>
+      <a href="#voters"><span class="toc-num">4</span>Voters</a>
+      <a href="#stations"><span class="toc-num">5</span>Stations &amp; officers</a>
+      <a href="#vote"><span class="toc-num">6</span>Voting kiosk</a>
+      <a href="#officers"><span class="toc-num">7</span>Officers</a>
+      <a href="#results"><span class="toc-num">8</span>Results &amp; declaration</a>
+      <a href="#admin"><span class="toc-num">9</span>Administration</a>
+      <a href="#merge"><span class="toc-num">10</span>Merge results</a>
+      <a href="#lan"><span class="toc-num">11</span>LAN sync</a>
+      <a href="#integrity"><span class="toc-num">12</span>Integrity &amp; security</a>
+      <a href="#profile"><span class="toc-num">13</span>Profile &amp; preferences</a>
+      <a href="#troubleshoot"><span class="toc-num">14</span>Troubleshooting</a>
+    </nav>
+
+    <!-- 1 -->
+    <section class="guide-section" id="start">
+      <div class="guide-section-head"><span class="gs-num">1</span><h2>Getting started</h2></div>
+      <p class="guide-section-intro">Pulse Vote Hub is a desktop application. Install it on a computer that will act as the election headquarters, and on any additional polling devices you plan to link over your local network.</p>
+
+      <h3>Your first run</h3>
+      <ol class="guide-steps">
+        <li>Install the app. On macOS, open the downloaded DMG and drag <strong>Pulse Vote Hub</strong> into your Applications folder; on Windows, run the installer and follow the prompts.</li>
+        <li>Launch the app and choose a setup option on the welcome screen.</li>
+        <li>To run an entire election yourself, choose <strong>“Set up as an Administrator”</strong> and create the superuser account (full name, admin ID, password — at least 6 characters).</li>
+        <li>Alternatively, create a <strong>coordinator</strong> first and add an administrator later from Administration.</li>
+      </ol>
+      <div class="guide-note"><strong>Remember your ID and password.</strong> They are the keys to your election database. If you lose the password, the administrator can reset it; if you lose the administrator password and no other admin exists, a manual database backup is the only recovery path.</div>
+
+      <h3>Signing in</h3>
+      <p>Every person who uses the app is an <strong>officer</strong> with an officer ID and password. The sign-in screen offers two tabs — one for officers, one for administrators. After signing in, station officers assigned to a station open the station portal; everyone else sees the Dashboard.</p>
+
+      <h3>Roles</h3>
+      <div class="guide-table-wrap">
+        <table class="guide-table">
+          <thead><tr><th>Role</th><th>What they can do</th></tr></thead>
+          <tbody>
+            <tr><td>Administrator</td><td>Everything. Manage all officers and elections, read the inbox, back up the database, export and delete elections, merge results, run LAN hosting and integrity checks.</td></tr>
+            <tr><td>Coordinator</td><td>Create and run elections, manage voter rolls and officers for their elections, view results and the declaration.</td></tr>
+            <tr><td>Station officer (assistant)</td><td>Operates the polling station portal on voting day: open polls, check voters in, manage the queue, close and submit results. Assigned to a station by an admin/coordinator.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="guide-tip"><strong>Staff model in practice:</strong> an administrator typically prepares the election and stations; coordinators run the day-to-day; assistants sit at each polling station with the e-pollbook and the voting screen.</div>
+    </section>
+
+    <!-- 2 -->
+    <section class="guide-section" id="dashboard">
+      <div class="guide-section-head"><span class="gs-num">2</span><h2>Dashboard</h2></div>
+      <p class="guide-section-intro">The Dashboard is your overview: how many elections you have, how many are running, and how voting is progressing.</p>
+      <ul>
+        <li><strong>Stat cards</strong> — total elections, active, draft/upcoming, closed, voters, votes cast and turnout percentage.</li>
+        <li><strong>Active elections panel</strong> — shows each election currently running with its category/candidate counts, how many of the roll has voted, turnout, and two actions: <strong>Configure</strong> (open the election builder) and <strong>Run voting</strong> (open the kiosk voting screen).</li>
+        <li><strong>Status pill</strong> — confirms what you are signed in as.</li>
+      </ul>
+      <div class="guide-tip">Solid turnout is shown in green on the stat card — hover the card to see the exact percentage.</div>
+    </section>
+
+    <!-- 3 -->
+    <section class="guide-section" id="elections">
+      <div class="guide-section-head"><span class="gs-num">3</span><h2>Elections &amp; the ballot</h2></div>
+      <p class="guide-section-intro">Everything about one vote — categories, candidates, schedule and status — lives in a single <strong>election</strong>. You build it here, then run it from Stations/Kiosk and report it from Results.</p>
+
+      <h3>Creating an election</h3>
+      <ol class="guide-steps">
+        <li>Go to <strong>Elections</strong> and choose <strong>New Election</strong>.</li>
+        <li>Give it a title and pick the <strong>type</strong>: <strong>School election</strong> (single locations or inter-class) or <strong>Station election</strong> (one or more polling stations that report separately and combine later).</li>
+        <li>Set the <strong>status</strong> (Draft while you prepare) and the <strong>voting window</strong> — start and end date &amp; time. The status automatically advances from Upcoming to Active to Closed on schedule.</li>
+        <li>For station elections, set the <strong>close grace</strong>: how many minutes voters already in line may finish after polls close, and the maximum allowed on the station page.</li>
+        <li>Press <strong>Save Election</strong>.</li>
+      </ol>
+
+      <h3>Building the ballot</h3>
+      <ol class="guide-steps">
+        <li>In the builder, go to <strong>“Categories &amp; candidates”</strong>.</li>
+        <li>Add a <strong>category</strong> (e.g. President) and choose how many votes a voter may give <em>per category</em> (default: one).</li>
+        <li>Add <strong>candidates</strong> with an optional photo. Ballot numbers are assigned automatically per category.</li>
+        <li>Press <strong>Preview Ballot</strong> to see exactly what voters will see, then publish when ready.</li>
+      </ol>
+      <div class="guide-warn"><strong>The ballot locks when voting starts.</strong> Once an election is Active (or Closed) you can no longer add, remove or reorder categories or candidates — you can only change its status, or export/back it up from the Dashboard. Publish only when the ballot is final.</div>
+
+      <h3>Statuses</h3>
+      <div class="guide-table-wrap">
+        <table class="guide-table">
+          <thead><tr><th>Status</th><th>Meaning</th><th>Ballot editable?</th></tr></thead>
+          <tbody>
+            <tr><td>Draft</td><td>Being prepared; not open to voting.</td><td>Yes</td></tr>
+            <tr><td>Upcoming</td><td>Scheduled; not yet open on this device.</td><td>Yes (until it starts)</td></tr>
+            <tr><td>Active</td><td>Voting is live.</td><td>No</td></tr>
+            <tr><td>Closed</td><td>Polling ended; results can be certified and declared.</td><td>No</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="guide-tip">You can force a status manually at any time (e.g. close early), and a 30-second poll keeps the pills in sync with the calendar across screens.</div>
+    </section>
+
+    <!-- 4 -->
+    <section class="guide-section" id="voters">
+      <div class="guide-section-head"><span class="gs-num">4</span><h2>Voters</h2></div>
+      <p class="guide-section-intro">The voter roll is the list of people entitled to vote. Each voter holds a <strong>voter ID</strong> and an access <strong>password</strong> — both are required at the kiosk, which guarantees one person, one vote.</p>
+
+      <h3>Adding voters</h3>
+      <ul>
+        <li><strong>Add Voter</strong> — create one voter at a time (name, optional voter ID, optional station). After adding, the app shows the voter’s opening password.</li>
+        <li><strong>Import CSV</strong> — paste a CSV with columns <span class="guide-kbd">voter_id,name,assigned_station</span>. The app reports how many were imported and how many were skipped as duplicates.</li>
+        <li><strong>Auto-generate</strong> — produce a batch with one of four schemes: <strong>Name + Index</strong>, <strong>Index only</strong>, <strong>Index + Phone</strong>, or <strong>Voter ID Range</strong> (e.g. V0001 → V0050). Enter content, then a count (1–1000). Result shows the passwords.</li>
+      </ul>
+      <div class="guide-warn"><strong>Passwords unlock the vote.</strong> Share them privately with each voter before/on voting day. Voters can also recover their own password at the kiosk (see the Voting section).</div>
+
+      <h3>Using the roll</h3>
+      <ul>
+        <li>Search by voter ID or name; the table paginates.</li>
+        <li>Each row shows <span class="guide-badge gb-blue">Ready</span> or <span class="guide-badge gb-green">Voted</span>.</li>
+        <li><strong>Reset</strong> (on voted voters) undoes their ballot — use it only with evidence of a mistake; the action is audited.</li>
+        <li><strong>Remove</strong> deletes the voter from the roll.</li>
+        <li><strong>Clear all</strong> empties the entire roll for the election (confirmed, irreversible).</li>
+        <li><strong>Export</strong> the roll as CSV, PDF, HTML or a print-out for check-in on paper if you prefer.</li>
+      </ul>
+    </section>
+
+    <!-- 5 -->
+    <section class="guide-section" id="stations">
+      <div class="guide-section-head"><span class="gs-num">5</span><h2>Stations &amp; voting day</h2></div>
+      <p class="guide-section-intro">Station elections use <strong>polling stations</strong>, each with its own station officer who runs the e-pollbook: check voters in, manage the queue, and submit the sealed packet when polling ends.</p>
+
+      <h3>Setting up stations</h3>
+      <ol class="guide-steps">
+        <li>In <strong>Stations</strong>, choose the station election.</li>
+        <li>Create the <strong>station</strong> (name, location, code — e.g. <span class="guide-kbd">BLK-A</span>).</li>
+        <li>Create a <strong>station officer</strong> account (or link an existing assistant), then assign that officer to the station from the table.</li>
+        <li>Assign voters to stations (from the voters screen) so each location sees only its local roll.</li>
+      </ol>
+
+      <h3>The station portal (voting day)</h3>
+      <p>Station officers sign in and land straight on the station portal, which shows registered, checked-in, in-queue, ballots cast and grace votes, plus live countdowns.</p>
+      <ol class="guide-steps">
+        <li><strong>Open Polls</strong> — records a <em>zero report</em> (no ballots before opening) and starts the queue.</li>
+        <li><strong>Check voters in</strong> — search the e-pollbook, verify identity in person, and confirm. “Checking them in consumes their ballot entitlement.”</li>
+        <li>Point voters to the <strong>voting screen (Vote in the sidebar)</strong> where they authenticate and cast on the kiosk.</li>
+        <li><strong>Close Polls</strong> — choose a grace period (up to the election max) so voters already in line can finish; or zero to end immediately.</li>
+        <li>During <strong>Grace Period</strong>, checked-in voters finish while the queue is closed; end early with <strong>Close Queue Now</strong>.</li>
+        <li><strong>Submit Results</strong> — review the figures (verified voters, votes cast, grace votes, papers used). The app auto-checks them; when all pass, <strong>Seal &amp; Submit</strong> the packet.</li>
+      </ol>
+      <div class="guide-warn"><strong>Submissions are sealed.</strong> Once submitted, only an administrator override can change it — double-check before sealing.</div>
+      <p>Use <strong>Log incident</strong> to record disputes, technical or security events; the activity log keeps an auditable timeline of everything at the station.</p>
+    </section>
+
+    <!-- 6 -->
+    <section class="guide-section" id="vote">
+      <div class="guide-section-head"><span class="gs-num">6</span><h2>The voting kiosk</h2></div>
+      <p class="guide-section-intro">The <strong>Vote</strong> screen is the public terminal: a large, clean ballot interface that locks down the device so nothing can interrupt casting.</p>
+
+      <h3>Voter journey</h3>
+      <ol class="guide-steps">
+        <li><strong>Select election</strong> — cards show which election is open. Non-open elections are blocked with a clear message.</li>
+        <li><strong>Voter sign in</strong> — the voter enters the voter ID and password they were issued. Ballots are private: the vote is never linked to the person in the results, only to the single entitlement.</li>
+        <li><strong>Forgot the password?</strong> — the kiosk offers self-service recovery using the voter ID plus the name or phone on the roll, and displays the password securely on screen.</li>
+        <li><strong>Cast the ballot</strong> — tap candidates; the ballot enforces the maximum per category. <strong>Review &amp; Cast</strong> shows a confirmation summary (a blank ballot is allowed with a clear warning).</li>
+        <li><strong>Thank you</strong> — “Your vote has been recorded securely,” with a chime, then it resets for the next voter automatically.</li>
+      </ol>
+      <div class="guide-note">The kiosk runs full-screen, hides the mouse after idle, blocks reload/devtools shortcuts and re-enters fullscreen on Escape. Voters cannot skip ahead or vote twice — the app blocks voters who have already cast.</div>
+    </section>
+
+    <!-- 7 -->
+    <section class="guide-section" id="officers">
+      <div class="guide-section-head"><span class="gs-num">7</span><h2>Officers</h2></div>
+      <p class="guide-section-intro">Manage every account in the system — coordinators, station officers and administrators.</p>
+      <ul>
+        <li><strong>Add officer</strong> — full name, officer ID, password (min 6 characters) and role (Station officer or Coordinator).</li>
+        <li><strong>Manage officers</strong> — search the list; see role and status pills (Active/Suspended); <strong>Suspend</strong> blocks sign-in instantly, <strong>Activate</strong> restores it, <strong>Remove</strong> deletes the account, and <strong>Password</strong> jumps to the change-password form.</li>
+        <li><strong>Assign station</strong> — link a station officer to a polling station; a station can have exactly one assigned officer.</li>
+        <li><strong>My account</strong> (in Administration) — change your own password.</li>
+      </ul>
+      <div class="guide-tip">Admins and coordinators see the officers page tailored to their level — coordinators manage only station officer accounts.</div>
+    </section>
+
+    <!-- 8 -->
+    <section class="guide-section" id="results">
+      <div class="guide-section-head"><span class="gs-num">8</span><h2>Results &amp; the declaration</h2></div>
+      <p class="guide-section-intro">Results is the official reporting centre — live tallies while voting runs, and a certifiable report once it closes.</p>
+
+      <h3>The results report</h3>
+      <ul>
+        <li><strong>Status chip</strong> shows LIVE, UPCOMING, ENDED or DRAFT. Before the window ends, the report is locked with a countdown.</li>
+        <li><strong>Winner cards</strong> and <strong>“Winners by Category”</strong> — a W for winner, T for tie, or “No votes cast”.</li>
+        <li><strong>Stat tiles</strong> — total votes, registered, voters cast, turnout bar, candidates and categories.</li>
+        <li><strong>Charts</strong> — vote-distribution donut and a per-category bar chart.</li>
+        <li><strong>Ranking tables</strong> — rank, candidate, votes, percentage, progress per category.</li>
+        <li><strong>Station breakdown</strong> (station elections) — filter the whole report by station; each row shows status, registered, cast, turnout and submission badge.</li>
+      </ul>
+
+      <h3>Exporting and declaring</h3>
+      <ul>
+        <li><strong>CSV / HTML / PDF / Print</strong> export the full report for records or notice boards.</li>
+        <li><strong>Official Declaration</strong> opens the formal document: certification preamble, “Duly elected” winners, per-category certified results with ballot numbers, and a signature block (Chairperson &amp; Secretary).</li>
+        <li>The declaration only publishes for <strong>closed</strong> elections, and can be printed or exported as HTML/PDF.</li>
+      </ul>
+      <div class="guide-warn">Results come from your own sealed database. Always run an <strong>Integrity check</strong> (Administration) before certifying — it verifies the hash chains and tells you instantly if anything was tampered with.</div>
+    </section>
+
+    <!-- 9 -->
+    <section class="guide-section" id="admin">
+      <div class="guide-section-head"><span class="gs-num">9</span><h2>Administration (admin only)</h2></div>
+      <p class="guide-section-intro">The system control room. Only the administrator account can open this page.</p>
+
+      <h3>Inbox — “Speak to admin”</h3>
+      <p>Officers send you short notes from their Profile menu. Unread messages show a badge on the Administration nav item and in the Profile menu. From here you can mark each message read (or all), delete a message, or clear the whole inbox. Message actions are audited.</p>
+
+      <h3>Backup &amp; export</h3>
+      <ul>
+        <li><strong>Back up database</strong> — snapshot the entire database to any location. Do this before every major change.</li>
+        <li><strong>Export election JSON</strong> — package an election (voters, votes, integrity data) into a single portable file. This is also the file used by the Merge tool.</li>
+        <li><strong>Delete election</strong> — permanently deletes an election and all its categories, candidates, voters and votes (confirmed; cannot be undone).</li>
+      </ul>
+
+      <h3>My account</h3>
+      <p>Change your own password here (min 6 characters).</p>
+
+      <div class="guide-tip">The next three sections — Merge results, LAN sync and Integrity check — have their own manual chapters (10, 11, 12).</div>
+    </section>
+
+    <!-- 10 -->
+    <section class="guide-section" id="merge">
+      <div class="guide-section-head"><span class="gs-num">10</span><h2>Merging results across locations</h2></div>
+      <p class="guide-section-intro">When several stations or locations run independently, you combine their exported files into one certified result — with duplicate voters detected and resolved so no ballot counts twice.</p>
+
+      <h3>The workflow</h3>
+      <ol class="guide-steps">
+        <li>From each location, export the election: <strong>Administration → Backup &amp; export → Export election JSON</strong>.</li>
+        <li>Bring the files here (any storage medium) and choose <strong>“Choose election files…”</strong>.</li>
+        <li>If the files describe the same election, the workspace builds automatically; if they differ, pick which election to merge.</li>
+        <li>Review the summary — locations, registered, votes cast, turnout — and the <strong>duplicate detection</strong> table:</li>
+        <li>For every duplicate, choose a resolution per voter: <strong>keep the ballot from a specific file</strong>, or <strong>exclude the voter</strong> from both tally and registration.</li>
+        <li>Confirm; the app tallies the merged result and shows the full report (winners, categories, charts, ranking tables).</li>
+        <li>Export the certified merge: <strong>CSV, HTML, PDF, JSON snapshot</strong> (portable record) or the <strong>Duplicates</strong> report for your audit file.</li>
+      </ol>
+      <div class="guide-note"><strong>Default rule:</strong> a voter who appears in more than one file keeps their earliest-cast ballot unless you override it per-voter. Files are signature-verified before anything is merged.</div>
+    </section>
+
+    <!-- 11 -->
+    <section class="guide-section" id="lan">
+      <div class="guide-section-head"><span class="gs-num">11</span><h2>LAN sync (one live database)</h2></div>
+      <p class="guide-section-intro">Connect polling devices on the same network so they share one authoritative database in real time — even when the network drops.</p>
+
+      <h3>Setup</h3>
+      <ol class="guide-steps">
+        <li>On the <strong>hub</strong> device (the single source of truth), choose <strong>Host server</strong> and <strong>Start hub</strong>. Other devices can connect to the displayed address or discover it automatically.</li>
+        <li>On each <strong>client</strong> device, choose <strong>Connect to a hub</strong>, then either <strong>Search the network</strong> or enter the hub address (e.g. <span class="guide-kbd">192.168.1.20:7380</span>) and <strong>Connect</strong>.</li>
+        <li>Give each device a readable <strong>device name</strong> so the hub can show what is connected.</li>
+      </ol>
+
+      <h3>What happens during voting</h3>
+      <ul>
+        <li>Ballots cast on any client are written to the client and pushed to the hub immediately.</li>
+        <li>If the network drops, the client keeps voting offline — events are <strong>queued</strong> locally and pushed automatically on reconnect.</li>
+        <li>The status pill tells you everything: Hosting (N connected), Connected, or Offline — reconnecting, with queued-event counts.</li>
+      </ul>
+      <div class="guide-warn"><strong>Hosts are authoritative.</strong> Keep the hub device powered and on the network for the whole polling window. Stop the hub from the Administration page when you’re done.</p> <p class="guide-note" style="margin-top:12px">Vote totals shown in the LAN stats (votes in database, connected devices, pending sync) help you confirm every device is caught up before closing.</div>
+    </section>
+
+    <!-- 12 -->
+    <section class="guide-section" id="integrity">
+      <div class="guide-section-head"><span class="gs-num">12</span><h2>Integrity &amp; the security model</h2></div>
+      <p class="guide-section-intro">Pulse Vote Hub is designed so that tampering with your data is not just hard — it is detectable.</p>
+      <ul>
+        <li><strong>Offline-first.</strong> Every vote, voter and setting lives only on your computers. Nothing is uploaded anywhere; the app works fully offline.</li>
+        <li><strong>Signed ballots.</strong> Each ballot carries a cryptographic signature from the device key.</li>
+        <li><strong>Hash chains.</strong> Votes and the audit log are stored as a chain where each row is cryptographically linked to the previous one. Any edit breaks the chain at exactly the row it touched.</li>
+        <li><strong>Audit trail.</strong> Administrative actions — open, close, submissions, resets, lookups by admins — are immutably recorded.</li>
+        <li><strong>Merge verification.</strong> Election files are signature-verified before they are merged into totals.</li>
+      </ul>
+
+      <h3>Running an integrity check</h3>
+      <ol class="guide-steps">
+        <li>Open <strong>Administration → Integrity check</strong>.</li>
+        <li>Press <strong>Verify now</strong>.</li>
+        <li>Review the report: vote hash chain, audit hash chain, ballot signatures, SQLite page integrity, checked-at stamp.</li>
+      </ol>
+      <div class="guide-tip">An “OK · N entries verified” verdict means your database is certified. Any failure message (“Tampering detected — investigate immediately”) means do not certify results and restore from your latest backup.</div>
+      <div class="guide-warn"><strong>Backups are your responsibility.</strong> Export a database backup at every milestone and store copies away from the election machines. No data leaves your control unless you share those files.</div>
+    </section>
+
+    <!-- 13 -->
+    <section class="guide-section" id="profile">
+      <div class="guide-section-head"><span class="gs-num">13</span><h2>Profile &amp; preferences</h2></div>
+      <p class="guide-section-intro">Your Profile lives at the bottom of the sidebar — your name, role and one menu for everything personal.</p>
+      <ul>
+        <li><strong>Preferences</strong> — SOUND effects on/off (with a test button), APPEARANCE (System / Light / Dark theme, applied instantly and remembered), and a shortcut to open the web version.</li>
+        <li><strong>User guide</strong> — this manual.</li>
+        <li><strong>FAQ</strong> — quick answers to common questions.</li>
+        <li><strong>Privacy policy</strong> — what the app stores and why.</li>
+        <li><strong>Admin inbox</strong> (admins) — unread badge, jumps to Administration → Inbox. <strong>Speak to admin</strong> (everyone else) — send a note that the admin reads in the inbox.</li>
+        <li><strong>Visit website</strong> / <strong>Blog</strong> — open our web site and news pages in your browser.</li>
+        <li><strong>Sign out</strong> — ends your session; the next person signs in with their own account.</li>
+      </ul>
+    </section>
+
+    <!-- 14 -->
+    <section class="guide-section" id="troubleshoot">
+      <div class="guide-section-head"><span class="gs-num">14</span><h2>Troubleshooting</h2></div>
+
+      <h3>Sign-in problems</h3>
+      <ul>
+        <li><strong>“Incorrect credentials” / locked out</strong> — repeated failures trigger a timed lockout; the screen shows how long to wait for retry.</li>
+        <li><strong>Suspended?</strong> — a suspended officer cannot sign in until an admin activates them.</li>
+        <li><strong>Forgotten passwords</strong> — officers: reset from Officers → Change/assign password. Voters: recover at the kiosk, or you can Reset their vote/password from the roll.</li>
+      </ul>
+
+      <h3>Voting day</h3>
+      <ul>
+        <li><strong>Can’t open a station?</strong> — confirm the election is the correct station type and its status is Active or Upcoming.</li>
+        <li><strong>Network drops at a station</strong> — no problem on the kiosk; LAN clients queue offline and sync on reconnect (check the hub status pill).</li>
+        <li><strong>Voter already voted / blocked at the kiosk</strong> — the screen explains the state (already voted, category-less election, device error). A station officer can <strong>Reset</strong> a mistaken vote from the roll.</li>
+        <li><strong>Can’t edit the ballot</strong> — Active/Closed elections are locked by design.</li>
+      </ul>
+
+      <h3>Data</h3>
+      <ul>
+        <li><strong>Integrity failure</strong> — do not certify; restore the latest clean backup and re-run Verify now.</li>
+        <li><strong>Wrong election file</strong> — Merge shows a chooser when files describe different elections; start fresh with Reset.</li>
+        <li><strong>Screen flash on startup</strong> — the app matches your device theme; if it looks wrong, set Appearance in Preferences.</li>
+      </ul>
+
+      <h3>Still stuck?</h3>
+      <p>Use <strong>Speak to admin</strong> from your Profile menu — the administrator reads it from Administration → Inbox — or open our website and blog for updates.</p>
+
+      <a class="guide-to-top" href="#toc">Back to contents ↑</a>
+    </section>
+
+    <footer class="guide-footer">
+      Pulse Vote Hub &middot; Secure Offline Voting &middot; Full manual version 1.0<br>
+      This guide covers the built-in feature set. Installers, roll-out advice and the latest news are on our website.
+    </footer>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script>
+    (function () {
+      function backOrSignIn() {
+        try {
+          const s = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
+          window.location.assign(s && s.id ? 'dashboard.html' : 'index.html');
+        } catch (e) {
+          window.location.assign('index.html');
+        }
+      }
+      window.pvhIcons && window.pvhIcons.inject('.icon');
+      document.getElementById('guide-open-app').addEventListener('click', backOrSignIn);
+      document.getElementById('guide-print').addEventListener('click', () => window.print());
+    })();
+  </script>
+</body>
+</html>

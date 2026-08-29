@@ -100,6 +100,17 @@ contextBridge.exposeInMainWorld('pvh', {
   kioskEnter: () => ipcRenderer.invoke('kiosk:enter'),
   kioskExit: () => ipcRenderer.invoke('kiosk:exit'),
 
+  // In-app messaging ("Speak to admin")
+  sendMessage: (body) => ipcRenderer.invoke('messages:send', body, oid()),
+  listMessages: () => ipcRenderer.invoke('messages:list', oid()),
+  unreadMessages: () => ipcRenderer.invoke('messages:unread', oid()),
+  markMessageRead: (id) => ipcRenderer.invoke('messages:mark-read', id, oid()),
+  deleteMessage: (id) => ipcRenderer.invoke('messages:delete', id, oid()),
+  clearMessages: () => ipcRenderer.invoke('messages:clear', oid()),
+
+  // External link (web version)
+  openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
+
   // LAN networking
   lanStatus: () => ipcRenderer.invoke('lan:status'),
   lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {})),

@@ -155,6 +155,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
   prev_hash TEXT,
   entry_hash TEXT
 );
+
+-- In-app officer <-> admin messaging ("Speak to admin").
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY,
+  from_officer_id TEXT,
+  from_name TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER,
+  read INTEGER DEFAULT 0
+);
 `;
 
 function init() {
@@ -200,6 +210,16 @@ function migrate() {
   addColumn('voters', 'phone', 'TEXT');
   addColumn('elections', 'voter_scheme', 'TEXT');
   addColumn('checkins', 'synced', 'INTEGER DEFAULT 0');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      from_officer_id TEXT,
+      from_name TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at INTEGER,
+      read INTEGER DEFAULT 0
+    );
+  `);
   db.exec(`
     CREATE TABLE IF NOT EXISTS stations (
       id TEXT PRIMARY KEY,

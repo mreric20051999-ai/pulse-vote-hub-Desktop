@@ -4,7 +4,18 @@
 (function () {
   let ctx = null;
 
+  // Respect Preferences > Sound effects (pvh_prefs stored by common.js).
+  function soundEnabled() {
+    try {
+      const p = JSON.parse(window.localStorage.getItem('pvh_prefs') || '{}');
+      return p.sound !== 'off';
+    } catch (e) {
+      return true;
+    }
+  }
+
   function audio() {
+    if (!soundEnabled()) return null;
     if (!ctx) {
       try {
         const Ctx = window.AudioContext || window.webkitAudioContext;
