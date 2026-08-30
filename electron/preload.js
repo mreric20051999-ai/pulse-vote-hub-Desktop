@@ -61,10 +61,10 @@ contextBridge.exposeInMainWorld('pvh', {
   removeStation: (id) => ipcRenderer.invoke('station:remove', id, oid()),
   openStationPolls: (id, opts) => ipcRenderer.invoke('station:open', id, opts, oid()),
   closeStationPolls: (id, opts) => ipcRenderer.invoke('station:close', id, opts, oid()),
-  closeStationQueue: (id, opts) => ipcRenderer.invoke('station:close-queue-now', id, opts),
-  submitStationPacket: (id, opts) => ipcRenderer.invoke('station:submit', id, opts),
-  stationCheckin: (vid, opts) => ipcRenderer.invoke('station:checkin', vid, opts),
-  stationBallotCast: (vid, opts) => ipcRenderer.invoke('station:ballot-cast', vid, opts),
+  closeStationQueue: (id, opts) => ipcRenderer.invoke('station:close-queue-now', id, opts, oid()),
+  submitStationPacket: (id, opts) => ipcRenderer.invoke('station:submit', id, opts, oid()),
+  stationCheckin: (vid, opts) => ipcRenderer.invoke('station:checkin', vid, opts, oid()),
+  stationBallotCast: (vid, opts) => ipcRenderer.invoke('station:ballot-cast', vid, opts, oid()),
   stationDashboard: (eid, sid) => ipcRenderer.invoke('station:dashboard', eid, sid, oid()),
 
   // Results report

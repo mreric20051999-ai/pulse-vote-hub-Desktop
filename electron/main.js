@@ -727,6 +727,27 @@ ipcMain.handle('voter:export', async (_e, { electionId, format }, officerId) => 
 const safeStation = (fn) => (_e, ...args) => {
   try { return fn(...args); } catch (err) { return { ok: false, error: err.message }; }
 };
+
+// Authorize a station-scoped operation. Admins and election owners pass;
+// an assistant (station officer) passes only when assigned to exactly this
+// (election, station). Station ops are no longer open to any signed-in caller.
+function guardStation(electionId, stationId, officerId, fn) {
+  const actor = resolveActor(officerId);
+  // Resolve the station row by id, code, or name within this election so
+  // operators can reference their station however the portal expresses it.
+  const st = (electionId ? station.resolveStationRef(electionId, stationId) : null) || station.getStation(stationId);
+  const realId = st ? st.id : stationId;
+  const electionId2 = st ? st.election_id : electionId;
+  let allowed = false;
+  if (actor && actor.role === 'admin') allowed = true;
+  else if (actor && election.getElectionOrError(electionId2, actor).ok) allowed = true;
+  else if (actor) {
+    const o = auth.findById(actor.id);
+    allowed = !!(o && o.assigned_election_id === electionId2 && o.assigned_station_id === realId);
+  }
+  if (!allowed) return { ok: false, error: 'You do not have access to this station.', code: 'forbidden' };
+  return safeStation(fn)();
+}
 ipcMain.handle('station:list', (_e, electionId, officerId) => guardElection(electionId, officerId, () => station.getStationsForElection(electionId)));
 ipcMain.handle('station:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => station.addStation(payload)));
 ipcMain.handle('station:update', (_e, id, payload, officerId) => {
@@ -742,24 +763,43 @@ ipcMain.handle('station:remove', (_e, id, officerId) => {
 ipcMain.handle('station:open', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardElection(row.election_id, officerId, () => station.openPolls(id, opts || {}));
+  return guardStation(row.election_id, id, officerId, () => station.openPolls(id, opts || {}));
 });
 ipcMain.handle('station:close', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardElection(row.election_id, officerId, () => station.closePolls(id, opts || {}));
+  return guardStation(row.election_id, id, officerId, () => station.closePolls(id, opts || {}));
 });
-ipcMain.handle('station:close-queue-now', safeStation((id, opts) => station.closeQueueNow(id, opts || {})));
-ipcMain.handle('station:submit', safeStation((id, opts) => station.submitPacket(id, opts || {})));
-ipcMain.handle('station:checkin', safeStation((voterId, opts) => {
-  const res = station.checkInVoter(voterId, opts || {});
-  if (res && res.ok && res.voter) {
-    try { getLan().onLocalCheckin(res.voter, (opts && opts.officerName) || 'Officer', { station: (opts && opts.stationId) || null }); } catch (err) { console.error('LAN checkin hook failed:', err.message); }
-  }
-  return res;
-}));
-ipcMain.handle('station:ballot-cast', safeStation((voterId, opts) => station.markBallotCast(voterId, opts || {})));
-ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardElection(electionId, officerId, () => station.stationDashboard(electionId, stationId)));
+ipcMain.handle('station:close-queue-now', (_e, id, opts, officerId) => {
+  const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Station not found' };
+  return guardStation(row.election_id, id, officerId, () => station.closeQueueNow(id, opts || {}));
+});
+ipcMain.handle('station:submit', (_e, id, opts, officerId) => {
+  const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
+  if (!row) return { ok: false, error: 'Station not found' };
+  return guardStation(row.election_id, id, officerId, () => station.submitPacket(id, opts || {}));
+});
+ipcMain.handle('station:checkin', (_e, voterId, opts, officerId) => {
+  const stationId = (opts && opts.stationId) || null;
+  if (!stationId) return { ok: false, error: 'stationId is required for a station check-in.', code: 'no-station' };
+  const row = db.get().prepare('SELECT election_id, station_id FROM voters WHERE id = ?').get(voterId);
+  if (!row) return { ok: false, error: 'Voter not found' };
+  return guardStation(row.election_id, stationId, officerId, () => {
+    const res = station.checkInVoter(voterId, opts || {});
+    if (res && res.ok && res.voter) {
+      try { getLan().onLocalCheckin(res.voter, (opts && opts.officerName) || 'Officer', { station: stationId }); } catch (err) { console.error('LAN checkin hook failed:', err.message); }
+    }
+    return res;
+  });
+});
+ipcMain.handle('station:ballot-cast', (_e, voterId, opts, officerId) => {
+  const row = db.get().prepare('SELECT * FROM voters WHERE id = ?').get(voterId);
+  if (!row) return { ok: false, error: 'Voter not found' };
+  const st = station.resolveVoterStation(row);
+  return guardStation(row.election_id, st ? st.id : null, officerId, () => station.markBallotCast(voterId, opts || {}));
+});
+ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, () => station.stationDashboard(electionId, stationId)));
 
 // ---------- Results IPC ----------
 
