@@ -4,15 +4,22 @@
 // serves full/partial snapshots so peers can reconcile.
 const http = require('http');
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { WebSocketServer } = require('ws');
 const sync = require('./sync');
+const db = require('../db');
+const voter = require('../voter');
 
-function Hub({ d, deviceId, deviceName, version, onStatus }) {
+function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEnabled, onWritten }) {
   this.d = d;
   this.deviceId = deviceId;
   this.deviceName = deviceName;
   this.version = version;
   this.onStatus = onStatus || (() => {});
+  this.rendererDir = rendererDir;
+  this.kioskEnabled = kioskEnabled !== false;
+  this.onWritten = onWritten || (() => {});
   this.port = null;
   this.server = null;
   this.wss = null;
@@ -41,6 +48,12 @@ Hub.prototype.start = function (port) {
     }
   });
 
+  // Browser ballot ("kiosk in any browser, no install"). Only exposed while the
+  // hub is running (host mode). Votes pushed here go through the exact same
+  // voter module the desktop ballot uses, so integrity hashing and LAN sync
+  // behave identically to a ballot cast on the machine itself.
+  if (self.kioskEnabled) self._mountKiosk(app);
+
   this.server = http.createServer(app);
   this.wss = new WebSocketServer({ server: this.server });
   this.wss.on('connection', (ws) => this._onConnection(ws));
@@ -56,6 +69,141 @@ Hub.prototype.start = function (port) {
       resolve(self);
     });
   });
+};
+
+Hub.prototype._mountKiosk = function (app) {
+  const self = this;
+  const rd = this.rendererDir;
+
+  // Ballot statics (same relative paths vote.html uses).
+  app.use('/js', express.static(path.join(rd, 'js'), { index: false, maxAge: 0 }));
+  app.use('/css', express.static(path.join(rd, 'css'), { index: false, maxAge: 0 }));
+  app.use('/assets', express.static(path.join(rd, 'assets'), { index: false, maxAge: 0 }));
+
+  // The ballot page, with the browser transport shim injected so vote.js runs
+  // unchanged in a plain browser.
+  app.get('/kiosk', (_req, res) => {
+    try {
+      let html = fs.readFileSync(path.join(rd, 'vote.html'), 'utf8');
+      if (!html.includes('<script src="js/vote.js"></script>')) {
+        res.status(500).json({ ok: false, error: 'Ballot template malformed' });
+        return;
+      }
+      html = html.replace(
+        '<script src="js/vote.js"></script>',
+        '<script src="js/kiosk-server.js"></script>\n  <script src="js/vote.js"></script>');
+      res.type('html').send(html);
+    } catch (err) {
+      res.status(500).json({ ok: false, error: 'Ballot template unavailable' });
+    }
+  });
+
+  // Public ballot data (read-only). Elections are listed like the desktop
+  // picker expects; positions/candidates mirror the desktop IPC result shapes.
+  app.get('/api/kiosk/elections', (_req, res) => {
+    try {
+      res.json({ ok: true, elections: self._kioskElections() });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  app.get('/api/kiosk/positions/:electionId', (req, res) => {
+    try {
+      const rows = self.d.prepare(
+        'SELECT p.*, (SELECT COUNT(*) FROM candidates c WHERE c.position_id = p.id) AS candidate_count FROM positions p WHERE p.election_id = ? ORDER BY p.title'
+      ).all(String(req.params.electionId || ''));
+      res.json({ ok: true, positions: rows });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  app.get('/api/kiosk/candidates/:electionId', (req, res) => {
+    try {
+      const rows = self.d.prepare(
+        'SELECT id, election_id, position_id, name, photo_path, ballot_number, sort_order FROM candidates WHERE election_id = ? ORDER BY sort_order, ballot_number'
+      ).all(String(req.params.electionId || ''));
+      res.json({ ok: true, candidates: rows });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  // Candidate photos, resolved the same way the desktop does.
+  app.get('/api/kiosk/photo', (req, res) => {
+    const stored = req.query.p;
+    if (!stored) { res.status(400).json({ ok: false, error: 'Missing photo path' }); return; }
+    const abs = path.isAbsolute(stored) ? stored : path.join(db.getDataDir(), stored);
+    if (!fs.existsSync(abs)) { res.status(404).json({ ok: false, error: 'Photo not found' }); return; }
+    const ct = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(abs).toLowerCase()] || 'application/octet-stream';
+    res.type(ct);
+    fs.createReadStream(abs).on('error', () => res.status(404).end()).pipe(res);
+  });
+
+  // Identity gate — identical to the desktop kiosk flow.
+  app.post('/api/kiosk/verify', express.json(), (req, res) => {
+    const b = req.body || {};
+    if (!b.electionId || !b.voterId || b.password === undefined) {
+      res.status(400).json({ ok: false, error: 'Missing verification fields' });
+      return;
+    }
+    res.json(voter.verifyVoter(b.electionId, b.voterId, b.password));
+  });
+
+  app.post('/api/kiosk/verify-details', express.json(), (req, res) => {
+    const b = req.body || {};
+    if (!b.electionId || !b.voterId) {
+      res.status(400).json({ ok: false, error: 'Missing recovery fields' });
+      return;
+    }
+    res.json(voter.verifyVoterDetails(b.electionId, b.details || {}));
+  });
+
+  // Cast a ballot from a browser. Reuses the desktop castVote (validation,
+  // vote+audit hash chain, transactional write), then fans the vote out to any
+  // connected LAN peers exactly like a ballot cast on this machine.
+  app.post('/api/kiosk/cast', express.json(), (req, res) => {
+    const b = req.body || {};
+    if (!b.electionId || !b.voterId || !Array.isArray(b.selection)) {
+      res.status(400).json({ ok: false, error: 'Missing cast fields' });
+      return;
+    }
+    const r = voter.castVote(b.electionId, b.voterId, b.selection);
+    if (r && r.ok) {
+      try { self.onWritten(b.electionId, b.voterId, b.selection, r.timestamp); } catch (err) { /* ignore */ }
+    }
+    res.json(r);
+  });
+
+  app.get('/api/kiosk/status', (_req, res) => {
+    res.json({
+      ok: true,
+      deviceName: self.deviceName,
+      version: self.version,
+      ballotUrl: self.port ? `http://localhost:${self.port}/kiosk` : null,
+    });
+  });
+};
+
+Hub.prototype._kioskElections = function () {
+  const rows = this.d.prepare(`
+    SELECT e.id, e.title, e.type, e.status, e.election_date, e.start_date, e.end_date, e.voter_scheme,
+      (SELECT COUNT(*) FROM candidates c WHERE c.election_id = e.id) AS candidate_count
+    FROM elections e
+    ORDER BY e.created_at DESC
+  `).all();
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    type: r.type,
+    status: r.status,
+    election_date: r.election_date,
+    start_date: r.start_date,
+    end_date: r.end_date,
+    voter_scheme: r.voter_scheme,
+    candidate_count: r.candidate_count,
+  }));
 };
 
 Hub.prototype._onConnection = function (ws) {

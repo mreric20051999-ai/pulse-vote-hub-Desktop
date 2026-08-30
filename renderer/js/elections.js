@@ -199,7 +199,13 @@
         <div class="position-head">
           <div>
             <span class="position-title">${esc(p.title)}</span>
-            <span class="position-max">max ${p.max_votes} vote${p.max_votes > 1 ? 's' : ''}</span>
+            ${locked
+              ? `<span class="position-max">max ${p.max_votes} vote${p.max_votes > 1 ? 's' : ''}</span>`
+              : `<label class="pmax-edit" data-id="${p.id}" title="Change how many candidates a voter may select in this category">
+                   max
+                   <input class="pmax-input" type="number" min="1" value="${p.max_votes}">
+                   <button type="button" class="btn btn-secondary btn-sm pmax-save">Save</button>
+                 </label>`}
             <span class="position-count">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
           </div>
           ${locked ? '' : `<button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove Category</button>`}
@@ -282,6 +288,32 @@
         renderPositions();
         window.pvhUI.toast('Category removed.', 'success');
       });
+
+      // Inline "max votes per voter" editor for this category.
+      const maxInput = block.querySelector('.pmax-input');
+      const maxSaveBtn = block.querySelector('.pmax-save');
+      if (maxInput && maxSaveBtn) {
+        const saveMax = async () => {
+          const v = Number(maxInput.value);
+          if (!v || v < 1) { maxInput.classList.add('is-invalid'); return; }
+          maxInput.classList.remove('is-invalid');
+          if (v === p.max_votes) return;
+          const res = await window.pvhUI.busy(maxSaveBtn, 'Saving…', async () => {
+            return await window.pvh.updatePositionMax(p.id, v);
+          });
+          if (!res || res.ok === false) {
+            window.pvhUI.toast((res && res.error) || 'Could not save. The election may be locked.', 'error');
+            return;
+          }
+          p.max_votes = res.position.max_votes;
+          currentElection.positions = await window.pvh.listPositions(currentElection.id);
+          renderPositions();
+          window.pvhUI.toast(`Max of ${res.position.max_votes} votes per voter saved for ${p.title}.`, 'success');
+        };
+        maxInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveMax(); });
+        maxInput.addEventListener('input', () => maxInput.classList.remove('is-invalid'));
+        maxSaveBtn.addEventListener('click', saveMax);
+      }
       block.querySelector('.cand-add-btn').addEventListener('click', addCandidate);
       block.querySelector('.cand-name').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') addCandidate();

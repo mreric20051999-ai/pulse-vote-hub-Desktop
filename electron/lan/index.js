@@ -8,9 +8,10 @@ const { Peer } = require('./peer');
 
 const DEFAULT_PORT = 7380;
 
-function LanManager({ getD, version = '1.0.0' }) {
+function LanManager({ getD, version = '1.0.0', rendererDir }) {
   this.getD = getD;
   this.version = version;
+  this.rendererDir = rendererDir;
   this.mode = 'off';          // off | host | client
   this.hub = null;
   this.peer = null;
@@ -63,6 +64,9 @@ LanManager.prototype.status = function () {
     deviceName: this.deviceName(),
     addresses: (this.mode === 'host') ? discovery.localAddresses() : [],
     port: this.mode === 'host' && this.hub ? this.hub.port : null,
+    kioskUrls: this.mode === 'host' && this.hub
+      ? discovery.localAddresses().map((addr) => addr ? `http://${addr}:${this.hub.port}/kiosk` : null).filter(Boolean)
+      : [],
     peers: this._lastPeers,
     client: this._lastClient,
     stats,
@@ -95,7 +99,12 @@ LanManager.prototype.setMode = async function (mode, opts = {}) {
       deviceId: this.deviceId(),
       deviceName: this.deviceName(),
       version: this.version,
+      rendererDir: typeof this.rendererDir === 'function' ? this.rendererDir() : this.rendererDir,
+      kioskEnabled: this._kioskEnabled(),
       onStatus: (p) => this._delegateStatus(p),
+      // A ballot cast via the browser kiosk must reach LAN peers exactly like
+      // one cast on this machine: broadcast + mark synced.
+      onWritten: (electionId, voterId, selection, timestamp) => this.onLocalVote(electionId, voterId, selection, timestamp),
     });
     try {
       await this.hub.start(port);
@@ -225,6 +234,13 @@ LanManager.prototype.resume = async function () {
 LanManager.prototype._savedPort = function () {
   const row = this._d().prepare("SELECT value FROM config WHERE key = 'lan_port'").get();
   return row ? Number(row.value) || null : null;
+};
+
+LanManager.prototype._kioskEnabled = function () {
+  try {
+    const row = this._d().prepare("SELECT value FROM config WHERE key = 'lan_kiosk'").get();
+    return !row || row.value !== '0';
+  } catch (e) { return true; }
 };
 
 LanManager.prototype._savedHost = function () {

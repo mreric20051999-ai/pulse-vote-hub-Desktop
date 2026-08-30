@@ -152,7 +152,10 @@
           </div>
           <div class="row">
             <input class="input" id="ptitle" placeholder="Category name, e.g. President">
-            <input class="input input-narrow" id="pmax" type="number" min="1" value="1" title="max votes per voter">
+            <label class="pmax-field" for="pmax" title="How many candidates a voter may select in this category">
+              <span class="pmax-label">Votes per voter</span>
+              <input class="input input-narrow" id="pmax" type="number" min="1" value="1">
+            </label>
             <button class="btn btn-secondary" id="add-position">Add Category</button>
           </div>
         </div>

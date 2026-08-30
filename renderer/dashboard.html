@@ -77,6 +77,38 @@
       <div class="card-title">Active elections</div>
       <div id="active-elections"><p class="text-muted hint">No elections are currently running.</p></div>
     </section>
+
+    <!-- Browser ballot (LAN voting kiosk, no install on voters' machines) -->
+    <section class="card panel" id="kb-panel">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Browser ballot</div>
+          <p class="text-muted panel-sub">Let voters on any laptop or desktop cast from a browser — no install needed. This machine serves the ballot to your network.</p>
+        </div>
+      </div>
+
+      <div id="kb-stopped">
+        <p class="text-muted hint">Start the ballot server, then open the link on the voting computers. Voters still sign in with their voter ID and password; ballots are verified and recorded securely on this machine.</p>
+        <div class="inline-form">
+          <div class="field">
+            <label class="label" for="kb-port">Port</label>
+            <input class="input" id="kb-port" type="number" value="7380" min="1" max="65535" style="max-width:110px;">
+          </div>
+          <button class="btn btn-primary" id="kb-start"><span class="icon btn-icon" data-icon="broadcast"></span>Start ballot server</button>
+        </div>
+      </div>
+
+      <div id="kb-running" style="display:none">
+        <p class="text-muted hint">Ballot server is live. Open one of these URLs in a browser on each voting computer:</p>
+        <ul class="kb-links" id="kb-links"></ul>
+        <p class="text-muted hint">Votes received: <strong id="kb-votes">0</strong> <span id="kb-votes-live" class="kb-live">live</span></p>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="kb-stop"><span class="icon btn-icon" data-icon="x"></span>Stop ballot server</button>
+        </div>
+      </div>
+
+      <p class="auth-error" id="kb-msg"></p>
+    </section>
   </main>
 
   <script src="js/icons.js"></script>

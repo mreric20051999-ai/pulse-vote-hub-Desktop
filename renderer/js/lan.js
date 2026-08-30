@@ -16,6 +16,29 @@
     },
   };
 
+  // Browser ballot links (host mode): list each LAN address the hub is on,
+  // with a copy button that flips to "Copied" briefly.
+  function renderKioskLinks(urls) {
+    const box = $('lan-kiosk-box');
+    const list = $('lan-kiosk-links');
+    if (!box || !list) return;
+    if (!urls.length) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    list.innerHTML = urls.map((u) => `
+      <li>
+        <a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>
+        <button type="button" class="btn btn-sm btn-ghost lan-copy" data-u="${esc(u)}">Copy</button>
+      </li>`).join('');
+    list.querySelectorAll('.lan-copy').forEach((b) => {
+      b.addEventListener('click', () => {
+        const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(b.dataset.u).then(done, () => { window.prompt('Copy the link', b.dataset.u); done(); });
+        } else { window.prompt('Copy the link', b.dataset.u); done(); }
+      });
+    });
+  }
+
   // ---------- status rendering ----------
   function renderStatus(s) {
     if (!s) return;
@@ -49,6 +72,7 @@
       const peerEl = $('lan-peer-list');
       peerEl.textContent = peers || 'none yet';
       peerEl.className = 'lan-peer-list' + (peers ? '' : ' idle');
+      renderKioskLinks(s.kioskUrls || []);
       pill.set(peers ? 'ok' : 'warn', peers ? 'Hosting (' + s.peers.length + ' connected)' : 'Hosting');
     } else if (mode === 'client') {
       const c = s.client || {};

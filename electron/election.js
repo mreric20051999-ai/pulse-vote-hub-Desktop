@@ -313,6 +313,19 @@ function removePosition(id, actor) {
   return { ok: true };
 }
 
+function setPositionMax(id, maxVotes, actor) {
+  const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
+  if (!pos) return { ok: false, error: 'Position not found' };
+  const e = getElection(pos.election_id);
+  const acc = e ? canAccessElection(e, actor) : { ok: false, error: 'Election not found' };
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
+  maxVotes = Math.max(1, Math.floor(Number(maxVotes) || 1));
+  db.get().prepare('UPDATE positions SET max_votes = ? WHERE id = ?').run(maxVotes, id);
+  audit('elections', `Updated max votes for position "${pos.title}" to ${maxVotes}`);
+  return { ok: true, position: { ...pos, max_votes: maxVotes } };
+}
+
 // ---- Candidates ----
 
 function addCandidate({ electionId, positionId, name, photo_path }, actor) {
@@ -417,6 +430,7 @@ module.exports = {
   addPosition,
   listPositions,
   removePosition,
+  setPositionMax,
   addCandidate,
   listCandidates,
   listCandidatesByPosition,

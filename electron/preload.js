@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('pvh', {
   listPositions: (eid) => ipcRenderer.invoke('election:positions', eid, oid()),
   addPosition: (eid, title, max) => ipcRenderer.invoke('election:position-add', eid, title, max, oid()),
   removePosition: (id) => ipcRenderer.invoke('election:position-remove', id, oid()),
+  updatePositionMax: (id, max) => ipcRenderer.invoke('election:position-update-max', id, max, oid()),
 
   listCandidates: (eid) => ipcRenderer.invoke('election:candidates', eid, oid()),
   listCandidatesByPosition: (pid) => ipcRenderer.invoke('election:candidates-by-position', pid, oid()),
@@ -84,6 +85,14 @@ contextBridge.exposeInMainWorld('pvh', {
   setOfficerSuspended: (id, suspended) => ipcRenderer.invoke('admin:set-suspended', { id, suspended }),
   changePassword: (id, newPassword) => ipcRenderer.invoke('admin:change-password', { id, newPassword }),
   assignStationOfficer: (officerId, stationId, electionId) => ipcRenderer.invoke('admin:assign-station', { officerId, stationId, electionId }),
+  listDeployments: () => ipcRenderer.invoke('dist:list', oid()),
+  addDeployment: (fields) => ipcRenderer.invoke('dist:add', fields, oid()),
+  removeDeployment: (id) => ipcRenderer.invoke('dist:remove', id, oid()),
+  thisComputer: (fields) => ipcRenderer.invoke('dist:this-computer', fields, oid()),
+  githubReleases: () => ipcRenderer.invoke('dist:github', oid()),
+  githubToken: () => ipcRenderer.invoke('dist:get-token', oid()),
+  setGithubToken: (token) => ipcRenderer.invoke('dist:set-token', token, oid()),
+  exportDeployments: () => ipcRenderer.invoke('dist:export-csv', oid()),
 
   // Backup / export
   backupDatabase: () => ipcRenderer.invoke('backup:database'),

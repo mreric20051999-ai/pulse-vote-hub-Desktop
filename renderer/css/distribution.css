@@ -1,0 +1,233 @@
+/* ---------- Distribution (creator console) ---------- */
+/* Balanced density: quiet KPI strip, two working cards, standard app tokens. */
+
+.dist-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-3) 0 var(--space-5);
+}
+.dist-kpi {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: var(--space-4) var(--space-5);
+  min-width: 0;
+}
+.dist-kpi-num {
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+.dist-kpi-label {
+  margin-top: var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dist-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  padding: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+.dist-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+.dist-card-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+}
+.dist-card-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.dist-repo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+.dist-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.dist-fetched {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Token row — quiet, not urgent */
+.dist-token {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.dist-token-field { flex: 1; min-width: 280px; margin-bottom: 0; }
+.dist-token-field .label { margin-bottom: 4px; }
+.dist-token-field .label em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.dist-token-hint {
+  margin: var(--space-1) 0 var(--space-3);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+/* Add-install form — grid, notes full width */
+.dist-form-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: var(--space-3);
+}
+.dist-form-grid .field { margin-bottom: var(--space-3); }
+.dist-f-notes { grid-column: 1 / -1; }
+.dist-f-notes .field { margin-bottom: var(--space-2); }
+.dist-form-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding-top: var(--space-1);
+}
+.dist-form-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.dist-form-foot .btn-primary {
+  min-width: 150px;
+  padding: 10px 24px;
+}
+.dist-form-foot .btn-primary:focus-visible {
+  box-shadow: var(--shadow-focus), 0 0 0 1px var(--surface);
+}
+
+/* Register rows */
+.dist-rows {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.dist-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.dist-row:focus-within { border-color: var(--accent); }
+.dist-row-main { min-width: 0; flex: 1; }
+.dist-row-name { font-weight: 600; }
+.dist-row-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.dist-row-notes {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-style: italic;
+}
+
+/* GitHub release cards (rendered by JS) */
+.dist-release {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-3);
+  overflow: hidden;
+}
+.dist-release-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.dist-release-tag { font-weight: 600; color: var(--accent); }
+.dist-release:hover .dist-release-tag { text-decoration: underline; }
+.dist-release-badge {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.dist-release-badge.is-pre { background: var(--warning-soft); color: var(--warning); }
+.dist-release-total {
+  margin-left: auto;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.dist-release-date {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+.dist-assets {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+.dist-asset {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.dist-asset-main { min-width: 0; flex: 1; }
+.dist-asset-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  word-break: break-all;
+}
+.dist-asset-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.dist-asset-count {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--success, #10b981);
+}
+
+@media (max-width: 760px) {
+  .dist-kpis { grid-template-columns: 1fr; }
+  .dist-form-grid { grid-template-columns: 1fr; }
+  .dist-card { padding: var(--space-4); }
+  .dist-form-foot { align-items: stretch; }
+  .dist-form-foot .btn-primary { width: 100%; }
+  .dist-form-foot .btn-primary .btn-icon { display: none; }
+}

@@ -165,6 +165,20 @@ CREATE TABLE IF NOT EXISTS messages (
   created_at INTEGER,
   read INTEGER DEFAULT 0
 );
+
+-- Creator/product distribution register: manually recorded installs and
+-- "this computer" registrations. Purely local (no telemetry backend yet).
+CREATE TABLE IF NOT EXISTS deployments (
+  id TEXT PRIMARY KEY,
+  machine_name TEXT NOT NULL,
+  location TEXT,
+  platform TEXT,
+  app_version TEXT,
+  installed_at INTEGER,
+  notes TEXT,
+  registered_by TEXT,
+  registered_at INTEGER
+);
 `;
 
 function init() {
@@ -218,6 +232,17 @@ function migrate() {
       body TEXT NOT NULL,
       created_at INTEGER,
       read INTEGER DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS deployments (
+      id TEXT PRIMARY KEY,
+      machine_name TEXT NOT NULL,
+      location TEXT,
+      platform TEXT,
+      app_version TEXT,
+      installed_at INTEGER,
+      notes TEXT,
+      registered_by TEXT,
+      registered_at INTEGER
     );
   `);
   db.exec(`

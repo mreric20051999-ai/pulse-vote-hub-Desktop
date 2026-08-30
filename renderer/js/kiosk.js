@@ -10,10 +10,10 @@
 
   let cursorTimer = null;
 
-  // Hide the cursor until the operator moves the mouse again.
+  // Hide the cursor again after a period of no mouse use. Only applies while
+  // fullscreen — the kiosk is the touch screen, not an operator's workstation.
   function armCursorHide() {
     clearTimeout(cursorTimer);
-    document.documentElement.classList.add('hide-cursor');
     cursorTimer = setTimeout(() => {
       if (document.fullscreenElement) document.documentElement.classList.add('hide-cursor');
     }, 2500);
@@ -37,6 +37,7 @@
   // Escape normally exits fullscreen — immediately re-lock the kiosk.
   function onFullscreenChange() {
     if (document.fullscreenElement) {
+      document.documentElement.classList.add('hide-cursor');
       armCursorHide();
     } else {
       setTimeout(requestFull, 120);
@@ -46,12 +47,16 @@
   window.pvhKiosk = {
     enter() {
       document.body.classList.add('kiosk');
+      document.documentElement.classList.add('hide-cursor');
       requestFull();
       document.addEventListener('contextmenu', (e) => e.preventDefault());
       document.addEventListener('fullscreenchange', onFullscreenChange);
       document.addEventListener('mousemove', showCursor);
       document.addEventListener('mousedown', showCursor);
       document.addEventListener('keydown', showCursor);
+      // Browsers only allow fullscreen from a user gesture — jump in on the
+      // first interaction (harmless no-op in Electron where we're already full).
+      document.addEventListener('pointerdown', requestFull, { once: true });
       armCursorHide();
       try { window.pvh.kioskEnter(); } catch (e) { /* main-process guard optional */ }
     },

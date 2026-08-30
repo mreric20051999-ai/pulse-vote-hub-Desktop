@@ -13,6 +13,12 @@
   let candidates = [];
   let selections = new Map(); // positionId -> { candidate, position } (max per position)
 
+  // Category wizard state: which category is on screen and whether a step
+  // transition is mid-flight.
+  let wizIndex = 0;
+  let inBallot = false;
+  let animating = false;
+
   function setTitle(t) { titleEl.textContent = t; }
 
   function fmtDate(ts) {
@@ -107,6 +113,7 @@
   // Screen 2: Voter access
   // ------------------------------------------------------------
   function showAccess() {
+    inBallot = false;
     setTitle(election.title);
     setBackVisible(true);
     content.innerHTML = `
@@ -273,68 +280,157 @@
     return positions.find((p) => p.id === id) || null;
   }
 
+  function currentPosition() {
+    return positions[wizIndex] || null;
+  }
+
   function selectedFor(positionId) {
     return selections.get(positionId) || [];
   }
 
-  function renderBallot() {
-    setTitle(election.title);
-    setBackVisible(true);
+  // Wizard UI: progress bar, step label, in-category chip and the action bar.
+  function updateWizard() {
+    const p = currentPosition();
+    if (!p) return;
+    const max = Math.max(1, Number(p.max_votes) || 1);
+    const selCount = selectedFor(p.id).length;
+    const last = wizIndex === positions.length - 1;
+    const multi = Number(p.max_votes) > 1;
 
-    const sections = positions.map((p) => {
-      const cands = candsFor(p.id);
-      const max = Math.max(1, Number(p.max_votes) || 1);
-      const cards = cands.length
-        ? cands.map((c) => {
-            const isSel = selectedFor(p.id).some((s) => s.candidate.id === c.id);
-            return `
-              <div class="ballot-card${isSel ? ' selected' : ''}" data-pos="${esc(p.id)}" data-cand="${esc(c.id)}">
+    const bar = $('wiz-bar');
+    if (bar) bar.style.width = (positions.length <= 1 ? 100 : Math.round((wizIndex / (positions.length - 1)) * 100)) + '%';
+    const stepEl = $('wiz-step');
+    if (stepEl) stepEl.innerHTML = `Category ${wizIndex + 1}<span class="wiz-of"> of </span>${positions.length}`;
+    const selEl = $('wiz-sel');
+    if (selEl) selEl.textContent = multi ? `${selCount}/${max} selected` : (selCount ? '1 selected' : 'Choose one');
+
+    const chip = content.querySelector(`.ballot-cat[data-pos="${p.id}"] .ballot-cat-max`);
+    if (chip) chip.textContent = multi ? `${selCount}/${max} selected` : (selCount ? 'Selected' : 'Vote for 1');
+
+    const nav = $('wiz-nav');
+    if (!nav) return;
+    nav.innerHTML = `
+      <button type="button" class="btn btn-ghost" id="wiz-back-btn" ${wizIndex === 0 ? 'disabled' : ''}>Back</button>
+      <button type="button" class="btn btn-primary btn-lg btn-cast" id="wiz-next-btn">${last ? 'Review &amp; Cast' : 'Continue'}</button>`;
+    $('wiz-back-btn').addEventListener('click', () => goToStep(-1));
+    $('wiz-next-btn').addEventListener('click', () => {
+      if (last) showConfirm();
+      else goToStep(1);
+    });
+
+    updateCount();
+  }
+
+  // Render the current category's candidates into the step panel.
+  function renderStep() {
+    const p = currentPosition();
+    const wrap = $('wiz-cat-wrap');
+    if (!p || !wrap) return;
+    const max = Math.max(1, Number(p.max_votes) || 1);
+
+    const cards = candsFor(p.id).length
+      ? candsFor(p.id).map((c) => {
+          const isSel = selectedFor(p.id).some((s) => s.candidate.id === c.id);
+          return `
+            <div class="ballot-card${isSel ? ' selected' : ''}" data-pos="${esc(p.id)}" data-cand="${esc(c.id)}">
+              <div class="ballot-media">
                 ${avatarHtml(c)}
-                <div class="ballot-card-info">
-                  <div class="ballot-bn">
-                    <span class="ballot-bn-num">${esc(c.ballot_number != null ? c.ballot_number : 1)}</span>
-                    <span class="ballot-bn-label">BALLOT</span>
-                  </div>
-                  <div class="ballot-card-name">${esc(c.name)}</div>
-                  <div class="ballot-card-tagline">Candidate</div>
+                <div class="ballot-bn">
+                  <span class="ballot-bn-num">${esc(c.ballot_number != null ? c.ballot_number : 1)}</span>
+                  <span class="ballot-bn-label">BALLOT</span>
                 </div>
-                <div class="ballot-check"></div>
-              </div>`;
-          }).join('')
-        : '<div class="ballot-cat-empty">No candidates in this category.</div>';
+              </div>
+              <div class="ballot-card-info">
+                <div class="ballot-card-name">${esc(c.name)}</div>
+                <div class="ballot-card-tagline">Candidate</div>
+              </div>
+              <div class="ballot-check"></div>
+            </div>`;
+        }).join('')
+      : '<div class="ballot-cat-empty">No candidates have been nominated in this category yet.</div>';
 
-      const progress = selectedFor(p.id).length;
-      return `
-        <div class="ballot-cat" data-pos="${esc(p.id)}">
-          <div class="ballot-cat-head">
-            <span class="ballot-cat-title">${esc(p.title)}</span>
-            <span class="ballot-cat-max">${progress}/${max} selected</span>
-          </div>
-          <div class="ballot-grid">${cards}</div>
-        </div>`;
-    }).join('');
-
-    content.innerHTML = `
-      <div class="ballot-scroll">
-        <div class="ballot-head">
-          <h1>${esc(election.title)}</h1>
-          <div class="ballot-rule"></div>
-          <div class="voter-chip">Voting as <strong>${esc(voter.name || voter.voter_id)}</strong></div>
+    wrap.innerHTML = `
+      <div class="ballot-cat wiz-cat" data-pos="${esc(p.id)}">
+        <div class="ballot-cat-head">
+          <span class="ballot-cat-title">${esc(p.title)}</span>
+          <span class="ballot-cat-max"></span>
         </div>
-        ${sections}
-      </div>
-      <div class="cast-bar" id="cast-bar">
-        <div class="cast-count" id="cast-count"></div>
-        <button class="btn btn-primary btn-lg btn-cast" id="cast-btn">Review &amp; Cast</button>
+        <div class="ballot-grid">${cards}</div>
       </div>`;
 
-    // selection handlers
-    content.querySelectorAll('.ballot-card').forEach((card) => {
+    wrap.querySelectorAll('.ballot-card').forEach((card) => {
       card.addEventListener('click', () => toggleSelection(card));
     });
-    resolvePhotos(content, '.ballot-avatar');
-    updateCount();
-    $('cast-btn').addEventListener('click', () => showConfirm());
+    resolvePhotos(wrap, '.ballot-avatar');
+    updateWizard();
+  }
+
+  // Mount the wizard shell once; only the category step is swapped per step.
+  function mountWizard() {
+    setTitle(election.title);
+    setBackVisible(true);
+    inBallot = true;
+    wizIndex = 0;
+    content.innerHTML = `
+      <div class="ballot-scroll wiz-panel" id="ballot-wizard">
+        <div class="ballot-head">
+          <div class="ballot-mast">
+            <span class="ballot-mast-line"></span>
+            <span class="ballot-kicker">Official Ballot</span>
+            <span class="ballot-mast-line"></span>
+          </div>
+          <h1>${esc(election.title)}</h1>
+          <div class="ballot-meta">
+            <span class="ballot-type">${esc(election.type === 'station' ? 'Station election' : 'School election')}</span>
+            <span class="ballot-dot">•</span>
+            <span class="ballot-secret">🔒 Your vote is private</span>
+            <span class="ballot-dot">•</span>
+            <span class="voter-chip">Voting as <strong>${esc(voter.name || voter.voter_id)}</strong></span>
+          </div>
+        </div>
+        <div class="wiz-progress">
+          <div class="wiz-track"><div class="wiz-progress-fill" id="wiz-bar"></div></div>
+          <div class="wiz-meta">
+            <span class="wiz-step" id="wiz-step"></span>
+            <span class="wiz-sel" id="wiz-sel"></span>
+          </div>
+        </div>
+        <div class="wiz-cat-wrap" id="wiz-cat-wrap"></div>
+        <div class="ballot-actions" id="ballot-actions">
+          <div class="cast-count" id="cast-count"></div>
+          <div class="wiz-nav" id="wiz-nav"></div>
+        </div>
+      </div>`;
+    renderStep();
+  }
+
+  // Direction-aware step change: out toward the direction of travel, in from
+  // the opposite side. Selections are preserved between steps.
+  function goToStep(dir) {
+    if (animating) return;
+    const next = wizIndex + dir;
+    if (next < 0 || next >= positions.length) return;
+    animating = true;
+    const wrap = $('wiz-cat-wrap');
+    if (wrap) wrap.classList.add(dir > 0 ? 'wiz-out-left' : 'wiz-out-right');
+    setTimeout(() => {
+      wizIndex = next;
+      renderStep();
+      const w = $('wiz-cat-wrap');
+      if (w) {
+        w.classList.remove('wiz-out-left', 'wiz-out-right');
+        w.classList.add(dir > 0 ? 'wiz-in-right' : 'wiz-in-left');
+      }
+      setTimeout(() => {
+        animating = false;
+        const w2 = $('wiz-cat-wrap');
+        if (w2) w2.classList.remove('wiz-in-right', 'wiz-in-left');
+      }, 340);
+    }, 170);
+  }
+
+  function renderBallot() {
+    mountWizard();
   }
 
   function toggleSelection(card) {
@@ -359,11 +455,21 @@
     if (current.length) selections.set(posId, current);
     else selections.delete(posId);
 
-    // update this card + its category chip
     card.classList.toggle('selected', idx < 0);
-    const posEl = content.querySelector(`.ballot-cat[data-pos="${posId}"] .ballot-cat-max`);
-    if (posEl) posEl.textContent = `${current.length}/${max} selected`;
-    updateCount();
+    updateWizard();
+
+    // The race is now full (1-of-1, or the last required vote per category) —
+    // ease on to the next category shortly after the tap.
+    if (idx < 0 && current.length >= max && currentPosition() && currentPosition().id === posId) {
+      setTimeout(() => {
+        if (!animating
+            && currentPosition() && currentPosition().id === posId
+            && selectedFor(posId).length
+            && wizIndex < positions.length - 1) {
+          goToStep(1);
+        }
+      }, 300);
+    }
   }
 
   function updateCount() {
@@ -453,6 +559,7 @@
   // Screen 4: Thank you + celebration
   // ------------------------------------------------------------
   function showThanks() {
+    inBallot = false;
     setTitle(election.title);
     setBackVisible(true);
     content.innerHTML = `
@@ -560,6 +667,7 @@
   // Blocked / info states
   // ------------------------------------------------------------
   function showBlocked(msg, withBack) {
+    inBallot = false;
     if (window.pvhAudio) window.pvhAudio.playError();
     setTitle('Pulse Vote Hub');
     setBackVisible(true);
@@ -580,15 +688,26 @@
     if (backBtn) backBtn.style.display = visible ? '' : 'none';
   }
 
+  // Back: inside the wizard it steps back through the categories (first step
+  // returns to voter sign-in); at any other screen it returns to the picker.
   backBtn.addEventListener('click', () => {
-    election = null; voter = null; positions = []; candidates = []; selections = new Map();
+    if (inBallot) {
+      if (wizIndex > 0) { goToStep(-1); return; }
+      inBallot = false;
+      voter = null; positions = []; candidates = []; selections = new Map(); wizIndex = 0;
+      showAccess();
+      return;
+    }
+    election = null; voter = null; positions = []; candidates = []; selections = new Map(); wizIndex = 0;
     showPicker();
   });
 
-  // Exit to Dashboard returns to the officer app.
+  // Exit to Dashboard returns to the officer app — but on the LAN-served
+  // kiosk there is no dashboard, so it restarts the ballot for the next voter.
   $('kiosk-dashboard').addEventListener('click', () => {
     if (window.pvhKiosk) window.pvhKiosk.exit();
-    window.location.assign('dashboard.html');
+    if (window.pvh && window.pvh.serverMode) window.location.assign(window.location.pathname + window.location.search);
+    else window.location.assign('dashboard.html');
   });
 
   // Inline SVG-free check glyphs: replace ✓ with an icon if icons available.

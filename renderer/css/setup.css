@@ -64,6 +64,54 @@
   max-width: 100px;
 }
 
+/* Labeled "Votes per voter" field in the add-category row */
+.pmax-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  align-self: stretch;
+  justify-content: flex-end;
+}
+.pmax-field .pmax-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+.pmax-field .input-narrow {
+  max-width: none;
+  width: 88px;
+}
+
+/* Inline editable "votes per voter" editor on each category block */
+.position-max {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.pmax-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.pmax-edit .pmax-input {
+  width: 52px;
+  padding: 2px 6px;
+  font-size: var(--fs-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.pmax-edit .pmax-save {
+  padding: 2px 8px;
+  font-size: var(--fs-xs);
+}
+.pmax-edit input.is-invalid { border-color: var(--danger, #ef4444); }
+
 /* Add-category row fills the full card width */
 #add-position {
   flex-shrink: 0;

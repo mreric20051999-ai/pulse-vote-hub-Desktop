@@ -22,11 +22,12 @@ const station = require('./station');
 const results = require('./results');
 const merge = require('./merge');
 const messages = require('./messages');
+const distribution = require('./distribution');
 const { LanManager } = require('./lan');
 
 let lan = null;
 function getLan() {
-  if (!lan) lan = new LanManager({ getD: () => db.get(), version: app.getVersion() });
+  if (!lan) lan = new LanManager({ getD: () => db.get(), version: app.getVersion(), rendererDir });
   return lan;
 }
 
@@ -494,6 +495,11 @@ ipcMain.handle('election:position-remove', (_e, id, officerId) => {
   if (!pos) return { ok: false, error: 'Position not found' };
   return guardElection(pos.election_id, officerId, (actor) => election.removePosition(id, actor));
 });
+ipcMain.handle('election:position-update-max', (_e, id, maxVotes, officerId) => {
+  const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
+  if (!pos) return { ok: false, error: 'Position not found' };
+  return guardElection(pos.election_id, officerId, (actor) => election.setPositionMax(id, maxVotes, actor));
+});
 
 ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listCandidates(electionId, actor)));
 ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) => {
@@ -896,6 +902,84 @@ ipcMain.handle('messages:delete', (_e, id, officerId) => {
   if (!actor) return { ok: false, error: 'Not signed in' };
   try { return messages.del(id, actor); }
   catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---- Creator console: product distribution (admin-only) ----
+const adminGuard = (officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor || actor.role !== 'admin') return null;
+  return actor;
+};
+
+ipcMain.handle('dist:list', (_e, officerId) => {
+  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  try { return { ok: true, deployments: distribution.listDeployments() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('dist:add', (_e, fields, officerId) => {
+  const actor = adminGuard(officerId);
+  if (!actor) return { ok: false, error: 'Admins only' };
+  try { return distribution.addDeployment(fields, actor); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('dist:remove', (_e, id, officerId) => {
+  const actor = adminGuard(officerId);
+  if (!actor) return { ok: false, error: 'Admins only' };
+  try { return distribution.removeDeployment(id, actor); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('dist:this-computer', (_e, fields, officerId) => {
+  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  try { return { ok: true, computer: distribution.thisComputer(fields) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('dist:github', (_e, officerId) => {
+  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  return distribution.fetchReleases();
+});
+
+ipcMain.handle('dist:get-token', (_e, officerId) => {
+  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  const v = db.getConfig('github_token') || '';
+  return { ok: true, hasToken: !!v.trim() };
+});
+
+ipcMain.handle('dist:set-token', (_e, token, officerId) => {
+  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  const t = String(token || '').trim();
+  if (t) db.setConfig('github_token', t); else db.setConfig('github_token', '');
+  return { ok: true };
+});
+
+ipcMain.handle('dist:export-csv', async (_e, officerId) => {
+  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  try {
+    const rows = distribution.listDeployments();
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = ['Machine,Location,Platform,Version,Installed,Notes'];
+    for (const r of rows) {
+      lines.push([
+        cell(r.machine_name),
+        cell(r.location),
+        cell(r.platform),
+        cell(r.app_version),
+        cell(r.installed_at ? new Date(r.installed_at).toISOString() : ''),
+        cell(r.notes),
+      ].join(','));
+    }
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Installs Register (CSV)',
+      defaultPath: 'install-register.csv',
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+    fs.writeFileSync(res.filePath, lines.join('\n'), 'utf8');
+    return { ok: true, path: res.filePath };
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('messages:clear', (_e, officerId) => {

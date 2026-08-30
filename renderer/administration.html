@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="css/results.css">
   <link rel="stylesheet" href="css/merge.css">
   <link rel="stylesheet" href="css/lan.css">
+  <link rel="stylesheet" href="css/distribution.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -49,6 +50,7 @@
       <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
+      <a href="#distribution" class="sub-link" data-target="distribution"><span class="icon" data-icon="download"></span>Distribution</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -164,6 +166,10 @@
         <div id="lan-host-info" style="display:none;">
           <p class="text-muted lan-hint">Hub is running at <strong id="lan-address"></strong>. Other devices can connect there, or discover this device automatically &mdash; they will see <strong id="lan-advert-name"></strong>.</p>
           <p class="text-muted lan-hint">Connected devices: <strong id="lan-peer-list" class="lan-peer-list">none</strong></p>
+          <div class="lan-kiosk-box" id="lan-kiosk-box">
+            <p class="text-muted lan-hint"><strong>Ballot for browsers &mdash; no install:</strong> open one of these links on any laptop or desktop on this network to cast ballots.</p>
+            <ul class="lan-kiosk-links" id="lan-kiosk-links"></ul>
+          </div>
         </div>
       </div>
 
@@ -215,6 +221,107 @@
       <div id="integrity-report" class="integrity-report" style="display:none;"></div>
     </section>
 
+    <!-- Distribution: creator console (downloads + installs register) -->
+    <section class="card panel ofc-section" id="distribution">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Distribution</div>
+          <p class="text-muted panel-sub">Installer downloads and the local install register for the software itself. Admin-only — regular users never see this.</p>
+        </div>
+      </div>
+
+      <!-- Current-state summary -->
+      <div class="dist-kpis">
+        <div class="dist-kpi">
+          <div class="dist-kpi-num" id="dist-stat-installs">0</div>
+          <div class="dist-kpi-label">Installs recorded</div>
+        </div>
+        <div class="dist-kpi">
+          <div class="dist-kpi-num" id="dist-stat-downloads">0</div>
+          <div class="dist-kpi-label">Total downloads</div>
+        </div>
+        <div class="dist-kpi">
+          <div class="dist-kpi-num" id="dist-stat-releases">0</div>
+          <div class="dist-kpi-label">Releases</div>
+        </div>
+      </div>
+
+      <!-- Downloads -->
+      <div class="dist-card">
+        <div class="dist-card-head">
+          <div>
+            <div class="dist-card-title">Installer downloads</div>
+            <div class="dist-card-sub">Download counts from each release on GitHub. <span class="dist-repo">mreric20051999-ai/pulse-vote-hub-Desktop</span></div>
+          </div>
+          <div class="dist-card-actions">
+            <span class="dist-fetched" id="dist-fetched" hidden></span>
+            <button class="btn btn-secondary" id="dist-refresh-btn"><span class="icon btn-icon" data-icon="download"></span>Refresh downloads</button>
+          </div>
+        </div>
+
+        <form id="dist-token-form" class="dist-token">
+          <div class="field dist-token-field">
+            <label class="label" for="dist-token">GitHub token <em>(optional)</em></label>
+            <input class="input" id="dist-token" type="password" placeholder="For private repos only — leave blank for public" autocomplete="off">
+          </div>
+          <button type="submit" class="btn btn-ghost"><span class="icon btn-icon" data-icon="check"></span>Save</button>
+        </form>
+        <p class="dist-token-hint" id="dist-token-msg">Used only to read release counts. Stored on this device.</p>
+
+        <p class="auth-error" id="dist-github-msg"></p>
+        <div id="dist-releases">
+          <p class="text-muted hint">Click “Refresh downloads” to fetch download counts. This needs an internet connection.</p>
+        </div>
+      </div>
+
+      <!-- Install register -->
+      <div class="dist-card">
+        <div class="dist-card-head">
+          <div>
+            <div class="dist-card-title">Install register</div>
+            <div class="dist-card-sub">A local record of who has the software, so installs are tracked without any telemetry.</div>
+          </div>
+          <div class="dist-card-actions">
+            <button class="btn btn-secondary" id="dist-register-this-btn"><span class="icon btn-icon" data-icon="plus"></span>Register this computer</button>
+            <button class="btn btn-secondary" id="dist-export-btn"><span class="icon btn-icon" data-icon="download"></span>Export CSV</button>
+          </div>
+        </div>
+
+        <form id="dist-add-form" class="dist-form">
+          <div class="dist-form-grid">
+            <div class="field dist-f-machine">
+              <label class="label" for="dist-mach">Machine / user <b>*</b></label>
+              <input class="input" id="dist-mach" type="text" placeholder="e.g. School office PC 1" maxlength="80" required>
+            </div>
+            <div class="field">
+              <label class="label" for="dist-loc">Location</label>
+              <input class="input" id="dist-loc" type="text" placeholder="e.g. Accra campus" maxlength="80">
+            </div>
+            <div class="field">
+              <label class="label" for="dist-ver">App version</label>
+              <input class="input" id="dist-ver" type="text" placeholder="auto if blank" maxlength="30">
+            </div>
+            <div class="field">
+              <label class="label" for="dist-inst">Installed</label>
+              <input class="input" id="dist-inst" type="date" title="Defaults to today when blank">
+            </div>
+            <div class="field dist-f-notes">
+              <label class="label" for="dist-notes">Notes</label>
+              <input class="input" id="dist-notes" type="text" maxlength="160" placeholder="Optional">
+            </div>
+          </div>
+          <div class="dist-form-foot">
+            <span class="dist-form-hint">Fully local — these records never leave the device.</span>
+            <button type="submit" class="btn btn-primary" id="dist-add-btn"><span class="icon btn-icon" data-icon="plus"></span>Add install</button>
+          </div>
+        </form>
+
+        <div id="dist-rows">
+          <p class="text-muted hint">Nothing recorded yet. Add an entry above, or use “Register this computer”.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- My account -->
     <section class="card panel ofc-section" id="my-account">
       <div class="panel-head">
@@ -241,5 +348,6 @@
   <script src="js/merge.js"></script>
   <script src="js/lan.js"></script>
   <script src="js/integrity.js"></script>
+  <script src="js/distribution.js"></script>
 </body>
 </html>

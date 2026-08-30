@@ -75,6 +75,54 @@
       b.addEventListener('click', () => { window.location.assign(`vote.html?election=${encodeURIComponent(b.dataset.id)}`); }));
   }
 
+  // ---------- Browser ballot (LAN kiosk, shared hub) ----------
+  const kb = {
+    start: $('kb-start'), stop: $('kb-stop'), msg: $('kb-msg'), links: $('kb-links'),
+    stopped: $('kb-stopped'), running: $('kb-running'), port: $('kb-port'), votes: $('kb-votes'),
+  };
+  const hasLan = kb.start && window.pvh && typeof window.pvh.lanSetMode === 'function';
+
+  function renderKiosk(s) {
+    const host = s && s.mode === 'host';
+    if (!host) {
+      kb.stopped.style.display = '';
+      kb.running.style.display = 'none';
+      kb.msg.textContent = '';
+      return;
+    }
+    kb.stopped.style.display = 'none';
+    kb.running.style.display = '';
+    const urls = s.kioskUrls || [];
+    kb.links.innerHTML = urls.length
+      ? urls.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a><button type="button" class="btn btn-sm btn-ghost kb-copy" data-u="${esc(u)}">Copy</button></li>`).join('')
+      : '<li class="text-muted hint">No LAN address detected — check the network connection.</li>';
+    kb.links.querySelectorAll('.kb-copy').forEach((b) => {
+      b.addEventListener('click', () => {
+        const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(b.dataset.u).then(done, () => { window.prompt('Copy the link', b.dataset.u); done(); });
+        } else { window.prompt('Copy the link', b.dataset.u); done(); }
+      });
+    });
+    kb.votes.textContent = (s.stats && s.stats.votes) || 0;
+    kb.msg.textContent = '';
+  }
+
+  if (hasLan) {
+    kb.start.addEventListener('click', async () => {
+      kb.msg.textContent = '';
+      const res = await window.pvh.lanSetMode('host', { port: Number(kb.port.value) || 7380 });
+      if (!res || res.ok === false) kb.msg.textContent = (res && res.error) || 'Could not start the ballot server.';
+      else if (window.pvh.lanStatus) renderKiosk(await window.pvh.lanStatus());
+    });
+    kb.stop.addEventListener('click', async () => {
+      const res = await window.pvh.lanStop();
+      if (res && res.ok && window.pvh.lanStatus) renderKiosk(await window.pvh.lanStatus());
+    });
+    window.pvh.onLanStatus(renderKiosk);
+    if (window.pvh.lanStatus) window.pvh.lanStatus().then(renderKiosk);
+  }
+
   // ---------- Init ----------
   loadStats();
   renderActive();
