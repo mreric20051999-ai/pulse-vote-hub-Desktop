@@ -79,6 +79,95 @@
     return '<span class="pill">Not opened</span>';
   }
 
+  // Coordinator (admin/owner) run controls — the coordinator can open, close and
+  // submit ANY station, superseding the station officer's console operations.
+  function runButtons(s) {
+    const id = esc(s.id);
+    const btn = (label, cls, action) =>
+      '<button class="btn ' + cls + ' btn-sm" data-run="' + action + '" data-id="' + id + '">' + label + '</button>';
+    switch (s.status) {
+      case 'open':     return btn('Close / Grace', 'btn-amber', 'close') + ' ' + btn('Submit', 'btn-primary', 'submit') + ' ';
+      case 'queuing':  return btn('Close Queue Now', 'btn-amber', 'closeq') + ' ' + btn('Submit', 'btn-primary', 'submit') + ' ';
+      case 'counted':  return btn('Submit', 'btn-primary', 'submit') + ' ';
+      case 'submitted': return '<span class="text-muted" style="font-size:var(--fs-xs);">Sealed</span> ';
+      default:         return btn('Open Polls', 'btn-success', 'open') + ' ';
+    }
+  }
+
+  function officerName() {
+    return (session && session.name) || 'Coordinator';
+  }
+
+  // ---- Coordinator run controls ----
+  async function runOpen(s) {
+    if (!confirm('Open polls at "' + s.name + '" and record a zero report? The assigned officer can then check voters in.')) return;
+    const res = await window.pvh.openStationPolls(s.id, { officerName: officerName() });
+    if (res.ok) { window.pvhUI.toast('Polls opened at ' + s.name + '.', 'success'); renderStations(); }
+    else window.pvhUI.toast(res.error || 'Could not open polls', 'error');
+  }
+  async function runCloseQueueNow(s) {
+    if (!confirm('Close the queue at "' + s.name + '" now? Queued voters who have not cast will be unable to vote.')) return;
+    const res = await window.pvh.closeStationQueue(s.id, { officerName: officerName() });
+    if (res.ok) { window.pvhUI.toast('Queue closed at ' + s.name + '.', 'success'); renderStations(); }
+    else window.pvhUI.toast(res.error || 'Could not close queue', 'error');
+  }
+  function openGraceModal(s) {
+    window.__graceStation = s;
+    const hint = $('grace-max-hint');
+    const input = $('grace-min');
+    hint.textContent = '';
+    input.max = 120;
+    input.value = 30;
+    $('grace-overlay').hidden = false;
+    window.pvh.stationDashboard(currentElectionId, s.id).then((dash) => {
+      if (!dash.ok || !dash.election) return;
+      const def = dash.election.close_grace_minutes || 30;
+      const max = dash.election.max_close_grace_minutes || 120;
+      input.max = max;
+      input.value = def;
+      hint.textContent = 'Max allowed on this election: ' + max + ' minutes.';
+    });
+    input.focus();
+  }
+  async function confirmGrace() {
+    const s = window.__graceStation;
+    const max = parseInt($('grace-min').max, 10) || 120;
+    const grace = Math.max(0, parseInt($('grace-min').value, 10) || 0);
+    if (grace > max) { window.pvhUI.toast('Grace period exceeds the maximum of ' + max + ' minutes.', 'error'); return; }
+    $('grace-overlay').hidden = true;
+    const res = await window.pvh.closeStationPolls(s.id, { graceMinutes: grace, officerName: officerName() });
+    if (res.ok) { window.pvhUI.toast('Polls closed at ' + s.name + ' with ' + grace + ' min grace.', 'success'); renderStations(); }
+    else window.pvhUI.toast(res.error || 'Could not close polls', 'error');
+  }
+  async function runSubmit(s) {
+    const dash = await window.pvh.stationDashboard(currentElectionId, s.id);
+    if (!dash.ok) { window.pvhUI.toast(dash.error || 'Could not load station figures', 'error'); return; }
+    const stt = dash.stats || {};
+    const checkedIn = stt.checkedIn || 0;
+    const ballots = stt.ballots || 0;
+    const grace = stt.grace || 0;
+    const papers = ballots;
+    const checks = [
+      { ok: grace <= ballots, label: 'Grace-period votes (' + grace + ') do not exceed votes cast (' + ballots + ').' },
+      { ok: checkedIn >= ballots, label: 'Votes cast (' + ballots + ') do not exceed voters checked in (' + checkedIn + ').' },
+    ];
+    const figures = { verifiedVoters: checkedIn, votesCast: ballots, graceVotes: grace, ballotPapersUsed: papers, spoiltBallots: 0, rejectedBallots: 0 };
+    if (checks.some((c) => !c.ok)) {
+      window.pvhUI.toast('Figure checks failed for ' + s.name + ' — review before submitting.', 'error');
+      return;
+    }
+    if (!confirm('Seal and submit results for "' + s.name + '"?\n\nVerified voters: ' + checkedIn + '\nVotes cast: ' + ballots + '\nGrace votes: ' + grace + '\nPapers used: ' + papers)) return;
+    const res = await window.pvh.submitStationPacket(s.id, { figures: figures, checks: checks, officerName: officerName() });
+    if (res.ok) { window.pvhUI.toast('Results submitted for ' + s.name + '.', 'success'); renderStations(); }
+    else window.pvhUI.toast(res.error || 'Could not submit results', 'error');
+  }
+  function runAction(s) { return {
+    open: runOpen,
+    close: openGraceModal,
+    closeq: runCloseQueueNow,
+    submit: runSubmit,
+  }[s] || null; }
+
   async function renderStations() {
     const body = $('station-body');
     if (!currentElectionId) { body.innerHTML = '<p class="text-muted hint">Select a station election to configure its stations.</p>'; return; }
@@ -108,7 +197,8 @@
           '<td>' + esc(s.location || '—') + '</td>' +
           '<td>' + statusPill(s.status) + '</td>' +
           '<td><select class="input officer-assign" data-station="' + esc(s.id) + '" style="min-width:180px;">' + opts + '</select></td>' +
-          '<td><div class="td-actions"><button class="btn btn-danger btn-sm st-remove" data-id="' + esc(s.id) + '">Remove</button></div></td>' +
+          '<td><div class="td-actions">' + runButtons(s) +
+          '<button class="btn btn-danger btn-sm st-remove" data-id="' + esc(s.id) + '">Remove</button></div></td>' +
           '</tr>';
       }).join('') + '</tbody></table></div>';
 
@@ -138,6 +228,13 @@
         if (!res.ok) window.pvhUI.toast(res.error || 'Could not remove station', 'error');
         else window.pvhUI.toast('Station removed.', 'success');
         renderStations();
+      });
+    });
+    body.querySelectorAll('[data-run]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const st = stations.find((x) => x.id === btn.dataset.id);
+        const fn = runAction(btn.dataset.run);
+        if (st && fn) fn(st);
       });
     });
   }
@@ -210,6 +307,16 @@
     });
   }
 
+  function bindGraceModal() {
+    const overlay = $('grace-overlay');
+    function close() { overlay.hidden = true; window.__graceStation = null; }
+    $('grace-close').addEventListener('click', close);
+    $('grace-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) close(); });
+    $('grace-confirm').addEventListener('click', confirmGrace);
+  }
+
   const electionDD = buildSelectDropdown($('station-election-select'), (value) => {
     currentElectionId = value;
     renderStations();
@@ -219,4 +326,5 @@
   loadElectionOptions();
   bindAddStation();
   bindCreateOfficer();
+  bindGraceModal();
 })();

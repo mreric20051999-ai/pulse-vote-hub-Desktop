@@ -252,6 +252,7 @@ function deleteElection(id, actor) {
     d.prepare('DELETE FROM voters WHERE election_id = ?').run(id);
     d.prepare('DELETE FROM checkins WHERE election_id = ?').run(id);
     d.prepare('DELETE FROM stations WHERE election_id = ?').run(id);
+    d.prepare("UPDATE officers SET assigned_station_id = NULL, assigned_election_id = NULL WHERE assigned_election_id = ?").run(id);
     d.prepare('DELETE FROM elections WHERE id = ?').run(id);
   });
   try {

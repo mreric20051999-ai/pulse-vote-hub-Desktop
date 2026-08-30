@@ -36,7 +36,7 @@
       <div class="page-header">
         <div>
           <h1>Polling Stations</h1>
-          <p id="page-subtitle">Configure stations and assign a station officer to each.</p>
+          <p id="page-subtitle">Configure stations, assign a station officer to each, and run stations as coordinator — opening, closing and submitting any station supersedes the officer console.</p>
         </div>
         <div class="page-actions">
           <button class="btn btn-secondary" id="create-officer-btn"><span class="icon btn-icon" data-icon="users"></span>Create officer</button>
@@ -128,6 +128,31 @@
           <button type="submit" class="btn btn-primary" id="of-submit"><span class="icon btn-icon" data-icon="check"></span>Create officer</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Coordinator: set grace period when closing polls at a station -->
+  <div class="modal-overlay" id="grace-overlay" hidden>
+    <div class="modal add-station-modal">
+      <div class="modal-top">
+        <span class="icon modal-top-ic" data-icon="clock"></span>
+        <div class="modal-top-text">
+          <div class="modal-title">Close polls — grace period</div>
+          <div class="modal-sub">Grace lets voters already in line finish casting. Zero ends the queue immediately.</div>
+        </div>
+        <button type="button" class="icon modal-close" id="grace-close" aria-label="Close" data-icon="x"></button>
+      </div>
+      <div style="padding:8px 24px;">
+        <div class="field">
+          <label class="label" for="grace-min">Grace period (minutes)</label>
+          <input class="input" id="grace-min" type="number" min="0" max="120" value="30">
+          <div class="field-hint" id="grace-max-hint"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" id="grace-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="grace-confirm">Close Polls</button>
+      </div>
     </div>
   </div>
 
