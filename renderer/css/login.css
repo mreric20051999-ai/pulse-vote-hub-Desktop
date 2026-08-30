@@ -49,8 +49,8 @@
   margin-bottom: var(--space-6);
 }
 .auth-logo {
-  width: 72px;
-  height: 72px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
   margin-bottom: var(--space-3);
 }

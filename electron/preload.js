@@ -111,9 +111,13 @@ contextBridge.exposeInMainWorld('pvh', {
 
   // In-app messaging ("Speak to admin")
   sendMessage: (body) => ipcRenderer.invoke('messages:send', body, oid()),
+  replyMessage: (id, body) => ipcRenderer.invoke('messages:reply', id, body, oid()),
   listMessages: () => ipcRenderer.invoke('messages:list', oid()),
+  myMessages: () => ipcRenderer.invoke('messages:mine', oid()),
   unreadMessages: () => ipcRenderer.invoke('messages:unread', oid()),
+  unreadMine: () => ipcRenderer.invoke('messages:mine-unread', oid()),
   markMessageRead: (id) => ipcRenderer.invoke('messages:mark-read', id, oid()),
+  markMineRead: () => ipcRenderer.invoke('messages:mark-mine-read', oid()),
   deleteMessage: (id) => ipcRenderer.invoke('messages:delete', id, oid()),
   clearMessages: () => ipcRenderer.invoke('messages:clear', oid()),
 

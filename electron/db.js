@@ -161,6 +161,10 @@ CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
   from_officer_id TEXT,
   from_name TEXT NOT NULL,
+  from_officer TEXT,
+  to_officer TEXT,
+  to_officer_name TEXT,
+  reply_to_id TEXT,
   body TEXT NOT NULL,
   created_at INTEGER,
   read INTEGER DEFAULT 0
@@ -224,11 +228,19 @@ function migrate() {
   addColumn('voters', 'phone', 'TEXT');
   addColumn('elections', 'voter_scheme', 'TEXT');
   addColumn('checkins', 'synced', 'INTEGER DEFAULT 0');
+  addColumn('messages', 'from_officer', 'TEXT');
+  addColumn('messages', 'to_officer', 'TEXT');
+  addColumn('messages', 'to_officer_name', 'TEXT');
+  addColumn('messages', 'reply_to_id', 'TEXT');
   db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       from_officer_id TEXT,
       from_name TEXT NOT NULL,
+      from_officer TEXT,
+      to_officer TEXT,
+      to_officer_name TEXT,
+      reply_to_id TEXT,
       body TEXT NOT NULL,
       created_at INTEGER,
       read INTEGER DEFAULT 0

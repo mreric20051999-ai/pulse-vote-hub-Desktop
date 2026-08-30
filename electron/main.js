@@ -871,8 +871,22 @@ ipcMain.handle('lan:local-addresses', () => {
 // ---------- In-app messaging ("Speak to admin") ----------
 
 ipcMain.handle('messages:send', (_e, body, officerId) => {
-  try { return messages.send(resolveActor(officerId) ? officerId : null, body); }
-  catch (err) { return { ok: false, error: err.message }; }
+  try {
+    const res = messages.send(resolveActor(officerId) ? officerId : null, body);
+    if (res.ok) { try { getLan().onLocalMessage(res.message); } catch (err) { console.error('LAN message hook failed:', err.message); } }
+    return res;
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Admin-only: reply to a message (opens/continues a thread).
+ipcMain.handle('messages:reply', (_e, id, body, officerId) => {
+  try {
+    const actor = resolveActor(officerId);
+    if (!actor || actor.role !== 'admin') return { ok: false, error: 'Admins only' };
+    const res = messages.replyTo(id, actor, body);
+    if (res.ok) { try { getLan().onLocalMessage(res.message); } catch (err) { console.error('LAN message hook failed:', err.message); } }
+    return res;
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Admin-only: list inbox + unread count. Non-admins get an empty inbox.
@@ -883,10 +897,31 @@ ipcMain.handle('messages:list', (_e, officerId) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
+// Any officer: their own conversation (sent notes + replies addressed to them).
+ipcMain.handle('messages:mine', (_e, officerId) => {
+  if (!resolveActor(officerId)) return { ok: true, messages: [] };
+  try { return { ok: true, messages: messages.listMine(officerId) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('messages:unread', (_e, officerId) => {
   const actor = resolveActor(officerId);
   if (!actor || actor.role !== 'admin') return { ok: true, count: 0 };
   try { return { ok: true, count: messages.unreadCount() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Any officer: count of replies addressed to them that they haven't read.
+ipcMain.handle('messages:mine-unread', (_e, officerId) => {
+  if (!resolveActor(officerId)) return { ok: true, count: 0 };
+  try { return { ok: true, count: messages.unreadMine(officerId) }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Any officer: mark replies addressed to them as read (opens the thread view).
+ipcMain.handle('messages:mark-mine-read', (_e, officerId) => {
+  if (!resolveActor(officerId)) return { ok: false, error: 'Not signed in' };
+  try { return messages.markMineRead(officerId); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 

@@ -292,6 +292,25 @@ Hub.prototype._handleMessage = function (ws, msg) {
       break;
     }
 
+    case 'message': {
+      const rec = {
+        id: msg.id, from_officer_id: msg.from_officer_id, from_name: msg.from_name,
+        from_officer: msg.from_officer, to_officer: msg.to_officer,
+        to_officer_name: msg.to_officer_name, reply_to_id: msg.reply_to_id,
+        body: msg.body, created_at: msg.created_at, read: msg.read === 1 ? 1 : 0,
+      };
+      const res = sync.recordRemoteMessage(this.d, rec);
+      if (!res.ok) {
+        send({ t: 'conflict', type: 'message', ref: { id: msg.id }, code: res.reason, reason: 'Invalid message' });
+        return;
+      }
+      this._broadcast({ t: 'broadcast', type: 'message', payload: rec }, ws);
+      send({ t: 'accepted', type: 'message', ref: { id: msg.id } });
+      this._touch();
+      this._audit('lan:message', `"Speak to admin" message over LAN from ${msg.from_name || 'peer'}`);
+      break;
+    }
+
     case 'get_voter': {
       const state = sync.buildVoterState(this.d, msg.election_id, msg.voter_id);
       send({ t: 'voter_state', election_id: msg.election_id, state });

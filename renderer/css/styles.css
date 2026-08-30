@@ -1205,6 +1205,42 @@ tbody tr {
 }
 .pvh-speak-count { font-size: 12px; color: var(--text-dim); }
 .pvh-speak-foot .btn { min-width: 130px; }
+.pvh-speak-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.pvh-speak-empty {
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.pvh-speak-msg {
+  max-width: 88%;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.pvh-speak-mine { align-self: flex-end; }
+.pvh-speak-admin {
+  align-self: flex-start;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.pvh-speak-msg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: 4px;
+}
+.pvh-speak-msg-from { font-size: 12px; font-weight: var(--fw-semibold); color: var(--text); }
+.pvh-speak-msg-time { margin-left: auto; font-size: 10px; color: var(--text-dim); }
+.pvh-speak-msg-body { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-muted); white-space: pre-wrap; word-break: break-word; }
 
 /* ---------- Admin inbox (Administration > Inbox) ---------- */
 
@@ -1291,3 +1327,44 @@ tbody tr {
   background: var(--danger-soft);
   color: var(--danger);
 }
+.msg-reply {
+  margin-left: 26px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  cursor: default;
+}
+.msg-reply:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.msg-reply-mark { color: var(--accent); margin-right: 1px; }
+.msg-from-admin { color: var(--accent); }
+.msg-reply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+}
+.msg-reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 4px 0 0 26px;
+  padding: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.msg-reply-box textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.msg-reply-box textarea:focus { outline: none; border-color: var(--accent); }
+.msg-reply-actions { display: flex; justify-content: flex-end; gap: var(--space-2); }

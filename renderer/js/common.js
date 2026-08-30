@@ -15,6 +15,17 @@
 
   const ic = (name, size) => (window.pvhIcons && window.pvhIcons.icon(name, size || 18)) || '';
   const roleLabel = (r) => (r === 'admin' ? 'Administrator' : 'Coordinator');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function timeAgo(ts) {
+    const sec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return min + 'm ago';
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return hr + 'h ago';
+    const day = Math.floor(hr / 24);
+    return day === 1 ? 'yesterday' : day + 'd ago';
+  }
   const initials = (name) =>
     String(name || '')
       .trim()
@@ -76,7 +87,7 @@
           <button type="button" class="profile-item" role="menuitem" data-action="privacy">${ic('privacy')} Privacy policy</button>
           ${isAdmin
             ? '<button type="button" class="profile-item" role="menuitem" data-action="inbox">' + ic('mail') + ' Admin inbox <span class="profile-badge" id="inbox-badge" hidden></span></button>'
-            : '<button type="button" class="profile-item" role="menuitem" data-action="speak">' + ic('message') + ' Speak to admin</button>'}
+            : '<button type="button" class="profile-item" role="menuitem" data-action="speak">' + ic('message') + ' Speak to admin <span class="profile-badge" id="speak-badge" hidden></span></button>'}
           <button type="button" class="profile-item" role="menuitem" data-action="website">${ic('globe')} Visit website</button>
           <button type="button" class="profile-item" role="menuitem" data-action="blog">${ic('newspaper')} Blog</button>
           <div class="profile-divider"></div>
@@ -87,6 +98,7 @@
     const trigger = footer.querySelector('#profile-trigger');
     const menu = footer.querySelector('#profile-menu');
     window.pvhUI.inboxBadge = footer.querySelector('#inbox-badge');
+    window.pvhUI.speakBadge = footer.querySelector('#speak-badge');
 
     function setOpen(open) {
       menu.hidden = !open;
@@ -172,6 +184,17 @@
     }).catch(() => {});
   }
 
+  function refreshSpeakBadge() {
+    if (session.role === 'admin' || !window.pvh || !window.pvh.unreadMine) return;
+    window.pvh.unreadMine().then((res) => {
+      const n = (res && res.ok) ? res.count : 0;
+      if (window.pvhUI.speakBadge) {
+        window.pvhUI.speakBadge.textContent = n;
+        window.pvhUI.speakBadge.hidden = !(n > 0);
+      }
+    }).catch(() => {});
+  }
+
   // ---------- Toast + busy feedback ----------
 
   const toastsRoot = (() => {
@@ -219,7 +242,7 @@
     }
   }
 
-  window.pvhUI = { toast, busy, inboxBadge: null, refreshInboxBadge };
+  window.pvhUI = { toast, busy, inboxBadge: null, speakBadge: null, refreshInboxBadge, refreshSpeakBadge };
 
   // ---------- Shared modal ----------
 
@@ -387,32 +410,71 @@
   function speakModal() {
     openModal({
       title: 'Speak to admin',
-      width: '520px',
+      width: '560px',
       body: `
         <div class="pvh-speak">
-          <p class="pvh-speak-hint">Write a short note for your admin. It is saved on this device and read from Administration > Inbox.</p>
-          <textarea id="speak-body" class="pvh-speak-input" maxlength="2000" rows="5" placeholder="Type your message…"></textarea>
+          <p class="pvh-speak-hint">Your messages to the admin, and their replies. Send a new note below.</p>
+          <div class="pvh-speak-log" id="speak-log">
+            <div class="pvh-speak-empty">Loading…</div>
+          </div>
+          <textarea id="speak-body" class="pvh-speak-input" maxlength="2000" rows="3" placeholder="Type your message…"></textarea>
           <div class="pvh-speak-foot">
             <span class="pvh-speak-count" id="speak-count">0 / 2000</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="speak-refresh">Refresh</button>
             <button type="button" class="btn btn-primary" id="speak-send">Send message</button>
           </div>
         </div>`,
       onMount(body, close) {
+        const logEl = body.querySelector('#speak-log');
         const ta = body.querySelector('#speak-body');
         const count = body.querySelector('#speak-count');
         const send = body.querySelector('#speak-send');
+        const refresh = body.querySelector('#speak-refresh');
+        const mineLogin = (session && session.officer_id) || '';
+
+        function msgHtml(m, isMine) {
+          const label = isMine ? 'You' : m.from_name + (m.reply_to_id ? ' (Admin)' : '');
+          return `
+            <div class="pvh-speak-msg ${isMine ? 'pvh-speak-mine' : 'pvh-speak-admin'}">
+              <div class="pvh-speak-msg-head">
+                <span class="pvh-speak-msg-from">${esc(label)}</span>
+                <span class="pvh-speak-msg-time">${timeAgo(m.created_at)}</span>
+              </div>
+              <p class="pvh-speak-msg-body">${esc(m.body)}</p>
+            </div>`;
+        }
+
+        function load() {
+          if (!window.pvh || !window.pvh.myMessages) return;
+          window.pvh.myMessages().then((res) => {
+            const all = (res && res.ok) ? res.messages : [];
+            if (!all.length) {
+              logEl.innerHTML = '<div class="pvh-speak-empty">No messages yet. Write one below and it will appear in Administration &gt; Inbox.</div>';
+            } else {
+              logEl.innerHTML = all.map((m) => msgHtml(m, m.from_officer === mineLogin)).join('');
+            }
+            logEl.scrollTop = logEl.scrollHeight;
+            if (window.pvh.markMineRead) window.pvh.markMineRead().then(() => refreshSpeakBadge());
+          }).catch(() => {});
+        }
+
         ta.addEventListener('input', () => { count.textContent = ta.value.length + ' / 2000'; });
-        ta.focus();
+        refresh.addEventListener('click', load);
         send.addEventListener('click', async () => {
           if (!window.pvh || !window.pvh.sendMessage) { toast('Messaging is unavailable.', 'error'); return; }
+          if (!ta.value.trim()) { toast('Write a message first.', 'error'); return; }
           const res = await busy(send, 'Sending…', () => window.pvh.sendMessage(ta.value));
           if (res && res.ok) {
+            ta.value = '';
+            count.textContent = '0 / 2000';
             toast('Message sent to the admin.', 'success');
-            close();
+            load();
           } else {
             toast((res && res.error) || 'Could not send the message.', 'error');
           }
         });
+        ta.focus();
+        load();
       },
     });
   }
@@ -463,5 +525,8 @@
   if (session.role === 'admin') {
     refreshInboxBadge();
     setInterval(refreshInboxBadge, 20000);
+  } else {
+    refreshSpeakBadge();
+    setInterval(refreshSpeakBadge, 20000);
   }
 })();

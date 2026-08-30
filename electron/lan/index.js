@@ -204,6 +204,23 @@ LanManager.prototype.onLocalUnvote = function (electionId, voterId) {
   }
 };
 
+// A "Speak to admin" message written locally must reach LAN peers like votes,
+// so an admin on a connected device sees it and can reply.
+LanManager.prototype.onLocalMessage = function (rec) {
+  if (!rec) return;
+  const clean = {
+    id: rec.id, from_officer_id: rec.from_officer_id, from_name: rec.from_name,
+    from_officer: rec.from_officer, to_officer: rec.to_officer,
+    to_officer_name: rec.to_officer_name, reply_to_id: rec.reply_to_id,
+    body: rec.body, created_at: rec.created_at, read: rec.read === 1 ? 1 : 0,
+  };
+  if (this.mode === 'host' && this.hub) {
+    this.hub.broadcastLocal('message', clean);
+  } else if (this.mode === 'client' && this.peer) {
+    this.peer.enqueueLocal('message', clean);
+  }
+};
+
 LanManager.prototype.discovers = function (ms) {
   return discovery.scan(ms || 4000);
 };

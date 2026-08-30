@@ -69,7 +69,7 @@ function enqueue(d, type, payload) {
 
 function listQueue(d) {
   return d.prepare('SELECT id, type, payload FROM lan_queue ORDER BY id').all()
-    .map((r) => Object.assign({ id: r.id, type: r.type }, JSON.parse(r.payload)));
+    .map((r) => Object.assign({ _rowId: r.id, id: r.id, type: r.type }, JSON.parse(r.payload)));
 }
 
 function dequeue(d, id) {
@@ -285,6 +285,7 @@ function applySnapshot(d, snap) {
       d.prepare('DELETE FROM votes WHERE election_id = ? AND synced = 0').run(electionId);
     })();
   }
+  for (const m of snap.messages || []) recordRemoteMessage(d, m);
   return true;
 }
 
@@ -319,6 +320,44 @@ function effectiveStatus(election) {
   if (election.start_date && Number(election.start_date) > now && status === 'active') status = 'upcoming';
   if (election.end_date && Number(election.end_date) < now && status === 'active') status = 'closed';
   return status;
+}
+
+// ---------- in-app messaging sync (host ↔ client) ----------
+//
+// Messages are standalone rows keyed by their UUID, so they travel verbatim
+// (no symbolic id remapping like votes). Officers are matched across machines
+// by login id + name, not by machine-local internal ids.
+
+function listMessagesSync(d) {
+  return d.prepare(
+    'SELECT id, from_officer_id, from_name, from_officer, to_officer, to_officer_name, reply_to_id, body, created_at, read FROM messages ORDER BY created_at ASC'
+  ).all();
+}
+
+function recordRemoteMessage(d, rec) {
+  if (!rec || !rec.id || !rec.body) return { ok: false, reason: 'missing fields' };
+  const clean = {
+    id: String(rec.id),
+    from_officer_id: rec.from_officer_id ? String(rec.from_officer_id) : null,
+    from_name: String(rec.from_name || ''),
+    from_officer: rec.from_officer ? String(rec.from_officer) : null,
+    to_officer: rec.to_officer ? String(rec.to_officer) : null,
+    to_officer_name: rec.to_officer_name ? String(rec.to_officer_name) : null,
+    reply_to_id: rec.reply_to_id ? String(rec.reply_to_id) : null,
+    body: String(rec.body),
+    created_at: Number(rec.created_at) || Date.now(),
+    read: rec.read === 1 ? 1 : 0,
+  };
+  d.prepare(`
+    INSERT INTO messages (id, from_officer_id, from_name, from_officer, to_officer, to_officer_name, reply_to_id, body, created_at, read)
+    VALUES (@id, @from_officer_id, @from_name, @from_officer, @to_officer, @to_officer_name, @reply_to_id, @body, @created_at, @read)
+    ON CONFLICT(id) DO UPDATE SET
+      from_name = excluded.from_name,
+      to_officer_name = excluded.to_officer_name,
+      body = excluded.body,
+      read = excluded.read
+  `).run(clean);
+  return { ok: true };
 }
 
 // ---------- snapshot builder (hub-side) ----------
@@ -357,7 +396,7 @@ function buildSnapshot(d) {
       voters, votes, checkins,
     });
   }
-  return { elections: out };
+  return { elections: out, messages: listMessagesSync(d) };
 }
 
 // Authoritative state for one voter (used to resolve a conflict).
@@ -437,6 +476,7 @@ module.exports = {
   recordRemoteVote,
   recordRemoteCheckin,
   recordRemoteUnvote,
+  recordRemoteMessage,
   applyRemoteVote,
   applyRemoteCheckin,
   applyRemoteUnvote,

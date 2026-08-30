@@ -168,6 +168,8 @@ Peer.prototype._onBroadcast = function (msg) {
       if (msg.payload) sync.applyRemoteCheckin(d, msg.payload);
     } else if (msg.type === 'unvote') {
       if (msg.payload) sync.applyRemoteUnvote(d, msg.payload);
+    } else if (msg.type === 'message') {
+      if (msg.payload) sync.recordRemoteMessage(d, msg.payload);
     }
   } catch (err) {
     this.lastError = err.message;
@@ -191,9 +193,10 @@ Peer.prototype.flushPending = function (done) {
   let items;
   try { items = sync.listQueue(this.d); } catch (e) { items = []; }
   for (const raw of items) {
-    // listQueue spreads the stored payload onto the item, so strip the row
-    // bookkeeping and replay the exact event the peer would have sent live.
-    const { id, type, ...fields } = Object.assign({}, raw);
+    // listQueue spreads the stored payload onto the item, keeping the row id
+    // as _rowId. Domain events that carry their own `id` (messages) must keep
+    // it in the frame; strip only the row bookkeeping.
+    const { _rowId: _row, type, ...fields } = Object.assign({}, raw);
     this._send({ t: type, ...fields });
   }
   if (typeof done === 'function') done();
@@ -208,10 +211,12 @@ Peer.prototype._dequeueFor = function (type, ref) {
     const i = JSON.parse(JSON.stringify(item));
     if (ref && ref.election_id && ref.voter_id) {
       if (i.election_id === ref.election_id && i.voter_id === ref.voter_id) sync.dequeue(d, item.id);
-    } else if (!i.election_id && !i.voter_id) {
+    } else if (ref && ref.id) {
+      if (String(i.id) === String(ref.id)) sync.dequeue(d, i._rowId != null ? i._rowId : i.id);
+    } else if (!i.election_id && !i.voter_id && !i.id) {
       // No hub ref to match against: only drop events that are themselves
       // unaddressable rather than the entire queue of that type.
-      sync.dequeue(d, item.id);
+      sync.dequeue(d, i._rowId != null ? i._rowId : i.id);
     }
   }
 };
