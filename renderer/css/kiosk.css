@@ -218,6 +218,23 @@
   letter-spacing: 0.12em;
   font-size: var(--fs-xl);
 }
+.kiosk-panel .vk-station-loc {
+  color: var(--muted);
+  font-weight: var(--fw-normal);
+}
+.kiosk-panel .vk-station-status {
+  margin-left: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: var(--success);
+}
+.kiosk-panel .vk-station-status.queuing {
+  background: var(--warning, #f59e0b);
+}
 
 
 /* ---------- Kiosk ballot ---------- */

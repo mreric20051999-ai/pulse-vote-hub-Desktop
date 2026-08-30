@@ -217,7 +217,7 @@
         err.style.display = '';
         return;
       }
-      renderRecovered(res.voter);
+      renderRecovered(res);
     }
 
     $('vk-verify-submit').addEventListener('click', submit);
@@ -228,7 +228,9 @@
     idInput.focus();
   }
 
-  function renderRecovered(v) {
+  function renderRecovered(res) {
+    const v = res.voter;
+    const st = res.station;
     if (v.has_voted) { showBlocked('This voter has already cast a ballot in this election.', true); return; }
     setTitle(election.title);
     setBackVisible(true);
@@ -243,6 +245,10 @@
         </div>
         ${v.name ? `<div class="vk-field"><label>Name</label><div class="vk-recovered-value">${esc(v.name)}</div></div>` : ''}
         ${v.phone ? `<div class="vk-field"><label>Phone</label><div class="vk-recovered-value">${esc(v.phone)}</div></div>` : ''}
+        ${st ? `<div class="vk-field"><label>Polling station</label>
+          <div class="vk-recovered-value">${esc(st.name)}${st.location ? ` <span class="vk-station-loc">(${esc(st.location)})</span>` : ''}
+            <span class="vk-station-status ${st.status}">${st.status === 'queuing' ? 'Grace window — polls closing' : 'Polls open'}</span>
+          </div></div>` : ''}
         <div class="vk-field">
           <label>Password</label>
           <div class="vk-recovered-value vk-recovered-password">${esc(v.password || '—')}</div>

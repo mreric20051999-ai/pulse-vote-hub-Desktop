@@ -5,21 +5,19 @@
     setup: $('setup-view'),
     login: $('login-view'),
     adminSetup: $('admin-setup-view'),
-    adminLogin: $('admin-login-view'),
   };
 
   const errors = {
     setup: $('setup-error'),
     login: $('login-error'),
     adminSetup: $('admin-setup-error'),
-    adminLogin: $('admin-login-error'),
   };
 
   function show(name) {
     Object.entries(views).forEach(([k, el]) => { el.hidden = (k !== name); });
   }
   function focus(name) {
-    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name', adminLogin: 'admin-login-id' };
+    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name' };
     const el = $(map[name]);
     if (el) el.focus();
   }
@@ -68,12 +66,15 @@
     }
   });
 
-  // ---- Admin-mode routing (toggle links) ----
+  // ---- Admin-mode routing (setup toggle) ----
+  // There is no separate administrator sign-in any more: every account signs
+  // in through the single form. The first-run toggle only opens admin setup
+  // while no administrator exists yet.
   function openAdminSetupOrLogin() {
     window.pvh.hasAdmin().then((adminExists) => {
       if (adminExists) {
-        show('adminLogin');
-        focus('adminLogin');
+        show('login');
+        focus('login');
       } else {
         show('adminSetup');
         focus('adminSetup');
@@ -81,10 +82,8 @@
     });
   }
 
-  $('login-admin-link').addEventListener('click', openAdminSetupOrLogin);
   $('setup-admin-link').addEventListener('click', openAdminSetupOrLogin);
   $('admin-setup-back').addEventListener('click', () => { show('setup'); focus('setup'); });
-  $('admin-login-back').addEventListener('click', () => { show('login'); focus('login'); });
 
   // ---- Coordinator setup ----
   $('setup-form').addEventListener('submit', async (e) => {
@@ -126,9 +125,9 @@
     });
 
     if (res.ok) {
-      show('adminLogin');
-      $('admin-login-id').value = res.officer.officer_id;
-      $('admin-login-pass').focus();
+      show('login');
+      $('login-id').value = res.officer.officer_id;
+      $('login-pass').focus();
     } else {
       errors.adminSetup.textContent = res.error || 'Setup failed';
       btn.disabled = false;
@@ -163,35 +162,6 @@
       applyAuthResult(res, errors.login, $('login-btn'), 'Sign in');
       $('login-pass').value = '';
       $('login-pass').focus();
-    }
-  });
-
-  // ---- Admin login ----
-  $('admin-login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    errors.adminLogin.textContent = '';
-    const btn = $('admin-login-btn');
-    btn.disabled = true;
-    btn.textContent = 'Signing in...';
-
-    const res = await window.pvh.login({
-      officerId: $('admin-login-id').value,
-      password: $('admin-login-pass').value,
-    });
-
-    if (res.ok) {
-      if (res.officer.role !== 'admin') {
-        errors.adminLogin.textContent = 'This account is not an administrator.';
-        btn.disabled = false;
-        btn.textContent = 'Sign in';
-        $('admin-login-pass').value = '';
-        return;
-      }
-      completeLogin(res.officer);
-    } else {
-      applyAuthResult(res, errors.adminLogin, $('admin-login-btn'), 'Sign in');
-      $('admin-login-pass').value = '';
-      $('admin-login-pass').focus();
     }
   });
 })();

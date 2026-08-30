@@ -60,7 +60,6 @@
         <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-btn">Sign in</button>
       </form>
       <p class="auth-error" id="login-error"></p>
-      <button class="btn btn-ghost btn-block admin-toggle" id="login-admin-link">Administrator sign in</button>
     </div>
 
     <!-- Administrator setup (superuser) -->
@@ -84,25 +83,6 @@
       </form>
       <p class="auth-error" id="admin-setup-error"></p>
       <button class="btn btn-ghost btn-block admin-toggle" id="admin-setup-back">Back to sign in</button>
-    </div>
-
-    <!-- Administrator login (superuser) -->
-    <div id="admin-login-view" class="auth-view" hidden>
-      <h2 class="auth-heading">Administrator sign in</h2>
-      <p class="auth-hint">Enter your administrator ID and password.</p>
-      <form id="admin-login-form">
-        <div class="field">
-          <label class="label" for="admin-login-id">Admin ID</label>
-          <input class="input" id="admin-login-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
-        </div>
-        <div class="field">
-          <label class="label" for="admin-login-pass">Password</label>
-          <input class="input" id="admin-login-pass" type="password" autocomplete="current-password" placeholder="Your password">
-        </div>
-        <button type="submit" class="btn btn-primary btn-lg btn-block" id="admin-login-btn">Sign in</button>
-      </form>
-      <p class="auth-error" id="admin-login-error"></p>
-      <button class="btn btn-ghost btn-block admin-toggle" id="admin-login-back">Back to officer sign in</button>
     </div>
 
     <div class="auth-footer">Secure Offline Voting &middot; <span id="auth-version"></span> &middot; <a href="guide.html" class="guide-link">User guide</a></div>

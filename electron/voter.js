@@ -288,19 +288,34 @@ function verifyVoterDetails(electionId, { voterId, name, phone } = {}) {
   let voter;
   if (scheme === 'name-index') {
     voter = d.prepare(
-      "SELECT voter_id, name, phone, plain_password, assigned_station, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ? AND LOWER(name) = LOWER(?)"
+      "SELECT voter_id, name, phone, plain_password, assigned_station, election_id, station_id, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ? AND LOWER(name) = LOWER(?)"
     ).get(electionId, vid, nameVal);
   } else if (scheme === 'index-phone') {
     voter = d.prepare(
-      "SELECT voter_id, name, phone, plain_password, assigned_station, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ? AND phone IS NOT NULL AND LOWER(phone) = LOWER(?)"
+      "SELECT voter_id, name, phone, plain_password, assigned_station, election_id, station_id, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ? AND phone IS NOT NULL AND LOWER(phone) = LOWER(?)"
     ).get(electionId, vid, phoneVal);
   } else {
     voter = d.prepare(
-      "SELECT voter_id, name, phone, plain_password, assigned_station, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ?"
+      "SELECT voter_id, name, phone, plain_password, assigned_station, election_id, station_id, has_voted FROM voters WHERE election_id = ? AND UPPER(voter_id) = ?"
     ).get(electionId, vid);
   }
 
   if (!voter) return { ok: false, error: 'No voter matches those details. Check them and try again.', code: 'no-match' };
+
+  // Station elections: surface the voter's polling station during password
+  // recovery, and only release credentials once polls at that station are
+  // open (or in the grace window). Mirrors the cast-time gate so voters and
+  // the ballot desk see the check before a ballot is ever started.
+  let stationInfo = null;
+  if (election && election.type === 'station') {
+    const st = station.resolveVoterStation(voter);
+    if (!st) return { ok: false, error: 'This voter is not assigned to a polling station.', code: 'no-station' };
+    const eff = station.effectiveStatus(st);
+    if (!station.isOpen(eff)) {
+      return { ok: false, error: `Polls at “${st.name}” are not yet open for voting.`, code: 'station-not-open' };
+    }
+    stationInfo = { id: st.id, name: st.name, location: st.location || '', status: eff };
+  }
 
   return {
     ok: true,
@@ -312,6 +327,7 @@ function verifyVoterDetails(electionId, { voterId, name, phone } = {}) {
       assigned_station: voter.assigned_station,
       has_voted: !!voter.has_voted,
     },
+    station: stationInfo,
   };
 }
 
