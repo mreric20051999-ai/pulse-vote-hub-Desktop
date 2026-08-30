@@ -10,8 +10,13 @@ directories:
 
 files:
   - electron/**/*
-  - renderer/**/*
   - package.json
+
+# renderer must live OUTSIDE the asar so loadFile and the LAN kiosk's static
+# mounts (express) can read it from real disk.
+extraResources:
+  - from: renderer
+    to: renderer
 
 asar: true
 npmRebuild: true
