@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('pvh', {
   unvoteVoter: (eid, vid) => ipcRenderer.invoke('voter:unvote', eid, vid, oid()),
   verifyVoter: (eid, vid, pwd) => ipcRenderer.invoke('voter:verify', eid, vid, pwd),
   verifyVoterDetails: (eid, details) => ipcRenderer.invoke('voter:verify-details', eid, details),
-  castVote: (eid, vid, sel) => ipcRenderer.invoke('voter:cast', eid, vid, sel),
+  castVote: (eid, vid, sel, station) => ipcRenderer.invoke('voter:cast', eid, vid, sel, station),
   exportVoters: (eid, format) => ipcRenderer.invoke('voter:export', { electionId: eid, format }, oid()),
 
   listStations: (eid) => ipcRenderer.invoke('station:list', eid, oid()),

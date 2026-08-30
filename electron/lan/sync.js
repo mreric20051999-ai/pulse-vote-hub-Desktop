@@ -59,6 +59,36 @@ function voterByVid(d, electionId, voterId) {
     .get(electionId, String(voterId || '').trim().toUpperCase()) || null;
 }
 
+// ---------- hub-side station resolution (mirrors station.js) ----------
+// Kept in sync.js so the LAN layer stays dependency-free under plain Node.
+
+function stationRowsFor(d, electionId) {
+  return d.prepare('SELECT * FROM stations WHERE election_id = ?').all(electionId);
+}
+function stationRefMatch(s, ref) {
+  const label = String(ref || '').trim().toLowerCase();
+  return !!label && [s.id, s.code, s.name].filter(Boolean).some((k) => String(k).toLowerCase() === label);
+}
+// The station a voter is registered to (by station_id or assigned_station label).
+function stationForVoter(d, electionId, voterRow) {
+  const rows = stationRowsFor(d, electionId);
+  if (voterRow.station_id) {
+    const byId = rows.find((s) => s.id === voterRow.station_id);
+    if (byId) return byId;
+  }
+  if (!voterRow.assigned_station) return null;
+  return rows.find((s) => stationRefMatch(s, voterRow.assigned_station)) || null;
+}
+function stationResolveRef(d, electionId, ref) {
+  return stationRowsFor(d, electionId).find((s) => stationRefMatch(s, ref)) || null;
+}
+function stationEffective(s, now = Date.now()) {
+  if (!s) return 'not_opened';
+  if (s.status === 'queuing' && s.grace_ends_at && Number(s.grace_ends_at) <= now) return 'counted';
+  return s.status || 'not_opened';
+}
+function isStationOpen(s) { const x = stationEffective(s); return x === 'open' || x === 'queuing'; }
+
 // ---------- offline queue (lan_queue) ----------
 
 function enqueue(d, type, payload) {
@@ -128,7 +158,7 @@ function scrubbedNow(ts) {
 // A voter's ballot arrives from a peer as symbolic selections. Validated and
 // written here the same way the kiosk path writes it.
 function recordRemoteVote(d, electionId, payload) {
-  const { voter_id: voterId, device_id: deviceId, selections = [] } = payload || {};
+  const { voter_id: voterId, device_id: deviceId, selections = [], station: stationRef } = payload || {};
   const election = d.prepare('SELECT id, type, status, start_date, end_date FROM elections WHERE id = ?').get(electionId);
   if (!election) return { ok: false, code: 'no-election', reason: 'Election not found on this device' };
   if (effectiveStatus(election) !== 'active') {
@@ -139,6 +169,21 @@ function recordRemoteVote(d, electionId, payload) {
   if (voterRow.has_voted) return { ok: false, code: 'already-voted', reason: 'Voter already voted on at least one device' };
   if (!selections.length) return { ok: false, code: 'empty', reason: 'No selections provided' };
 
+  // Station elections mirror castVote: the ballot must carry the voter's own
+  // station, that station must be open/queuing here, and the voter must already
+  // be checked in so nobody can vote straight off the street at any station.
+  let stationId = null;
+  if (election.type === 'station') {
+    const st = stationForVoter(d, electionId, voterRow);
+    if (!st) return { ok: false, code: 'no-station', reason: 'Voter is not assigned to a polling station on this device' };
+    if (!stationRef) return { ok: false, code: 'no-station', reason: 'Ballot must be opened for a specific polling station' };
+    const ctx = stationResolveRef(d, electionId, stationRef);
+    if (!ctx || ctx.id !== st.id) return { ok: false, code: 'wrong-station', reason: 'Voter registered to a different station' };
+    if (!isStationOpen(st)) return { ok: false, code: 'station-not-open', reason: 'Polls at this station are not accepting ballots' };
+    if (!voterRow.checked_in) return { ok: false, code: 'not-checked-in', reason: 'Voter must be checked in before casting' };
+    stationId = st.id;
+  }
+
   const resolved = [];
   const tx = d.transaction(() => {
     for (const sel of selections) {
@@ -146,7 +191,7 @@ function recordRemoteVote(d, electionId, payload) {
       if (!cand) {
         return { ok: false, code: 'invalid', reason: `Unknown candidate "${sel.candidate_name}" for "${sel.position_title}"` };
       }
-      resolved.push({ position_id: cand.position_id, candidate_id: cand.id, timestamp: sel.timestamp, device_id: deviceId });
+      resolved.push({ position_id: cand.position_id, candidate_id: cand.id, timestamp: sel.timestamp, device_id: deviceId, station_id: stationId });
     }
     writeVoteRows(d, electionId, voterRow, resolved);
     return { ok: true };
@@ -160,11 +205,23 @@ function recordRemoteVote(d, electionId, payload) {
   };
 }
 
-// Check-in event from a peer: update flags + append the audit-style row.
+// Check-in event from a peer: update flags + append the audit-style row. For
+// station elections the voter must belong to the reporting station (when it is
+// provided) and that station must be open, mirroring the desktop check-in.
 function recordRemoteCheckin(d, electionId, payload) {
-  const { voter_id: voterId, officer_name: officerName, device_id: deviceId } = payload || {};
+  const { voter_id: voterId, officer_name: officerName, device_id: deviceId, station } = payload || {};
   const v = voterByVid(d, electionId, voterId);
   if (!v) return { ok: false, code: 'not-found', reason: 'Voter not in register on this device' };
+  const election = d.prepare('SELECT type FROM elections WHERE id = ?').get(electionId);
+  if (election && election.type === 'station') {
+    const st = stationForVoter(d, electionId, v);
+    if (!st) return { ok: false, code: 'no-station', reason: 'Voter is not assigned to a polling station' };
+    if (!isStationOpen(st)) return { ok: false, code: 'station-not-open', reason: 'Polls at this station are not open' };
+    if (station) {
+      const ctx = stationResolveRef(d, electionId, station);
+      if (!ctx || ctx.id !== st.id) return { ok: false, code: 'wrong-station', reason: 'Voter registered to a different station' };
+    }
+  }
   if (v.ballot_cast) return { ok: false, code: 'already-voted', reason: 'This voter already cast their ballot' };
   if (v.checked_in) return { ok: false, code: 'already-checked-in', reason: 'This voter is already checked in' };
   const now = Date.now();
@@ -199,6 +256,13 @@ function applyRemoteVote(d, row) {
   if (!voterRow) return false;
   const cand = resolveCandidate(d, electionId, row.position_title, row.candidate_name);
   if (!cand) return false;
+  // Re-store the station under THIS device's own station ids: the hub's
+  // station id is only meaningful on the hub, but the label travels everywhere.
+  let stationIdLocal = row.station_id || null;
+  if (row.station) {
+    const st = stationResolveRef(d, electionId, row.station);
+    if (st) stationIdLocal = st.id;
+  }
   const existing = d.prepare(
     'SELECT id FROM votes WHERE election_id = ? AND voter_id = ? AND position_id = ?'
   ).get(electionId, voterRow.voter_id, cand.position_id);
@@ -207,7 +271,7 @@ function applyRemoteVote(d, row) {
     const raw2 = `${electionId}|${cand.id}|${voterRow.voter_id}|${now}`;
     d.prepare(`
       UPDATE votes SET candidate_id = ?, device_id = ?, station_id = ?, timestamp = ?, signature = ?, synced = 1 WHERE id = ?
-    `).run(cand.id, row.device_id || null, row.station_id || null, now, sig.signRaw(d, raw2), existing.id);
+    `).run(cand.id, row.device_id || null, stationIdLocal, now, sig.signRaw(d, raw2), existing.id);
   } else {
     const raw = `${electionId}|${cand.id}|${voterRow.voter_id}|${now}`;
     const voteHash = crypto.createHash('sha256').update(raw).digest('hex');
@@ -215,7 +279,7 @@ function applyRemoteVote(d, row) {
     d.prepare(`
       INSERT INTO votes (election_id, position_id, candidate_id, voter_id, device_id, station_id, timestamp, prev_hash, vote_hash, signature, synced)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-    `).run(electionId, cand.position_id, cand.id, voterRow.voter_id, row.device_id || null, row.station_id || null, now, prev ? prev.vote_hash : null, voteHash, sig.signRaw(d, raw));
+    `).run(electionId, cand.position_id, cand.id, voterRow.voter_id, row.device_id || null, stationIdLocal, now, prev ? prev.vote_hash : null, voteHash, sig.signRaw(d, raw));
   }
   const label = row.candidate_name || cand.name;
   d.prepare('UPDATE voters SET has_voted = 1, voted_at = ?, position_voted = ?, ballot_cast = 1 WHERE id = ?')

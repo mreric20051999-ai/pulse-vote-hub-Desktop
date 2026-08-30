@@ -20,6 +20,17 @@ function getStationsForElection(electionId) {
   return db.get().prepare('SELECT * FROM stations WHERE election_id = ? ORDER BY created_at').all(electionId);
 }
 
+// Resolve a station reference (its id, code or name) within an election.
+// Used to bind a ballot/check-in to the physical station it was opened on.
+function resolveStationRef(electionId, ref) {
+  if (!ref) return null;
+  const label = String(ref).trim().toLowerCase();
+  const rows = db.get().prepare('SELECT * FROM stations WHERE election_id = ?').all(electionId);
+  return rows.find((s) =>
+    label && [s.id, s.code, s.name].filter(Boolean).some((k) => String(k).toLowerCase() === label)
+  ) || null;
+}
+
 // ---- Stations CRUD ----
 
 function addStation({ electionId, name, location, code }) {
@@ -132,12 +143,18 @@ function submitPacket(stationId, { figures, categories, checks, officerName = 'O
 
 // ---- Voters (station-scoped) ----
 
-function checkInVoter(voterId, { officerName = 'Officer' } = {}) {
+function checkInVoter(voterId, { officerName = 'Officer', stationId = null } = {}) {
   const d = db.get();
   const v = d.prepare('SELECT * FROM voters WHERE id = ?').get(voterId);
   if (!v) return { ok: false, error: 'Voter not found' };
   const station = resolveVoterStation(v);
   if (!station) return { ok: false, error: 'This voter is not assigned to a station.' };
+  if (stationId) {
+    const ctx = resolveStationRef(v.election_id, stationId);
+    if (!ctx || ctx.id !== station.id) {
+      return { ok: false, error: 'This voter is not assigned to this station.' };
+    }
+  }
   if (!isOpen(effectiveStatus(station))) return { ok: false, error: 'Polls are not open at this station.' };
   if (v.ballot_cast) return { ok: false, error: 'This voter has already cast their ballot.' };
   if (v.checked_in) return { ok: false, error: 'This voter is already checked in.' };
@@ -250,6 +267,7 @@ module.exports = {
   submitPacket,
   checkInVoter,
   resolveVoterStation,
+  resolveStationRef,
   markBallotCast,
   stationDashboard,
 };

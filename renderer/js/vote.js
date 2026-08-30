@@ -6,6 +6,9 @@
   const content = $('kiosk-content');
   const titleEl = $('election-title');
 
+  // Station ballots are opened for one physical station (?station= code/id/name).
+  const ballotStation = (new URLSearchParams(window.location.search).get('station') || '').trim();
+
   // App state for the current voting session (reset per voter).
   let election = null;      // selected election obj
   let voter = null;         // verified voter public info
@@ -116,6 +119,16 @@
     inBallot = false;
     setTitle(election.title);
     setBackVisible(true);
+    if (election.type === 'station' && !ballotStation) {
+      content.innerHTML = `
+        <div class="kiosk-panel">
+          <div class="icon auth-icon">📍</div>
+          <h2>Station ballot</h2>
+          <p class="subtitle">This election is run polling-station by polling-station. Open the ballot for your own station from its dashboard, then sign in to cast your vote.</p>
+          <button class="btn btn-primary btn-xl" onclick="window.location.assign(window.location.pathname)">Back to elections</button>
+        </div>`;
+      return;
+    }
     content.innerHTML = `
       <div class="kiosk-panel">
         <div class="icon auth-icon">🔐</div>
@@ -157,6 +170,20 @@
         return;
       }
       voter = res.voter;
+      if (election.type === 'station' && !voter.checked_in) {
+        if (window.pvhAudio) window.pvhAudio.playError();
+        showBlocked('This voter must be checked in before casting a ballot — please see the station officer.', false);
+        return;
+      }
+      if (election.type === 'station' && ballotStation && voter.assigned_station) {
+        const a = String(voter.assigned_station).trim().toLowerCase();
+        const b = String(ballotStation).trim().toLowerCase();
+        if (a !== b) {
+          if (window.pvhAudio) window.pvhAudio.playError();
+          showBlocked(`This voter is registered at "${voter.assigned_station}", but this ballot is for the station you selected. Please use the ballot for the voter's own station.`, false);
+          return;
+        }
+      }
       await loadBallot();
     }
 
@@ -542,7 +569,7 @@
       for (const s of list) selection.push({ positionId: posId, candidateId: s.candidate.id });
     }
     try {
-      const res = await window.pvh.castVote(election.id, voter.voter_id, selection);
+      const res = await window.pvh.castVote(election.id, voter.voter_id, selection, ballotStation || undefined);
       if (res.ok) {
         $('confirm-modal').remove();
         showThanks();

@@ -50,7 +50,8 @@
             <div class="st-banner-title" id="election-tag">Station Election</div>
             <div class="st-banner-meta"><i class="fa-solid fa-location-dot"></i> <span id="station-name">Unnamed Station</span> <code id="station-code"></code></div>
           </div>
-          <div>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" id="btnOpenBallot" onclick="openStationBallot()">Launch this station's ballot</button>
             <span class="status-pill st-not_opened" id="statusPill"><span class="status-dot gray"></span><span id="statusText">Not opened</span></span>
           </div>
         </div>

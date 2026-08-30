@@ -557,10 +557,10 @@ ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => {
 });
 ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
 ipcMain.handle('voter:verify-details', (_e, electionId, details) => voter.verifyVoterDetails(electionId, details || {}));
-ipcMain.handle('voter:cast', (_e, electionId, voterId, selection) => {
-  const res = voter.castVote(electionId, voterId, selection);
+ipcMain.handle('voter:cast', (_e, electionId, voterId, selection, stationContext) => {
+  const res = voter.castVote(electionId, voterId, selection, stationContext);
   if (res && res.ok) {
-    try { getLan().onLocalVote(electionId, voterId, selection, res.timestamp); } catch (err) { console.error('LAN vote hook failed:', err.message); }
+    try { getLan().onLocalVote(electionId, voterId, selection, res.timestamp, { station: stationContext || null }); } catch (err) { console.error('LAN vote hook failed:', err.message); }
   }
   return res;
 });
@@ -754,7 +754,7 @@ ipcMain.handle('station:submit', safeStation((id, opts) => station.submitPacket(
 ipcMain.handle('station:checkin', safeStation((voterId, opts) => {
   const res = station.checkInVoter(voterId, opts || {});
   if (res && res.ok && res.voter) {
-    try { getLan().onLocalCheckin(res.voter, (opts && opts.officerName) || 'Officer'); } catch (err) { console.error('LAN checkin hook failed:', err.message); }
+    try { getLan().onLocalCheckin(res.voter, (opts && opts.officerName) || 'Officer', { station: (opts && opts.stationId) || null }); } catch (err) { console.error('LAN checkin hook failed:', err.message); }
   }
   return res;
 }));

@@ -10,6 +10,7 @@ const { WebSocketServer } = require('ws');
 const sync = require('./sync');
 const db = require('../db');
 const voter = require('../voter');
+const station = require('../station');
 
 function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEnabled, onWritten }) {
   this.d = d;
@@ -169,7 +170,7 @@ Hub.prototype._mountKiosk = function (app) {
       res.status(400).json({ ok: false, error: 'Missing cast fields' });
       return;
     }
-    const r = voter.castVote(b.electionId, b.voterId, b.selection);
+    const r = voter.castVote(b.electionId, b.voterId, b.selection, b.station);
     if (r && r.ok) {
       try { self.onWritten(b.electionId, b.voterId, b.selection, r.timestamp); } catch (err) { /* ignore */ }
     }
@@ -249,6 +250,7 @@ Hub.prototype._handleMessage = function (ws, msg) {
         voter_id: msg.voter_id,
         device_id: msg.device_id,
         selections: msg.selections || [],
+        station: msg.station,
       });
       if (!res.ok) {
         send({ t: 'conflict', type: 'vote', ref: res.ref, code: res.code, reason: res.reason });
@@ -263,7 +265,7 @@ Hub.prototype._handleMessage = function (ws, msg) {
 
     case 'checkin': {
       const res = sync.recordRemoteCheckin(this.d, msg.election_id, {
-        voter_id: msg.voter_id, officer_name: msg.officer_name, device_id: msg.device_id,
+        voter_id: msg.voter_id, officer_name: msg.officer_name, device_id: msg.device_id, station: msg.station,
       });
       if (!res.ok) {
         send({ t: 'conflict', type: 'checkin', ref: res.ref, code: res.code, reason: res.reason });
@@ -329,13 +331,26 @@ Hub.prototype._handleMessage = function (ws, msg) {
 // Convert a client vote message into the authoritative broadcast row (symbolic).
 Hub.prototype._votePayload = function (_electionId, msg) {
   const self = this;
+  let stationId = null;
+  let stationLabel = msg.station || null;
+  if (msg.voter_id) {
+    const v = self.d.prepare(
+      'SELECT station_id, assigned_station FROM voters WHERE election_id = ? AND voter_id = ?'
+    ).get(msg.election_id, String(msg.voter_id || '').trim().toUpperCase());
+    if (v) {
+      const st = station.resolveVoterStation(v);
+      stationId = st ? st.id : null;
+      if (!stationLabel) stationLabel = (v.assigned_station || null);
+    }
+  }
   const rows = (msg.selections || []).map((sel, i) => ({
     election_id: msg.election_id,
     voter_id: msg.voter_id,
     position_title: sel.position_title,
     candidate_name: sel.candidate_name,
     device_id: msg.device_id || null,
-    station_id: null,
+    station: stationLabel,
+    station_id: stationId,
     timestamp: sel.timestamp || (Date.now() + i),
   }));
   return rows.length ? rows : null;

@@ -155,8 +155,9 @@ LanManager.prototype.setMode = async function (mode, opts = {}) {
 // Local events already written to this device's DB: route them to the network
 // (broadcast from a host, enqueue+push from a client).
 
-LanManager.prototype.onLocalVote = function (electionId, voterId, selection, timestamp) {
+LanManager.prototype.onLocalVote = function (electionId, voterId, selection, timestamp, opts) {
   const d = this._d();
+  const stationRef = (opts && opts.station) || null;
   const selections = (selection || []).map((sel) => {
     const lbl = sync.labelSelection(d, electionId, sel.positionId, sel.candidateId);
     return lbl ? { position_title: lbl.position_title, candidate_name: lbl.candidate_name, timestamp } : null;
@@ -164,10 +165,13 @@ LanManager.prototype.onLocalVote = function (electionId, voterId, selection, tim
   if (!selections.length) return;
 
   if (this.mode === 'host' && this.hub) {
+    const voted = d.prepare('SELECT station_id FROM votes WHERE election_id = ? AND voter_id = ? ORDER BY id DESC LIMIT 1')
+      .get(electionId, String(voterId || '').trim().toUpperCase());
+    const stationId = (voted && voted.station_id) || null;
     this.hub.broadcastLocal('vote', selections.map((s) => ({
       election_id: electionId, voter_id: String(voterId || '').trim().toUpperCase(),
       position_title: s.position_title, candidate_name: s.candidate_name,
-      device_id: this.deviceId(), station_id: null, timestamp,
+      device_id: this.deviceId(), station: stationRef || undefined, station_id: stationId, timestamp,
     })));
     sync.markVoteSynced(d, electionId, String(voterId || '').trim().toUpperCase());
   } else if (this.mode === 'client' && this.peer) {
@@ -175,12 +179,13 @@ LanManager.prototype.onLocalVote = function (electionId, voterId, selection, tim
       election_id: electionId,
       voter_id: String(voterId || '').trim().toUpperCase(),
       device_id: this.deviceId(),
+      station: stationRef || undefined,
       selections,
     });
   }
 };
 
-LanManager.prototype.onLocalCheckin = function (voterRow, officerName) {
+LanManager.prototype.onLocalCheckin = function (voterRow, officerName, opts) {
   if (!voterRow) return;
   const payload = {
     election_id: voterRow.election_id,
@@ -188,6 +193,7 @@ LanManager.prototype.onLocalCheckin = function (voterRow, officerName) {
     officer_name: officerName || 'Officer',
     timestamp: voterRow.checked_in_at || Date.now(),
   };
+  if (opts && opts.station) payload.station = opts.station;
   if (this.mode === 'host' && this.hub) {
     this.hub.broadcastLocal('checkin', payload);
   } else if (this.mode === 'client' && this.peer) {

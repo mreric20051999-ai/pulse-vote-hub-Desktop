@@ -212,9 +212,17 @@
   };
   window.stationConfirmCheckIn = async function (id) {
     const b = $('mCiBtn'); b.disabled = true; b.textContent = 'Checking in…';
-    const res = await window.pvh.stationCheckin(id, { officerName: session.name });
+    const res = await window.pvh.stationCheckin(id, { officerName: session.name, stationId: STATION_ID });
     if (res.ok) { closeModal(); logEvent('checkin', 'Voter checked in.'); if (window.pvhAudio) window.pvhAudio.playSuccess(); await loadDashboard(); showToast('Voter checked in — send them to the ballot page.'); }
     else { b.disabled = false; b.textContent = 'Confirm Check In'; if (window.pvhAudio) window.pvhAudio.playError(); showToast(res.error || 'Check-in failed', true); }
+  };
+
+  // Open the ballot bound to THIS station, so voters from other stations are
+  // rejected at the station gate and check-in is enforced before casting.
+  window.openStationBallot = function () {
+    if (!election || !station) { showToast('Wait for the dashboard to load.', true); return; }
+    const stCode = String(station.code || station.id);
+    window.open(`vote.html?election=${encodeURIComponent(election.id)}&station=${encodeURIComponent(stCode)}`, '_blank');
   };
 
   // ---- Actions ----

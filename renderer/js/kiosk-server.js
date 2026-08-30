@@ -32,7 +32,7 @@
     candidatePhotoUrl: async (p) => (p ? `/api/kiosk/photo?p=${encodeURIComponent(p)}` : null),
     verifyVoter: (eid, vid, pwd) => post('/api/kiosk/verify', { electionId: eid, voterId: vid, password: pwd }),
     verifyVoterDetails: (eid, details) => post('/api/kiosk/verify-details', { electionId: eid, details: details || {} }),
-    castVote: (eid, vid, sel) => post('/api/kiosk/cast', { electionId: eid, voterId: vid, selection: sel }),
+    castVote: (eid, vid, sel, station) => post('/api/kiosk/cast', { electionId: eid, voterId: vid, selection: sel, station }),
     kioskEnter: async () => ({ ok: true }),
     kioskExit: async () => ({ ok: true }),
   };

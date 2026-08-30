@@ -358,6 +358,7 @@
       if (article) markOne(article);
     });
     listEl.addEventListener('keydown', (e) => {
+      if (e.target.closest('textarea, input, [contenteditable="true"]')) return;
       if (e.key !== 'Enter' && e.key !== ' ') return;
       const del = e.target.closest('.msg-del');
       if (del) { e.preventDefault(); del.click(); return; }

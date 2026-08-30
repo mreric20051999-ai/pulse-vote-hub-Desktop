@@ -333,7 +333,10 @@ function verifyVoterDetails(electionId, { voterId, name, phone } = {}) {
 
 // Record a cast ballot for a verified voter.
 // selection: [{ positionId, candidateId }] — one entry per selected candidate.
-function castVote(electionId, voterId, selection) {
+// For station elections `stationContext` carries the station (id/code/name) the
+// ballot was opened on; casting requires that station, a prior check-in, and an
+// open/queuing poll. Non-station elections ignore it.
+function castVote(electionId, voterId, selection, stationContext) {
   const d = db.get();
 
   const election = d.prepare('SELECT id, title, type, status, start_date, end_date FROM elections WHERE id = ?').get(electionId);
@@ -348,8 +351,11 @@ function castVote(electionId, voterId, selection) {
 
   // Station elections: the voter must be casting at a poll whose effective
   // status is open or queuing (web model). A queuing (grace-window) ballot is
-  // recorded as a grace-period vote.
+  // recorded as a grace-period vote. Casting is additionally bound to the
+  // physical station the ballot was opened for — a voter can only cast at
+  // their own assigned station — and requires a prior check-in by an officer.
   let gracePeriod = false;
+  let resolvableStation = null;
   if (election.type === 'station') {
     const st = station.resolveVoterStation(voterRow);
     if (!st) return { ok: false, error: 'This voter is not assigned to a polling station.', code: 'no-station' };
@@ -358,6 +364,18 @@ function castVote(electionId, voterId, selection) {
       return { ok: false, error: 'Polls at this station are not accepting ballots.', code: 'station-not-open' };
     }
     gracePeriod = eff === 'queuing';
+
+    if (!stationContext) {
+      return { ok: false, error: 'This ballot must be opened for a specific polling station.', code: 'no-station' };
+    }
+    const ctx = station.resolveStationRef(electionId, stationContext);
+    if (!ctx || ctx.id !== st.id) {
+      return { ok: false, error: `This voter is registered to “${st.name}”, not this polling station.`, code: 'wrong-station' };
+    }
+    if (!voterRow.checked_in) {
+      return { ok: false, error: 'This voter must be checked in before casting a ballot.', code: 'not-checked-in' };
+    }
+    resolvableStation = st;
   }
 
   if (!selection || !selection.length) {
@@ -365,8 +383,8 @@ function castVote(electionId, voterId, selection) {
   }
 
   const insertVote = d.prepare(`
-    INSERT INTO votes (election_id, position_id, candidate_id, voter_id, timestamp, prev_hash, vote_hash, signature, synced)
-    VALUES (@election_id, @position_id, @candidate_id, @voter_id, @timestamp, @prev_hash, @vote_hash, @signature, 0)
+    INSERT INTO votes (election_id, position_id, candidate_id, voter_id, station_id, timestamp, prev_hash, vote_hash, signature, synced)
+    VALUES (@election_id, @position_id, @candidate_id, @voter_id, @station_id, @timestamp, @prev_hash, @vote_hash, @signature, 0)
   `);
 
   const now = Date.now();
@@ -394,6 +412,7 @@ function castVote(electionId, voterId, selection) {
         position_id: sel.positionId,
         candidate_id: sel.candidateId,
         voter_id: voterRow.voter_id,
+        station_id: resolvableStation ? resolvableStation.id : null,
         timestamp: now,
         prev_hash: prevHash,
         vote_hash: voteHash,
