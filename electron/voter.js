@@ -382,6 +382,27 @@ function castVote(electionId, voterId, selection, stationContext) {
     return { ok: false, error: 'No selections made.', code: 'empty' };
   }
 
+  // Enforce each position's max_votes server-side so a crafted or buggy ballot
+  // cannot exceed the number of selections allowed for a position.
+  const positionRows = d.prepare('SELECT id, title, max_votes FROM positions WHERE election_id = ?').all(electionId);
+  const maxByPosition = new Map(positionRows.map((p) => [p.id, Math.max(1, Number(p.max_votes) || 1)]));
+  const perPosition = new Map();
+  for (const sel of selection) {
+    perPosition.set(sel.positionId, (perPosition.get(sel.positionId) || 0) + 1);
+  }
+  for (const [positionId, n] of perPosition) {
+    const limit = maxByPosition.get(positionId) || 1;
+    if (n > limit) {
+      const pos = positionRows.find((p) => p.id === positionId);
+      const name = pos ? pos.title : positionId;
+      return {
+        ok: false,
+        error: `Position “${name}” allows at most ${limit} selection${limit === 1 ? '' : 's'}.`,
+        code: 'max-selections',
+      };
+    }
+  }
+
   const insertVote = d.prepare(`
     INSERT INTO votes (election_id, position_id, candidate_id, voter_id, station_id, timestamp, prev_hash, vote_hash, signature, synced)
     VALUES (@election_id, @position_id, @candidate_id, @voter_id, @station_id, @timestamp, @prev_hash, @vote_hash, @signature, 0)

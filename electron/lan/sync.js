@@ -185,11 +185,22 @@ function recordRemoteVote(d, electionId, payload) {
   }
 
   const resolved = [];
+  const posMax = new Map(
+    d.prepare('SELECT id, max_votes FROM positions WHERE election_id = ?').all(electionId)
+      .map((p) => [p.id, Math.max(1, Number(p.max_votes) || 1)])
+  );
+  const perPosition = new Map();
   const tx = d.transaction(() => {
     for (const sel of selections) {
       const cand = resolveCandidate(d, electionId, sel.position_title, sel.candidate_name);
       if (!cand) {
         return { ok: false, code: 'invalid', reason: `Unknown candidate "${sel.candidate_name}" for "${sel.position_title}"` };
+      }
+      const limit = posMax.get(cand.position_id) || 1;
+      const n = (perPosition.get(cand.position_id) || 0) + 1;
+      perPosition.set(cand.position_id, n);
+      if (n > limit) {
+        return { ok: false, code: 'max-selections', reason: `Position allows at most ${limit} selection${limit === 1 ? '' : 's'}` };
       }
       resolved.push({ position_id: cand.position_id, candidate_id: cand.id, timestamp: sel.timestamp, device_id: deviceId, station_id: stationId });
     }
