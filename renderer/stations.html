@@ -156,6 +156,49 @@
     </div>
   </div>
 
+  <!-- Coordinator: secure browser check-in links (magic link + one-time PIN) -->
+  <div class="modal-overlay" id="link-overlay" hidden>
+    <div class="modal add-station-modal" style="max-width:560px;">
+      <div class="modal-top">
+        <span class="icon modal-top-ic" data-icon="users"></span>
+        <div class="modal-top-text">
+          <div class="modal-title">Secure check-in link</div>
+          <div class="modal-sub" id="link-station-sub">Generate a browser check-in link for a station.</div>
+        </div>
+        <button type="button" class="icon modal-close" id="link-close" aria-label="Close" data-icon="x"></button>
+      </div>
+      <div style="padding:8px 24px 20px;">
+        <p class="text-muted" style="font-size:var(--fs-xs);line-height:1.6;">
+          The officer opens the link on any phone or tablet and enters the one-time PIN.
+          The link alone is useless without the PIN, it expires when the station closes,
+          and you can revoke it instantly.
+        </p>
+        <div class="field" style="margin:14px 0 16px;">
+          <button class="btn btn-primary" id="gen-link-btn"><span class="icon btn-icon" data-icon="plus"></span>Generate link</button>
+        </div>
+        <div id="link-generated" hidden style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px;">
+          <div class="field">
+            <label class="label" for="link-url">Share this link</label>
+            <div class="btn-row">
+              <input class="input" id="link-url" type="text" readonly style="flex:1;">
+              <button class="btn btn-secondary btn-sm" id="link-copy-url">Copy</button>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" for="link-pin">One-time PIN — share separately (verbally / in person)</label>
+            <div class="btn-row" style="align-items:center;">
+              <span id="link-pin" class="code" style="font-size:20px;letter-spacing:.3em;font-weight:700;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;">—</span>
+              <button class="btn btn-secondary btn-sm" id="link-copy-pin">Copy</button>
+            </div>
+          </div>
+          <p class="text-muted" style="font-size:var(--fs-xs);margin-top:6px;" id="link-expiry-note"></p>
+        </div>
+        <div class="card-title panel-title" style="margin-bottom:4px;">Active links at this station</div>
+        <div id="link-list"><p class="text-muted hint">No active links yet.</p></div>
+      </div>
+    </div>
+  </div>
+
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/stations.js"></script>

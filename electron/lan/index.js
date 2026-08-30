@@ -105,6 +105,9 @@ LanManager.prototype.setMode = async function (mode, opts = {}) {
       // A ballot cast via the browser kiosk must reach LAN peers exactly like
       // one cast on this machine: broadcast + mark synced.
       onWritten: (electionId, voterId, selection, timestamp) => this.onLocalVote(electionId, voterId, selection, timestamp),
+      // A voter checked in via the secure browser check-in page must reach LAN
+      // peers exactly like a check-in performed on this machine.
+      onCheckin: (voterRow, officerName, opts) => this.onLocalCheckin(voterRow, officerName, opts),
     });
     try {
       await this.hub.start(port);

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Station Check-in · Pulse Vote Hub</title>
+  <meta name="referrer" content="no-referrer">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/station.css">
+  <style>
+    .stl-body {
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 50% -10%, var(--accent-soft, #eef6ff), var(--bg, #f6f8fa));
+    }
+    .stl-wrap { max-width: 560px; margin: 0 auto; padding: 32px 16px 64px; }
+    .stl-brand {
+      display: flex; align-items: center; gap: 10px; justify-content: center;
+      font-family: 'Poppins', 'Open Sans', system-ui, sans-serif; font-weight: 600;
+      color: var(--text); margin-bottom: 20px;
+    }
+    .stl-brand .stl-logo {
+      width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--primary, #2563eb), #4f46e5); color: #fff; font-weight: 700; font-size: 15px;
+    }
+    .stl-modal { background: var(--surface, #fff); border: 1px solid var(--border, #e5e9f0); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(15, 23, 42, .06); }
+    .stl-lock {
+      width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
+      background: var(--accent-soft, #eef6ff); color: var(--primary, #2563eb); font-size: 20px; margin-bottom: 12px;
+    }
+    .stl-h1 { font-family: 'Poppins', 'Open Sans', system-ui, sans-serif; font-weight: 600; font-size: 18px; margin: 0 0 4px; color: var(--text); }
+    .stl-sub { color: var(--text-dim, #64748b); font-size: 13px; margin: 0 0 18px; line-height: 1.5; }
+    #pin-input { letter-spacing: .35em; text-align: center; font-size: 22px; font-weight: 600; }
+    .stl-error { color: #dc2626; font-size: 13px; min-height: 18px; margin-top: 8px; }
+    .stl-secure { display: flex; align-items: center; gap: 8px; color: var(--success, #059669); font-size: 12px; margin-top: 14px; }
+    .stl-secure svg { width: 14px; height: 14px; }
+    .stl-station { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+    .stl-station .stl-pill-wrap { margin-left: auto; }
+    .stl-station-name { font-family: 'Poppins', 'Open Sans', system-ui, sans-serif; font-weight: 600; font-size: 17px; }
+    .stl-station-sub { color: var(--text-dim, #64748b); font-size: 12px; }
+    .stl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0; }
+    .stl-cell { background: var(--bg, #f6f8fa); border: 1px solid var(--border, #e5e9f0); border-radius: 12px; padding: 10px 12px; }
+    .stl-cell .n { font-family: 'Poppins', system-ui, sans-serif; font-weight: 600; font-size: 20px; }
+    .stl-cell .l { color: var(--text-dim, #64748b); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    .stl-search { width: 100%; margin-bottom: 12px; }
+    .stl-officer { display: flex; align-items: center; gap: 8px; color: var(--text-dim, #64748b); font-size: 12px; margin-bottom: 12px; }
+    .stl-officer strong { color: var(--text); font-weight: 600; }
+    .stl-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+    #stl-toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+      background: #0f172a; color: #fff; border-radius: 10px; padding: 10px 16px; font-size: 13px;
+      box-shadow: 0 8px 24px rgba(15,23,42,.25); max-width: 90vw; display: none; z-index: 40;
+    }
+    #stl-toast.err { background: #b91c1c; }
+    .stl-link-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--success, #059669); background: rgba(5,150,105,.08); border: 1px solid rgba(5,150,105,.25); border-radius: 999px; padding: 3px 10px; margin-bottom: 14px; }
+  </style>
+</head>
+<body class="stl-body">
+  <div class="stl-wrap">
+    <div class="stl-brand"><span class="stl-logo">PV</span> Pulse Vote Hub</div>
+
+    <div id="pin-view">
+      <div class="stl-modal">
+        <div class="stl-lock" aria-hidden="true">&#128274;</div>
+        <span class="stl-link-badge">Secure check-in link</span>
+        <h1 class="stl-h1">Unlock this station</h1>
+        <p class="stl-sub">Enter the one-time PIN your coordinator gave you. It is the key to checking voters in at this station&rsquo;s poll book.</p>
+        <div class="field">
+          <label class="label" for="pin-input">One-time PIN</label>
+          <input class="input" id="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••" autocomplete="one-time-code">
+        </div>
+        <button class="btn btn-primary btn-block" id="unlock-btn" style="margin-top:4px;">Unlock check-in</button>
+        <div class="stl-error" id="pin-error"></div>
+        <div class="stl-secure">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+          Link + PIN required · expires when polls close · revocable
+        </div>
+      </div>
+    </div>
+
+    <div id="dash-view" hidden>
+      <div class="stl-modal">
+        <div class="stl-actions">
+          <button class="btn btn-ghost btn-sm" id="lock-btn" style="margin-left:auto;">Lock</button>
+        </div>
+        <div class="stl-station">
+          <div>
+            <div class="stl-station-name" id="station-name">—</div>
+            <div class="stl-station-sub"><code id="station-code"></code><span id="station-location"></span></div>
+          </div>
+          <div class="stl-pill-wrap"><span class="status-pill" id="statusPill"><span class="status-dot st-open"></span><span id="statusText">—</span></span></div>
+        </div>
+        <div class="stl-officer">Check-ins recorded as <strong id="officer-name">—</strong></div>
+        <div class="stl-grid">
+          <div class="stl-cell"><div class="n" id="st-reg">0</div><div class="l">Registered</div></div>
+          <div class="stl-cell"><div class="n" id="st-in">0</div><div class="l">Checked in</div></div>
+          <div class="stl-cell"><div class="n" id="st-q">0</div><div class="l">In queue</div></div>
+          <div class="stl-cell"><div class="n" id="st-b">0</div><div class="l">Voted</div></div>
+        </div>
+        <input class="input stl-search" id="search" type="search" placeholder="Search voters by ID or name…">
+        <div id="pollbook"></div>
+      </div>
+    </div>
+
+    <div id="err-view" hidden>
+      <div class="stl-modal">
+        <div class="stl-lock" style="background:rgba(220,38,38,.1);color:#dc2626;" aria-hidden="true">&#9888;&#65039;</div>
+        <h1 class="stl-h1" id="err-title">Check-in link unavailable</h1>
+        <p class="stl-sub" id="err-msg"></p>
+        <button class="btn btn-primary btn-block" id="err-again-btn">Try again</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="stl-toast"></div>
+  <script src="js/station-kiosk.js"></script>
+</body>
+</html>

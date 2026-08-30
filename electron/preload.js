@@ -66,6 +66,9 @@ contextBridge.exposeInMainWorld('pvh', {
   stationCheckin: (vid, opts) => ipcRenderer.invoke('station:checkin', vid, opts, oid()),
   stationBallotCast: (vid, opts) => ipcRenderer.invoke('station:ballot-cast', vid, opts, oid()),
   stationDashboard: (eid, sid) => ipcRenderer.invoke('station:dashboard', eid, sid, oid()),
+  createCheckinLink: (p) => ipcRenderer.invoke('station:create-checkin-link', p, oid()),
+  listCheckinLinks: (eid) => ipcRenderer.invoke('station:list-checkin-links', eid, oid()),
+  revokeCheckinLink: (p) => ipcRenderer.invoke('station:revoke-checkin-link', p, oid()),
 
   // Results report
   resultsReport: (eid, stationId) => ipcRenderer.invoke('result:report', eid, oid(), stationId),

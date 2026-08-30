@@ -23,6 +23,7 @@ const results = require('./results');
 const merge = require('./merge');
 const messages = require('./messages');
 const distribution = require('./distribution');
+const checkInLink = require('./checkin-link');
 const { LanManager } = require('./lan');
 
 let lan = null;
@@ -800,6 +801,44 @@ ipcMain.handle('station:ballot-cast', (_e, voterId, opts, officerId) => {
   return guardStation(row.election_id, st ? st.id : null, officerId, () => station.markBallotCast(voterId, opts || {}));
 });
 ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, () => station.stationDashboard(electionId, stationId)));
+
+// ---- Secure browser check-in links (coordinator-generated magic link + PIN) ----
+
+function checkinLinkBase() {
+  try {
+    const st = getLan().status();
+    if (st.mode === 'host' && st.addresses && st.addresses.length && st.port) {
+      return `http://${st.addresses[0]}:${st.port}`;
+    }
+  } catch (err) { /* fall through to localhost fallback */ }
+  return `http://localhost:${process.env.PVH_LAN_PORT || 7380}`;
+}
+
+ipcMain.handle('station:create-checkin-link', (_e, { electionId, stationId }, officerId) =>
+  guardElection(electionId, officerId, (actor) => {
+    const res = checkInLink.createCheckinLink({ electionId, stationId, actor });
+    if (!res.ok) return res;
+    return {
+      ok: true,
+      id: res.id,
+      url: `${checkinLinkBase()}/kiosk/station?t=${encodeURIComponent(res.urlToken)}`,
+      pin: res.pin,
+      officerName: res.officerName,
+      expiresAt: res.expiresAt,
+    };
+  }));
+
+ipcMain.handle('station:list-checkin-links', (_e, electionId, officerId) =>
+  guardElection(electionId, officerId, () => ({ ok: true, links: checkInLink.listCheckinLinks(electionId) })));
+
+ipcMain.handle('station:revoke-checkin-link', (_e, { electionId, tokenId }, officerId) =>
+  guardElection(electionId, officerId, () => {
+    const res = checkInLink.revokeCheckinLink(electionId, tokenId);
+    if (res.ok) {
+      try { const hub = getLan().hub; if (hub) hub.revokeTokenSessions(tokenId); } catch (err) { /* best-effort */ }
+    }
+    return res;
+  }));
 
 // ---------- Results IPC ----------
 

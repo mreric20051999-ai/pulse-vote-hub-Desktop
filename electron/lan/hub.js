@@ -6,13 +6,15 @@ const http = require('http');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { WebSocketServer } = require('ws');
 const sync = require('./sync');
 const db = require('../db');
 const voter = require('../voter');
 const station = require('../station');
+const checkInLink = require('../checkin-link');
 
-function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEnabled, onWritten }) {
+function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEnabled, onWritten, onCheckin }) {
   this.d = d;
   this.deviceId = deviceId;
   this.deviceName = deviceName;
@@ -21,6 +23,11 @@ function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEna
   this.rendererDir = rendererDir;
   this.kioskEnabled = kioskEnabled !== false;
   this.onWritten = onWritten || (() => {});
+  this.onCheckin = onCheckin || (() => {});
+  // Browser check-in sessions issued after a correct PIN (token -> sessions),
+  // and per-link PIN attempt throttling (tokenId -> { fails, lockedUntil }).
+  this._sessions = new Map();
+  this._pinTries = new Map();
   this.port = null;
   this.server = null;
   this.wss = null;
@@ -96,6 +103,19 @@ Hub.prototype._mountKiosk = function (app) {
       res.type('html').send(html);
     } catch (err) {
       res.status(500).json({ ok: false, error: 'Ballot template unavailable' });
+    }
+  });
+
+  // Secure browser check-in portal for station officers. The coordinator
+  // generates a magic link (token) + one-time PIN; the page verifies the PIN
+  // and then issues a short-lived session scoped to that station.
+  app.get('/kiosk/station', (_req, res) => {
+    const p = path.join(self.rendererDir, 'station-link.html');
+    if (!fs.existsSync(p)) { res.status(404).json({ ok: false, error: 'Check-in page unavailable' }); return; }
+    try {
+      res.type('html').send(fs.readFileSync(p, 'utf8'));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: 'Check-in page unavailable' });
     }
   });
 
@@ -185,6 +205,132 @@ Hub.prototype._mountKiosk = function (app) {
       ballotUrl: self.port ? `http://localhost:${self.port}/kiosk` : null,
     });
   });
+
+  // ---- Secure station check-in (magic link + one-time PIN) ----
+
+  // Validate a session token and kill it if its link was revoked/expired.
+  function session(req, res) {
+    const b = (req.body || {}).session || (req.query || {}).session;
+    const s = self._sessions.get(String(b || ''));
+    if (!s || Date.now() > s.expiresAt) {
+      if (s) self._sessions.delete(s.id);
+      res.json({ ok: false, code: 'no-session', error: 'Session expired — reload the link and enter your PIN again.' });
+      return null;
+    }
+    const tk = checkInLink.getCheckinToken(s.rawToken);
+    if (!tk.ok) {
+      self._sessions.delete(s.id);
+      res.json({ ok: false, code: 'no-session', error: tk.error });
+      return null;
+    }
+    return s;
+  }
+
+  function dashboardPayload(s) {
+    const dash = station.stationDashboard(s.election_id, s.station_id);
+    if (!dash || !dash.ok) return { ok: false, error: (dash && dash.error) || 'Could not load station' };
+    return {
+      ok: true,
+      officerName: s.officerName,
+      election: dash.election,
+      station: dash.station,
+      stats: dash.stats || {},
+      voters: (dash.voters || []).map((v) => ({
+        id: v.id,
+        voter_id: v.voter_id,
+        name: v.name,
+        assigned_station: v.assigned_station,
+        station_id: v.station_id,
+        checked_in: v.checked_in,
+        ballot_cast: v.ballot_cast,
+        grace_period: v.grace_period,
+        checked_in_by: v.checked_in_by,
+      })),
+    };
+  }
+
+  // Correct link token + PIN -> short-lived station-scoped session.
+  app.post('/api/kiosk/station/unlock', express.json(), (req, res) => {
+    const { token, pin, officerName } = req.body || {};
+    if (!token || !pin) { res.json({ ok: false, error: 'Missing link token or PIN' }); return; }
+    const tk = checkInLink.getCheckinToken(token);
+    if (!tk.ok) { res.json(tk); return; }
+    const rec = tk.rec;
+
+    // Throttle PIN guessing: 5 wrong attempts lock the link for 10 minutes.
+    const tries = self._pinTries.get(rec.id) || { fails: 0, lockedUntil: 0 };
+    if (Date.now() < tries.lockedUntil) {
+      res.json({ ok: false, code: 'pin-locked', error: 'Too many incorrect attempts. Retry in a few minutes.' });
+      return;
+    }
+    if (!checkInLink.verifyPin(rec, pin)) {
+      const fails = tries.fails + 1;
+      if (fails >= 5) {
+        self._pinTries.set(rec.id, { fails: 0, lockedUntil: Date.now() + 10 * 60 * 1000 });
+        res.json({ ok: false, code: 'pin-locked', error: 'Too many incorrect attempts. Link locked for 10 minutes.' });
+      } else {
+        self._pinTries.set(rec.id, { fails, lockedUntil: 0 });
+        res.json({ ok: false, error: `Incorrect PIN. ${5 - fails} attempt${5 - fails === 1 ? '' : 's'} left.` });
+      }
+      return;
+    }
+    self._pinTries.delete(rec.id);
+
+    // Cap concurrent sessions per link so one leaked PIN can't fan out everywhere.
+    const active = [...self._sessions.values()].filter((s) => s.tokenId === rec.id && Date.now() < s.expiresAt).length;
+    if (active >= 5) {
+      res.json({ ok: false, code: 'session-limit', error: 'This link already has 5 active sessions. Revoke it and generate a new one.' });
+      return;
+    }
+    const name = String(officerName || '').trim() || rec.officer_name;
+    const sessionId = randomUUID();
+    self._sessions.set(sessionId, {
+      id: sessionId,
+      tokenId: rec.id,
+      rawToken: token,
+      election_id: rec.election_id,
+      station_id: rec.station_id,
+      officerName: name,
+      expiresAt: Math.min(Number(rec.expires_at), Date.now() + 8 * 3600 * 1000),
+    });
+    res.json({ ok: true, session: sessionId, ...dashboardPayload(self._sessions.get(sessionId)) });
+  });
+
+  // Check a voter in under the unlocked session.
+  app.post('/api/kiosk/station/checkin', express.json(), (req, res) => {
+    const s = session(req, res);
+    if (!s) return;
+    const voterId = (req.body || {}).voterId;
+    if (!voterId) { res.json({ ok: false, error: 'Missing voter' }); return; }
+    const r = station.checkInVoter(String(voterId), { officerName: s.officerName, stationId: s.station_id });
+    if (r && r.ok) {
+      try { self.onCheckin(r.voter, s.officerName, { station: s.station_id }); } catch (err) { /* LAN fan-out is best-effort */ }
+      // Never return credential material to the browser.
+      const v = r.voter;
+      res.json({ ok: true, voter: {
+        id: v.id, voter_id: v.voter_id, name: v.name, assigned_station: v.assigned_station,
+        station_id: v.station_id, checked_in: v.checked_in, ballot_cast: v.ballot_cast,
+        grace_period: v.grace_period, checked_in_by: v.checked_in_by,
+      } });
+      return;
+    }
+    res.json(r);
+  });
+
+  // Live pollbook refresh for the check-in page.
+  app.post('/api/kiosk/station/pollbook', express.json(), (req, res) => {
+    const s = session(req, res);
+    if (!s) return;
+    res.json(dashboardPayload(s));
+  });
+};
+
+// Kill every unlocked browser session issued against a revoked check-in link.
+Hub.prototype.revokeTokenSessions = function (tokenId) {
+  if (!tokenId) return;
+  for (const [id, s] of this._sessions) {
+    if (s.tokenId === tokenId) this._sessions.delete(id);
+  }
 };
 
 Hub.prototype._kioskElections = function () {

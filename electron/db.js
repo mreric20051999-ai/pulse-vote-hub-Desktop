@@ -121,6 +121,21 @@ CREATE TABLE IF NOT EXISTS checkins (
   UNIQUE(election_id, voter_id)
 );
 
+-- Browser check-in links for station officers: the coordinator generates a
+-- per-station magic link + one-time PIN. Only the SHA-256 hashes are stored.
+CREATE TABLE IF NOT EXISTS station_tokens (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  pin_hash TEXT NOT NULL,
+  election_id TEXT NOT NULL,
+  station_id TEXT NOT NULL,
+  officer_name TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  created_by TEXT,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+
 CREATE TABLE IF NOT EXISTS votes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   election_id TEXT,

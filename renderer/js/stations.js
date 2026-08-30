@@ -198,6 +198,7 @@
           '<td>' + statusPill(s.status) + '</td>' +
           '<td><select class="input officer-assign" data-station="' + esc(s.id) + '" style="min-width:180px;">' + opts + '</select></td>' +
           '<td><div class="td-actions">' + runButtons(s) +
+          '<button class="btn btn-secondary btn-sm" data-link="' + esc(s.id) + '">Check-in link</button> ' +
           '<button class="btn btn-danger btn-sm st-remove" data-id="' + esc(s.id) + '">Remove</button></div></td>' +
           '</tr>';
       }).join('') + '</tbody></table></div>';
@@ -235,6 +236,12 @@
         const st = stations.find((x) => x.id === btn.dataset.id);
         const fn = runAction(btn.dataset.run);
         if (st && fn) fn(st);
+      });
+    });
+    body.querySelectorAll('[data-link]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const st = stations.find((x) => x.id === btn.dataset.link);
+        if (st) openLinkModal(st);
       });
     });
   }
@@ -317,6 +324,77 @@
     $('grace-confirm').addEventListener('click', confirmGrace);
   }
 
+  // ---- Secure browser check-in links (coordinator) ----
+  function fmtLinkTime(t) {
+    if (!t) return '—';
+    return new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  async function renderLinkList(st) {
+    const list = $('link-list');
+    const r = await window.pvh.listCheckinLinks(currentElectionId);
+    const mine = r.ok ? (r.links || []).filter((l) => l.station_id === st.id) : [];
+    if (!mine.length) { list.innerHTML = '<p class="text-muted hint">No active links yet.</p>'; return; }
+    list.innerHTML = mine.map((l) =>
+      '<div class="check-row" style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;">' +
+      '<div style="flex:1;min-width:0;">' +
+      '<div style="font-size:12px;"><strong>' + esc(l.officer_name || 'Officer') + '</strong> &middot; ' + esc(l.station_code || '') + '</div>' +
+      '<div class="text-muted" style="font-size:11px;">Valid until ' + fmtLinkTime(l.expires_at) + (l.valid ? '' : ' (expired)') + '</div>' +
+      '</div>' +
+      '<button class="btn btn-danger btn-sm" data-revoke="' + esc(l.id) + '">Revoke</button></div>').join('');
+    list.querySelectorAll('[data-revoke]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        if (!confirm('Revoke this check-in link? The officer will immediately lose access.')) return;
+        const rv = await window.pvh.revokeCheckinLink({ electionId: currentElectionId, tokenId: b.dataset.revoke });
+        if (rv.ok) { window.pvhUI.toast('Check-in link revoked.', 'success'); renderLinkList(st); }
+        else window.pvhUI.toast(rv.error || 'Could not revoke link', 'error');
+      });
+    });
+  }
+  async function openLinkModal(st) {
+    window.__linkStation = st;
+    $('link-station-sub').textContent = st.name + (st.code ? ' (' + st.code + ')' : '') + ' — the officer opens the link on any device.';
+    $('link-generated').hidden = true;
+    $('link-url').value = '';
+    $('link-pin').textContent = '—';
+    $('link-overlay').hidden = false;
+    renderLinkList(st);
+  }
+  async function generateLink() {
+    const st = window.__linkStation;
+    if (!st) return;
+    const btn = $('gen-link-btn');
+    await window.pvhUI.busy(btn, 'Generating…', async () => {
+      const r = await window.pvh.createCheckinLink({ electionId: currentElectionId, stationId: st.id });
+      if (!r.ok) { window.pvhUI.toast(r.error || 'Could not generate link', 'error'); return; }
+      $('link-url').value = r.url;
+      $('link-pin').textContent = r.pin;
+      $('link-expiry-note').textContent = 'Valid until polls close · officer on duty: ' + (r.officerName || '—') + '.';
+      $('link-generated').hidden = false;
+      window.pvhUI.toast('Check-in link generated. Share the PIN separately.', 'success');
+      renderLinkList(st);
+    });
+  }
+  function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text); return true; }
+    } catch (e) { /* fall through */ }
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+    document.body.removeChild(ta);
+    return true;
+  }
+  function bindLinkModal() {
+    const overlay = $('link-overlay');
+    function close() { overlay.hidden = true; window.__linkStation = null; }
+    $('link-close').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) close(); });
+    $('gen-link-btn').addEventListener('click', generateLink);
+    $('link-copy-url').addEventListener('click', () => { if (copyText($('link-url').value)) window.pvhUI.toast('Link copied.', 'success'); });
+    $('link-copy-pin').addEventListener('click', () => { if (copyText($('link-pin').textContent.replace(/\s+/g, ''))) window.pvhUI.toast('PIN copied.', 'success'); });
+  }
+
   const electionDD = buildSelectDropdown($('station-election-select'), (value) => {
     currentElectionId = value;
     renderStations();
@@ -327,4 +405,5 @@
   bindAddStation();
   bindCreateOfficer();
   bindGraceModal();
+  bindLinkModal();
 })();
