@@ -49,3 +49,8 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: Pulse Vote Hub
+  # Branded installer visuals (custom banner on every page incl. the
+  # "just me / all users" step, and branded welcome/finish side panel).
+  installerHeader: installerHeader.bmp
+  installerSidebar: installerSidebar.bmp
+  uninstallerSidebar: installerSidebar.bmp

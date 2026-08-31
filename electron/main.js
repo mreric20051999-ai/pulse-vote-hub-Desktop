@@ -37,6 +37,13 @@ let mainWindow = null;
 let splashWindow = null;
 let isKiosk = false;
 
+// The sign-in / setup screen opens at the normal full desktop size, but the
+// window is locked down (non-resizable, no maximize) so its layout never
+// reflows or auto-resizes after install. App pages keep the same size but a
+// resizable window.
+const FIXED_WIN = { width: 1280, height: 800 };
+const APP_MIN = { width: 1024, height: 680 };
+
 // Resolve the renderer directory for both dev and packaged builds
 function rendererDir() {
   return app.isPackaged
@@ -67,6 +74,33 @@ function createSplashWindow() {
   });
 }
 
+// The sign-in / setup screen runs in a fixed, non-resizable window so its
+// layout never reflows or auto-resizes after install. App pages restore a
+// resizable window automatically.
+function syncWindowToPage(page) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const auth = page === 'index.html' || page === '';
+  try {
+    if (auth) {
+      // Full desktop size, but frozen: cannot be resized or maximized.
+      mainWindow.setResizable(false);
+      mainWindow.setMinimumSize(FIXED_WIN.width, FIXED_WIN.height);
+      mainWindow.setMaximumSize(FIXED_WIN.width, FIXED_WIN.height);
+      mainWindow.setSize(FIXED_WIN.width, FIXED_WIN.height);
+      mainWindow.center();
+    } else {
+      mainWindow.setResizable(true);
+      mainWindow.setMinimumSize(APP_MIN.width, APP_MIN.height);
+      mainWindow.setMaximumSize(10000, 10000);
+      const [w, h] = mainWindow.getSize();
+      if (w < APP_MIN.width || h < APP_MIN.height) {
+        mainWindow.setSize(FIXED_WIN.width, FIXED_WIN.height);
+        mainWindow.center();
+      }
+    }
+  } catch (e) { /* noop */ }
+}
+
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -93,9 +127,21 @@ function createMainWindow() {
     else if (['f11', 'f5', 'f7', 'f12', 'escape'].includes(key)) event.preventDefault();
   });
 
+  // Keep the window in the right mode per page: fixed, non-resizable size on
+  // the sign-in / setup screen, resizable for the app. Re-runs on navigation.
+  const onNavigate = (_ev, url) => {
+    let page = '';
+    try { page = new URL(url).pathname.split('/').pop() || ''; } catch (e) { page = ''; }
+    syncWindowToPage(page || 'index.html');
+  };
+  mainWindow.webContents.on('did-navigate', onNavigate);
+  mainWindow.webContents.on('did-navigate-in-page', onNavigate);
+
   mainWindow.loadFile(path.join(rendererDir(), 'index.html'));
 
   mainWindow.once('ready-to-show', () => {
+    // Hold the fixed sign-in size before first paint so there's no resize flash.
+    syncWindowToPage('index.html');
     // Let splash show first, then tear down after a beat
     setTimeout(() => {
       if (splashWindow && !splashWindow.isDestroyed()) splashWindow.close();
