@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Live Tally · Pulse Vote Hub</title>
+  <meta name="referrer" content="no-referrer">
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/agent.css">
+</head>
+<body class="agent-body">
+  <div class="agent-head">
+    <div class="agent-brand">
+      <span class="agent-logo" aria-hidden="true"></span>
+      <span class="agent-brand-name">Pulse Vote Hub</span>
+    </div>
+    <div class="agent-head-right">
+      <button type="button" class="agent-mute" id="agent-mute" aria-pressed="false" title="Toggle peep sound on new votes"><span class="icon" data-icon="volume"></span></button>
+      <span class="agent-live" id="agent-live"><span class="dot"></span>LIVE AGENT TALLY</span>
+    </div>
+  </div>
+
+  <header class="agent-mast" id="agent-mast" hidden>
+    <h1 class="agent-title" id="agent-title">—</h1>
+    <p class="agent-sub" id="agent-sub">—</p>
+  </header>
+
+  <!-- Election picker (shown when no ?election= provided) -->
+  <section class="agent-pick" id="agent-pick" hidden>
+    <h2>Select an election to monitor</h2>
+    <div class="agent-pick-list" id="agent-pick-list"></div>
+    <p class="agent-hint">Polling agents open this page on the polling-station network to watch live candidate vote tallies as ballots land on the hub.</p>
+  </section>
+
+  <!-- Live tally display -->
+  <main class="agent-main" id="agent-main" hidden>
+    <div class="agent-recon" id="agent-recon"></div>
+
+    <div class="agent-cats" id="agent-cats"></div>
+
+    <footer class="agent-foot">
+      <span id="agent-clock">—</span>
+      <span id="agent-refresh" class="agent-fresh">auto-refreshes every 5s</span>
+    </footer>
+  </main>
+
+  <!-- Celebration burst overlaid near the updated card -->
+  <div class="agent-burst" id="agent-burst" hidden><span class="icon" data-icon="sparkles"></span></div>
+
+  <div class="agent-error" id="agent-error" hidden></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/agent.js"></script>
+</body>
+</html>

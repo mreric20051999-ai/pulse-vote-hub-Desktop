@@ -3,10 +3,32 @@
 // routes local events to the right transport, and pushes status to any window.
 const sync = require('./sync');
 const discovery = require('./discovery');
+const crypto = require('crypto');
 const { Hub } = require('./hub');
 const { Peer } = require('./peer');
 
 const DEFAULT_PORT = 7380;
+
+// Shared network secret used to authenticate peer connections and protect the
+// internal endpoints (e.g. /api/snapshot). Generated once per host and
+// persisted; client devices are configured with the SAME secret by the
+// coordinator so they can authenticate.
+function networkSecret(getD) {
+  const row = getD().prepare("SELECT value FROM config WHERE key = 'lan_secret'").get();
+  if (row && row.value) return row.value;
+  const secret = 'hub-' + crypto.randomBytes(24).toString('hex');
+  getD().prepare("INSERT OR REPLACE INTO config (key, value) VALUES ('lan_secret', ?)").run(secret);
+  return secret;
+}
+
+// Set the network secret on this device (used to configure a client peer with
+// the host's secret so it can authenticate).
+function setNetworkSecret(getD, value) {
+  const v = String(value || '').trim();
+  if (v.length < 12) return { ok: false, error: 'Network secret must be at least 12 characters' };
+  getD().prepare("INSERT OR REPLACE INTO config (key, value) VALUES ('lan_secret', ?)").run(v);
+  return { ok: true, secret: v };
+}
 
 function LanManager({ getD, version = '1.0.0', rendererDir }) {
   this.getD = getD;
@@ -62,10 +84,14 @@ LanManager.prototype.status = function () {
     mode: this.mode,
     deviceId: this.deviceId(),
     deviceName: this.deviceName(),
+    secret: this.mode === 'host' ? networkSecret(() => this._d()) : null,
     addresses: (this.mode === 'host') ? discovery.localAddresses() : [],
     port: this.mode === 'host' && this.hub ? this.hub.port : null,
     kioskUrls: this.mode === 'host' && this.hub
       ? discovery.localAddresses().map((addr) => addr ? `http://${addr}:${this.hub.port}/kiosk` : null).filter(Boolean)
+      : [],
+    agentUrls: this.mode === 'host' && this.hub
+      ? discovery.localAddresses().map((addr) => addr ? `http://${addr}:${this.hub.port}/kiosk/agent` : null).filter(Boolean)
       : [],
     peers: this._lastPeers,
     client: this._lastClient,
@@ -96,6 +122,7 @@ LanManager.prototype.setMode = async function (mode, opts = {}) {
     const port = Number(opts.port) || Number(process.env.PVH_LAN_PORT) || this._savedPort() || DEFAULT_PORT;
     this.hub = new Hub({
       d,
+      secret: networkSecret(() => d),
       deviceId: this.deviceId(),
       deviceName: this.deviceName(),
       version: this.version,
@@ -133,11 +160,18 @@ LanManager.prototype.setMode = async function (mode, opts = {}) {
     if (this.peer) this.peer.disconnect();
     const raw = (opts.host || this._savedHost()).trim();
     if (!raw) return { ok: false, error: 'No hub address provided' };
+    // A coordinator-supplied network secret must match the hub's so the peer
+    // can authenticate; otherwise the connection is read-only/rejected.
+    if (opts.secret) {
+      const setR = setNetworkSecret(d, opts.secret);
+      if (!setR.ok) return setR;
+    }
     const host = /^wss?:\/\//.test(raw) ? raw : raw.includes(':') && !/:\/\//.test(raw)
       ? `ws://${raw}`
       : `ws://${raw}`;
     this.peer = new Peer({
       d,
+      secret: networkSecret(() => d),
       deviceId: this.deviceId(),
       deviceName: this.deviceName(),
       version: this.version,
@@ -238,6 +272,14 @@ LanManager.prototype.setName = function (name) {
   sync.setDeviceName(this._d(), name);
   this._emitStatus();
   return { ok: true, deviceName: this.deviceName() };
+};
+
+// Set the shared network secret (client devices use the hub's secret).
+LanManager.prototype.setSecret = function (value) {
+  const r = setNetworkSecret(this._d(), value);
+  if (!r.ok) return r;
+  this._emitStatus();
+  return r;
 };
 
 LanManager.prototype.stop = async function () {

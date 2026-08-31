@@ -294,7 +294,10 @@ ipcMain.handle('auth:login', (_e, { officerId, password }) => {
     const res = auth.attemptLogin(officerId, password);
     if (!res.ok) return res;
     if (res.officer.suspended) return { ok: false, error: 'This account has been suspended. Contact the administrator.', code: 'suspended' };
-    return { ok: true, officer: stripSecret(res.officer) };
+    // Mint an opaque session token bound to this webContents. The renderer must
+    // present this token (instead of an officer id) on every privileged call.
+    const token = auth.createSession(res.officer, senderIsApp(_e) ? _e.sender.id : null);
+    return { ok: true, officer: stripSecret(res.officer), session: { token } };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -328,22 +331,47 @@ ipcMain.handle('kiosk:exit', () => {
 });
 
 // ---- Admin / superuser IPC ----
+// Every admin operation requires a valid session token whose owner has the
+// admin role AND must originate from the app window. Without this a non-admin
+// (or a malicious script) can never create admins or change passwords.
 
-ipcMain.handle('admin:officers', () => auth.listOfficers());
-ipcMain.handle('admin:add-officer', (_e, payload) => {
+function requireAdmin(token, event) {
+  if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
+  const actor = resolveActor(token);
+  if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
+  if (actor.role !== 'admin') return { ok: false, error: 'Requires admin access', code: 'forbidden' };
+  return { ok: true, actor };
+}
+
+ipcMain.handle('admin:officers', (e, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  return auth.listOfficers();
+});
+ipcMain.handle('admin:add-officer', (e, payload, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
   try { return auth.addOfficer(payload); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('admin:remove-officer', (_e, { id, actingId }) => {
-  try { return auth.removeOfficer(id, actingId); } catch (err) { return { ok: false, error: err.message }; }
+ipcMain.handle('admin:remove-officer', (e, payload, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return auth.removeOfficer(payload.id, payload.actingId); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('admin:set-suspended', (_e, { id, suspended }) => {
-  try { return auth.setSuspended(id, suspended); } catch (err) { return { ok: false, error: err.message }; }
+ipcMain.handle('admin:set-suspended', (e, payload, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return auth.setSuspended(payload.id, payload.suspended); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('admin:change-password', (_e, { id, newPassword }) => {
-  try { return auth.changePassword(id, newPassword); } catch (err) { return { ok: false, error: err.message }; }
+ipcMain.handle('admin:change-password', (e, payload, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return auth.changePassword(payload.id, payload.newPassword); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('admin:assign-station', (_e, { officerId, stationId, electionId }) => {
-  try { return auth.assignStationOfficer(officerId, stationId, electionId); } catch (err) { return { ok: false, error: err.message }; }
+ipcMain.handle('admin:assign-station', (e, payload, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return auth.assignStationOfficer(payload.officerId, payload.stationId, payload.electionId); } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // ---- Backup / export IPC ----
@@ -462,21 +490,31 @@ function stripSecret(o) {
   return rest;
 }
 
-// Resolve the acting officer from the renderer-reported session officer id.
-function resolveActor(officerId) {
-  if (!officerId) return null;
-  const o = auth.findById(officerId);
-  if (!o) return null;
-  return { id: o.id, role: o.role };
+// Resolve the acting officer from a signed session token (NOT a caller-supplied
+// officer id). Tokens are minted at login, are unguessable, expire, and are
+// bound to the originating webContents — so a malicious script in the renderer
+// cannot fabricate an admin identity by inventing an officerId.
+function resolveActor(token) {
+  const sess = auth.validateSession(token);
+  if (!sess) return null;
+  return { id: sess.officer.id, role: sess.officer.role };
 }
 
 // Authorize an election-scoped management operation: admins pass, coordinators
 // must own the election. Runs `fn(actor)` only when access is allowed.
-function guardElection(electionId, officerId, fn) {
-  const actor = resolveActor(officerId);
+function guardElection(electionId, token, fn) {
+  const actor = resolveActor(token);
   const acc = election.getElectionOrError(electionId, actor);
   if (!acc.ok) return acc;
   return fn(actor);
+}
+
+// IPC handler must originate from the main app window's webContents. The kiosk
+// / hub-served pages run in different contexts and must never drive privileged
+// IPC, even if a token somehow leaks into them.
+function senderIsApp(event) {
+  try { return !!(event && event.sender && mainWindow && event.sender.id === mainWindow.webContents.id); }
+  catch (e) { return false; }
 }
 
 // ---------- Election IPC ----------
@@ -533,11 +571,15 @@ ipcMain.handle('candidate:pick-photo', async () => {
   return path.relative(db.getDataDir(), dest);
 });
 
-// Resolve a stored candidate photo path to a loadable file:// URL.
+// Resolve a stored candidate photo path to a loadable file:// URL. Restricted
+// to the app's own candidate-photos directory.
 ipcMain.handle('candidate:photo-url', (_e, storedPath) => {
   if (!storedPath) return null;
-  const abs = path.isAbsolute(storedPath) ? storedPath : path.join(db.getDataDir(), storedPath);
-  if (!fs.existsSync(abs)) return null;
+  const photosDir = path.resolve(path.join(db.getDataDir(), 'candidate-photos'));
+  const abs = path.isAbsolute(storedPath) ? path.normalize(storedPath) : path.resolve(path.join(photosDir, storedPath));
+  const rel = path.relative(photosDir, abs);
+  if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') return null;
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;
   return `file://${abs}`;
 });
 
@@ -558,7 +600,7 @@ ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => {
   return res;
 });
 ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
-ipcMain.handle('voter:verify-details', (_e, electionId, details) => voter.verifyVoterDetails(electionId, details || {}));
+ipcMain.handle('voter:verify-details', (_e, electionId, details) => voter.verifyVoterDetails(electionId, Object.assign({}, details || {}, { revealPassword: true })));
 ipcMain.handle('voter:cast', (_e, electionId, voterId, selection, stationContext) => {
   const res = voter.castVote(electionId, voterId, selection, stationContext);
   if (res && res.ok) {
@@ -1067,6 +1109,11 @@ ipcMain.handle('lan:set-name', (_e, name) => {
   catch (err) { return { ok: false, error: err.message }; }
 });
 
+ipcMain.handle('lan:set-secret', (_e, value) => {
+  try { return getLan().setSecret(value); }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
 ipcMain.handle('lan:discover', async (_e, ms) => {
   try { return { ok: true, services: await getLan().discovers(ms || 4000) }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -1081,7 +1128,8 @@ ipcMain.handle('lan:local-addresses', () => {
 
 ipcMain.handle('messages:send', (_e, body, officerId) => {
   try {
-    const res = messages.send(resolveActor(officerId) ? officerId : null, body);
+    const actor = resolveActor(officerId);
+    const res = messages.send(actor ? actor.id : null, body);
     if (res.ok) { try { getLan().onLocalMessage(res.message); } catch (err) { console.error('LAN message hook failed:', err.message); } }
     return res;
   } catch (err) { return { ok: false, error: err.message }; }
@@ -1108,8 +1156,9 @@ ipcMain.handle('messages:list', (_e, officerId) => {
 
 // Any officer: their own conversation (sent notes + replies addressed to them).
 ipcMain.handle('messages:mine', (_e, officerId) => {
-  if (!resolveActor(officerId)) return { ok: true, messages: [] };
-  try { return { ok: true, messages: messages.listMine(officerId) }; }
+  const actor = resolveActor(officerId);
+  if (!actor) return { ok: true, messages: [] };
+  try { return { ok: true, messages: messages.listMine(actor.id) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
@@ -1122,15 +1171,17 @@ ipcMain.handle('messages:unread', (_e, officerId) => {
 
 // Any officer: count of replies addressed to them that they haven't read.
 ipcMain.handle('messages:mine-unread', (_e, officerId) => {
-  if (!resolveActor(officerId)) return { ok: true, count: 0 };
-  try { return { ok: true, count: messages.unreadMine(officerId) }; }
+  const actor = resolveActor(officerId);
+  if (!actor) return { ok: true, count: 0 };
+  try { return { ok: true, count: messages.unreadMine(actor.id) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Any officer: mark replies addressed to them as read (opens the thread view).
 ipcMain.handle('messages:mark-mine-read', (_e, officerId) => {
-  if (!resolveActor(officerId)) return { ok: false, error: 'Not signed in' };
-  try { return messages.markMineRead(officerId); }
+  const actor = resolveActor(officerId);
+  if (!actor) return { ok: false, error: 'Not signed in' };
+  try { return messages.markMineRead(actor.id); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
@@ -1235,7 +1286,22 @@ ipcMain.handle('messages:clear', (_e, officerId) => {
 
 // ---------- External links (open the web version in the default browser) ----------
 
-const ALLOWED_EXTERNAL_HOSTS = new Set(['pulse-vote-hub-app.web.app']);
+const ALLOWED_EXTERNAL_HOSTS = new Set([
+  'pulse-vote-hub-app.web.app',
+  'web.facebook.com',
+  'www.facebook.com',
+  'facebook.com',
+  'x.com',
+  'tiktok.com',
+  'www.tiktok.com',
+  'youtube.com',
+  'www.youtube.com',
+  'instagram.com',
+  'threads.net',
+  'www.threads.net',
+  'threads.com',
+  'www.threads.com',
+]);
 
 ipcMain.handle('shell:open-external', async (_e, url) => {
   try {

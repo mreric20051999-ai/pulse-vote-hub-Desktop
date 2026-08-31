@@ -2,6 +2,8 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const ic = (name, size = 22) =>
+    (window.pvhIcons && window.pvhIcons.icon) ? window.pvhIcons.icon(name, size) : '';
 
   const content = $('kiosk-content');
   const titleEl = $('election-title');
@@ -58,7 +60,7 @@
     if (!elections.length) {
       content.innerHTML = `
         <div class="picker-msg">
-          <div class="pick-icon">🗳️</div>
+          <div class="pick-icon">${ic('ballot')}</div>
           <h2>No elections yet</h2>
           <p>There are no elections set up on this device. Check back later.</p>
         </div>`;
@@ -68,7 +70,7 @@
     const voting = elections.filter((e) => e.status === 'active');
     const cards = (voting.length ? voting : elections).map((e) => `
       <div class="picker-card" data-id="${esc(e.id)}" role="button" tabindex="0">
-        <div class="pk-icon" aria-hidden="true">🗳️</div>
+        <div class="pk-icon" aria-hidden="true">${ic('ballot')}</div>
         <div class="pk-body">
           <div class="pk-top">
             ${e.type ? `<span class="pk-type">${esc(e.type)}</span>` : ''}
@@ -90,7 +92,7 @@
 
     content.innerHTML = `
       <div class="picker-msg">
-        <div class="pick-icon">🗳️</div>
+        <div class="pick-icon">${ic('ballot')}</div>
         <h2>Select an election</h2>
         <p>Choose the election you were registered to vote in.</p>
       </div>
@@ -132,7 +134,7 @@
         : '';
       content.innerHTML = `
         <div class="kiosk-panel">
-          <div class="icon auth-icon">📍</div>
+          <div class="icon auth-icon">${ic('mapPin')}</div>
           <h2>Station ballot</h2>
           <p class="subtitle">This election is run polling-station by polling-station. Pick your station to open its ballot, then sign in as a voter registered there.</p>
           ${list}
@@ -150,7 +152,7 @@
     }
     content.innerHTML = `
       <div class="kiosk-panel">
-        <div class="icon auth-icon">🔐</div>
+        <div class="icon auth-icon">${ic('lock')}</div>
         <h2>Voter sign in</h2>
         <p class="subtitle">Enter the voter ID and password you were issued for this election.</p>
         <div class="vk-field">
@@ -164,7 +166,7 @@
         <button class="btn btn-primary btn-xl" id="vk-submit"><span>Continue</span></button>
         <p class="kiosk-form-error" id="vk-error" style="display:none;color:var(--danger);margin-top:14px;"></p>
         <button class="link-btn" id="vk-forgot" type="button" style="margin-top:16px;">Forgot your password?</button>
-        <p class="auth-secure"><span>🔒</span> Your vote is private and never linked to who you are.</p>
+        <p class="auth-secure"><span>${ic('lock')}</span> Your vote is private and never linked to who you are.</p>
       </div>`;
 
     const idInput = $('vk-voter-id');
@@ -234,7 +236,7 @@
 
     content.innerHTML = `
       <div class="kiosk-panel">
-        <div class="icon auth-icon">🔑</div>
+        <div class="icon auth-icon">${ic('key')}</div>
         <h2>Retrieve your password</h2>
         <p class="subtitle">Enter your details below to receive the password issued for your voter ID.</p>
         <div class="vk-field">
@@ -282,7 +284,7 @@
     setBackVisible(true);
     content.innerHTML = `
       <div class="kiosk-panel">
-        <div class="icon auth-icon">🔑</div>
+        <div class="icon auth-icon">${ic('key')}</div>
         <h2>Voter found</h2>
         <p class="subtitle">Use the password below to sign in and cast your ballot.</p>
         <div class="vk-field">
@@ -435,7 +437,7 @@
           <div class="ballot-meta">
             <span class="ballot-type">${esc(election.type === 'station' ? 'Station election' : 'School election')}</span>
             <span class="ballot-dot">•</span>
-            <span class="ballot-secret">🔒 Your vote is private</span>
+            <span class="ballot-secret">${ic('lock', 13)} Your vote is private</span>
             <span class="ballot-dot">•</span>
             <span class="voter-chip">Voting as <strong>${esc(voter.name || voter.voter_id)}</strong></span>
           </div>
@@ -616,7 +618,7 @@
     setBackVisible(true);
     content.innerHTML = `
       <div class="thankyou">
-        <div class="check-circle"><i>✓</i></div>
+        <div class="check-circle"><i>${ic('check', 30)}</i></div>
         <h2>Thank you!</h2>
         <p>Your vote has been recorded securely.</p>
         <button class="btn btn-primary btn-lg" id="done-btn" style="margin-top:var(--space-8);">Next voter</button>
@@ -725,7 +727,7 @@
     setBackVisible(true);
     content.innerHTML = `
       <div class="blocked-box">
-        <div class="icon"><i>⚠</i></div>
+        <div class="icon"><i>${ic('alertTriangle', 26)}</i></div>
         <h2>${withBack ? 'Cannot continue' : 'Heads up'}</h2>
         <p>${esc(msg)}</p>
         <button class="btn btn-primary btn-lg" id="blocked-back">${withBack ? 'Back to elections' : 'OK'}</button>
@@ -762,7 +764,7 @@
     else window.location.assign('dashboard.html');
   });
 
-  // Inline SVG-free check glyphs: replace ✓ with an icon if icons available.
+  // Fill any remaining data-icon slots (most icons are injected inline via ic()).
   if (window.pvhIcons) window.pvhIcons.inject('.icon, .pick-icon');
 
   // Deep-link support: ?election=<id> skips the picker and opens that election

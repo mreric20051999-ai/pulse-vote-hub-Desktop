@@ -85,6 +85,48 @@
   width: 100%;
 }
 
+.password-wrap {
+  position: relative;
+}
+.password-wrap .input {
+  padding-right: 44px;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-md, 8px);
+  transition: color 160ms ease, background 160ms ease;
+}
+.password-toggle:hover {
+  color: var(--text);
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+}
+.password-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+.password-toggle .eye-closed {
+  display: none;
+}
+.password-toggle[aria-pressed="true"] .eye-open {
+  display: none;
+}
+.password-toggle[aria-pressed="true"] .eye-closed {
+  display: block;
+}
+
 .auth-error {
   color: var(--danger);
   font-size: var(--fs-sm);
@@ -94,12 +136,14 @@
 }
 
 .auth-footer {
-  margin-top: var(--space-8);
+  margin-top: var(--space-5);
   text-align: center;
   color: var(--text-dim);
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
 }
 .auth-footer a.guide-link {
   color: var(--text-dim);
@@ -135,3 +179,19 @@
 }
 .btn-icon { display: inline-flex; vertical-align: middle; }
 .btn-icon svg { display: block; }
+
+/* "Set up as an Administrator" — make the alternate first-run path obvious */
+#setup-admin-link.btn-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-3);
+  border: 1px dashed var(--border, #334155);
+  color: var(--accent);
+  font-weight: 600;
+}
+#setup-admin-link.btn-ghost:hover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent);
+}

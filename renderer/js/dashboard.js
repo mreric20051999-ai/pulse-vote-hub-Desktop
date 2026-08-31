@@ -78,9 +78,24 @@
   // ---------- Browser ballot (LAN kiosk, shared hub) ----------
   const kb = {
     start: $('kb-start'), stop: $('kb-stop'), msg: $('kb-msg'), links: $('kb-links'),
+    agentLinks: $('kb-agent-links'),
     stopped: $('kb-stopped'), running: $('kb-running'), port: $('kb-port'), votes: $('kb-votes'),
   };
   const hasLan = kb.start && window.pvh && typeof window.pvh.lanSetMode === 'function';
+
+  function linkList(ul, urls) {
+    ul.innerHTML = urls.length
+      ? urls.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a><button type="button" class="btn btn-sm btn-ghost kb-copy" data-u="${esc(u)}">Copy</button></li>`).join('')
+      : '<li class="text-muted hint">No LAN address detected — check the network connection.</li>';
+    ul.querySelectorAll('.kb-copy').forEach((b) => {
+      b.addEventListener('click', () => {
+        const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(b.dataset.u).then(done, () => { window.prompt('Copy the link', b.dataset.u); done(); });
+        } else { window.prompt('Copy the link', b.dataset.u); done(); }
+      });
+    });
+  }
 
   function renderKiosk(s) {
     const host = s && s.mode === 'host';
@@ -92,18 +107,8 @@
     }
     kb.stopped.style.display = 'none';
     kb.running.style.display = '';
-    const urls = s.kioskUrls || [];
-    kb.links.innerHTML = urls.length
-      ? urls.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a><button type="button" class="btn btn-sm btn-ghost kb-copy" data-u="${esc(u)}">Copy</button></li>`).join('')
-      : '<li class="text-muted hint">No LAN address detected — check the network connection.</li>';
-    kb.links.querySelectorAll('.kb-copy').forEach((b) => {
-      b.addEventListener('click', () => {
-        const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(b.dataset.u).then(done, () => { window.prompt('Copy the link', b.dataset.u); done(); });
-        } else { window.prompt('Copy the link', b.dataset.u); done(); }
-      });
-    });
+    linkList(kb.links, s.kioskUrls || []);
+    linkList(kb.agentLinks, s.agentUrls || []);
     kb.votes.textContent = (s.stats && s.stats.votes) || 0;
     kb.msg.textContent = '';
   }

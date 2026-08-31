@@ -286,6 +286,41 @@
 }
 .guide-to-top:hover { text-decoration: underline; }
 
+/* Framed app screenshots in the manual */
+.guide-figure {
+  margin: 0 0 var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+.guide-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-bottom: 1px solid var(--border);
+}
+.guide-figure figcaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
+.guide-figure figcaption b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+@media print {
+  .guide-figure { break-inside: avoid; }
+  .guide-figure img { max-height: 340px; object-fit: contain; }
+}
+
 .guide-footer {
   margin-top: var(--space-10);
   padding-top: var(--space-5);

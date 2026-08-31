@@ -165,6 +165,12 @@ body.is-admin .admin-only.inline { display: inline-block; }
   word-break: break-all;
 }
 .kb-links a:hover { text-decoration: underline; }
+.kb-agent-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border, #e2e8f0);
+}
+.kb-agent-block .kb-links a { color: var(--accent, #B30202); }
 .kb-copy {
   min-width: 64px;
   padding: 4px 12px;

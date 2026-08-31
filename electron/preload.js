@@ -1,11 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Resolve the currently signed-in officer id from the renderer session and
-// thread it through IPC so the main process can enforce ownership isolation.
+// Resolve the signed-in session token from the renderer session and thread it
+// through IPC. The token — NOT the officer id — is the identity credential: it
+// is minted at login, unguessable, and expires, so the main process never
+// trusts a caller-supplied officer id when deciding who is acting.
 function sessionOfficerId() {
   try {
     const s = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
-    return (s && s.id) || null;
+    return (s && s.token) || null;
   } catch (err) {
     return null;
   }
@@ -86,12 +88,12 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   // Admin / superuser
   hasAdmin: () => ipcRenderer.invoke('auth:has-admin'),
   setupAdmin: (payload) => ipcRenderer.invoke('auth:setup-admin', payload),
-  listOfficers: () => ipcRenderer.invoke('admin:officers'),
-  addOfficer: (payload) => ipcRenderer.invoke('admin:add-officer', payload),
-  removeOfficer: (id, actingId) => ipcRenderer.invoke('admin:remove-officer', { id, actingId }),
-  setOfficerSuspended: (id, suspended) => ipcRenderer.invoke('admin:set-suspended', { id, suspended }),
-  changePassword: (id, newPassword) => ipcRenderer.invoke('admin:change-password', { id, newPassword }),
-  assignStationOfficer: (officerId, stationId, electionId) => ipcRenderer.invoke('admin:assign-station', { officerId, stationId, electionId }),
+  listOfficers: () => ipcRenderer.invoke('admin:officers', oid()),
+  addOfficer: (payload) => ipcRenderer.invoke('admin:add-officer', payload, oid()),
+  removeOfficer: (id, actingId) => ipcRenderer.invoke('admin:remove-officer', { id, actingId }, oid()),
+  setOfficerSuspended: (id, suspended) => ipcRenderer.invoke('admin:set-suspended', { id, suspended }, oid()),
+  changePassword: (id, newPassword) => ipcRenderer.invoke('admin:change-password', { id, newPassword }, oid()),
+  assignStationOfficer: (officerId, stationId, electionId) => ipcRenderer.invoke('admin:assign-station', { officerId, stationId, electionId }, oid()),
   listDeployments: () => ipcRenderer.invoke('dist:list', oid()),
   addDeployment: (fields) => ipcRenderer.invoke('dist:add', fields, oid()),
   removeDeployment: (id) => ipcRenderer.invoke('dist:remove', id, oid()),
@@ -144,6 +146,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {})),
   lanStop: () => ipcRenderer.invoke('lan:stop'),
   lanSetName: (name) => ipcRenderer.invoke('lan:set-name', name),
+  lanSetSecret: (value) => ipcRenderer.invoke('lan:set-secret', value),
   lanDiscover: (ms) => ipcRenderer.invoke('lan:discover', ms),
   lanLocalAddresses: () => ipcRenderer.invoke('lan:local-addresses'),
   onLanStatus: (cb) => {

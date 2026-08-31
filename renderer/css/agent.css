@@ -1,0 +1,174 @@
+/* Live Agent Tally display — a calm, readable counting-card wall screen
+   opened by polling agents in a browser over the LAN. Each candidate is a
+   "counting card"; a new vote pops the number, fires a small celebration
+   burst and a soft peep. */
+
+.agent-body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background:
+    radial-gradient(900px 520px at 50% -12%, var(--accent-soft), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.agent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 26px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.agent-brand { display: flex; align-items: center; gap: 10px; font-weight: var(--fw-semibold); font-size: 14px; }
+.agent-logo {
+  width: 26px; height: 26px; border-radius: 8px; display: inline-block;
+  background: linear-gradient(150deg, var(--accent), #b91c1c);
+}
+.agent-head-right { display: flex; align-items: center; gap: 12px; }
+.agent-mute {
+  cursor: pointer; font-size: 15px; line-height: 1;
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+  background: var(--surface-2); width: 36px; height: 36px; display: grid; place-items: center;
+  transition: var(--transition);
+}
+.agent-mute:hover { border-color: var(--accent); }
+.agent-live {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12px; font-weight: var(--fw-semibold); letter-spacing: .04em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: var(--radius-full);
+  padding: 6px 12px;
+}
+.agent-live .dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  animation: agPulse 1.6s ease-in-out infinite;
+}
+@keyframes agPulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+.agent-mast { padding: 26px 26px 6px; max-width: 1180px; margin: 0 auto; }
+.agent-title { font-size: clamp(22px, 4vw, 34px); line-height: 1.1; margin: 0 0 6px; font-weight: var(--fw-bold); }
+.agent-sub { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+.agent-pick { max-width: 640px; margin: 48px auto; padding: 0 20px; text-align: center; }
+.agent-pick h2 { font-size: 22px; margin: 0 0 20px; }
+.agent-pick-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.agent-pick-item {
+  text-align: left; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--surface); font: inherit; font-weight: var(--fw-semibold); color: var(--text);
+  transition: var(--transition);
+}
+.agent-pick-item:hover { border-color: var(--accent); background: var(--surface-2); }
+.agent-pick-item .ap-status { font-size: 12px; font-weight: var(--fw-semibold); color: var(--text-muted); }
+.agent-hint { color: var(--text-muted); font-size: 13px; line-height: 1.6; }
+
+.agent-main { max-width: 1180px; margin: 0 auto; padding: 22px 26px 40px; }
+
+.agent-recon {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 26px;
+}
+.agent-recon-card {
+  flex: 1 1 150px; min-width: 140px; text-align: center;
+  padding: 16px 12px; border-radius: var(--radius-lg);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.agent-recon-num { font-size: clamp(26px, 4vw, 40px); font-weight: var(--fw-bold); line-height: 1; }
+.agent-recon-label { margin-top: 8px; font-size: 12px; color: var(--text-muted); font-weight: var(--fw-semibold); }
+.agent-recon-card.primary { background: linear-gradient(150deg, var(--accent), #b91c1c); border-color: transparent; color: #fff; }
+.agent-recon-card.primary .agent-recon-label { color: rgba(255,255,255,.85); }
+
+/* Counting-card wall */
+.agent-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
+.agent-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 18px 18px 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+.agent-card-name {
+  font-size: 14px; font-weight: var(--fw-semibold);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: var(--text);
+}
+.agent-card-num {
+  font-size: clamp(38px, 6vw, 56px);
+  font-weight: var(--fw-bold); line-height: 1; letter-spacing: -.02em;
+  color: var(--accent);
+}
+.agent-card-meta { font-size: 11px; color: var(--text-dim); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: .05em; }
+.agent-card.lead { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.agent-card.lead::after {
+  content: 'LEAD'; position: absolute; top: 12px; right: 12px;
+  font-size: 9px; font-weight: var(--fw-bold); letter-spacing: .06em;
+  color: var(--accent); background: var(--accent-soft);
+  border-radius: var(--radius-full); padding: 3px 7px;
+}
+
+/* New-vote pop-in: number scales up with a springy pulse, then settles. */
+.agent-card.pop { animation: agCardPop .55s ease; }
+.agent-card.pop .agent-card-num { animation: agNumPop .55s ease; color: var(--accent); }
+@keyframes agCardPop {
+  0% { transform: scale(1); border-color: var(--border); box-shadow: none; }
+  30% { transform: scale(1.035); border-color: var(--accent); box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 30%, transparent); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+@keyframes agNumPop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+/* Celebration burst: an emoji that pops in near the updated card. */
+.agent-burst {
+  position: fixed; z-index: 40; pointer-events: none;
+  font-size: 30px; line-height: 1; width: 48px; height: 48px;
+  display: grid; place-items: center;
+  opacity: 0; transform: scale(.4) translateY(6px);
+}
+.agent-burst.go { animation: agBurst 1s ease-out forwards; }
+@keyframes agBurst {
+  0% { opacity: 0; transform: scale(.4) translateY(6px); }
+  20% { opacity: 1; transform: scale(1.15) translateY(-2px); }
+  100% { opacity: 0; transform: scale(.9) translateY(-42px); }
+}
+
+.agent-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 26px; color: var(--text-dim); font-size: 12px;
+  border-top: 1px solid var(--border); padding-top: 14px;
+}
+
+.agent-error {
+  position: fixed; left: 50%; top: 20px; transform: translateX(-50%);
+  max-width: 90vw; padding: 12px 18px; border-radius: var(--radius-md);
+  background: #fee2e2; color: #991b1b; font-size: 14px; font-weight: var(--fw-semibold);
+  border: 1px solid #fecaca; z-index: 20; box-shadow: 0 8px 24px rgba(0,0,0,.12);
+}
+
+@media (max-width: 640px) {
+  .agent-brand-name { display: none; }
+  .agent-cats { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-live .dot { animation: none; }
+  .agent-card.pop, .agent-card.pop .agent-card-num { animation: none; }
+  .agent-burst.go { animation: none; }
+}

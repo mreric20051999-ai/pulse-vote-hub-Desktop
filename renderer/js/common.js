@@ -1,7 +1,11 @@
 (function () {
   // Shared session guard + sidebar profile for authed pages
   const session = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
-  if (!session) {
+  // A session is only valid with a signed token (minted at login). A stale
+  // session that has an officer id but no token is expired/forged → route to
+  // login so the user re-authenticates.
+  if (!session || !session.token) {
+    try { window.localStorage.removeItem('pvh_session'); } catch (err) { /* noop */ }
     window.location.assign('index.html');
     return;
   }
@@ -90,6 +94,7 @@
             : '<button type="button" class="profile-item" role="menuitem" data-action="speak">' + ic('message') + ' Speak to admin <span class="profile-badge" id="speak-badge" hidden></span></button>'}
           <button type="button" class="profile-item" role="menuitem" data-action="website">${ic('globe')} Visit website</button>
           <button type="button" class="profile-item" role="menuitem" data-action="blog">${ic('newspaper')} Blog</button>
+          <button type="button" class="profile-item" role="menuitem" data-action="about">${ic('globe')} About Pulse Trend</button>
           <div class="profile-divider"></div>
           <button type="button" class="profile-item profile-item-danger" role="menuitem" data-action="signout">${ic('logout')} Sign out</button>
         </div>
@@ -163,6 +168,7 @@
       }
       if (action === 'preferences') prefsModal();
       if (action === 'faq') faqModal();
+      if (action === 'about') aboutModal();
       if (action === 'privacy') privacyModal();
       if (action === 'speak') speakModal();
     });
@@ -299,8 +305,56 @@
     ['How secure is the ballot?',
      'Ballots are cryptographically signed, the vote and audit trails are hash-chained, and admin actions are immutably recorded. You can run Verify integrity anytime to get a full report.'],
     ['Where can I get more help?',
-     'Open your Profile menu and choose “User guide” for the full manual, or use “Speak to admin” and your admin will read it from Administration > Inbox. The latest news is on our website (pulse-vote-hub-app.web.app) and blog.'],
+     'Open your Profile menu and choose “User guide” for the full manual, or use “Speak to admin” and your admin will read it from Administration > Inbox. To stay up to date or reach the Pulse Trend team, follow the channels in the “About Pulse Trend” section below.'],
   ];
+
+  const PULSE_TREND = {
+    about: 'Pulse Vote Hub is powered by <strong>Pulse Trend</strong> — an offline-first voting and event platform made for reliable, transparent polls across classrooms, campuses and communities.',
+    channels: [
+      { key: 'facebook', label: 'Facebook', url: 'https://web.facebook.com/pulsetrendtv' },
+      { key: 'x', label: 'X (Twitter)', url: 'https://x.com/the_pulsetrend?s=11' },
+      { key: 'tiktok', label: 'TikTok', url: 'https://tiktok.com/@thepulsetrend' },
+      { key: 'youtube', label: 'YouTube', url: 'https://youtube.com/@thepulsetrend' },
+      { key: 'instagram', label: 'Instagram', url: 'https://instagram.com/thepulsetrend' },
+      { key: 'threads', label: 'Threads', url: 'https://www.threads.com/@the_pulsetrend?igshid=NTc4MTIwNjQ2YQ==' },
+    ],
+  };
+
+  function socialLinks() {
+    return PULSE_TREND.channels
+      .map(({ key, label, url }) =>
+        `<a class="pvh-social" href="#" data-href="${esc(url)}" aria-label="${esc(label)}">${(window.pvhIcons && window.pvhIcons.brand) ? window.pvhIcons.brand(key, 16) : ''}<span>${esc(label)}</span></a>`)
+      .join('');
+  }
+
+  function openExternalUrl(url, msg) {
+    if (window.pvh && window.pvh.openExternal) {
+      window.pvh.openExternal(url).then((res) =>
+        toast(res && res.ok ? 'Opened in your browser.' : (res && res.error) || 'Could not open the link.', res && res.ok ? 'success' : 'error')
+      );
+    } else {
+      window.open(url, '_blank');
+    }
+    if (msg) toast(msg, 'success');
+  }
+
+  function aboutModal() {
+    openModal({
+      title: 'About Pulse Trend',
+      width: '560px',
+      body: `
+        <p class="pvh-about">${PULSE_TREND.about}</p>
+        <h4 class="pvh-social-title">Connect with us</h4>
+        <div class="pvh-social-grid">${socialLinks()}</div>
+        <p class="pvh-contact">Contact: <strong>020 469 9001</strong></p>
+      `,
+      onMount(bodyEl) {
+        bodyEl.querySelectorAll('.pvh-social').forEach((a) =>
+          a.addEventListener('click', (e) => { e.preventDefault(); openExternalUrl(a.dataset.href); })
+        );
+      },
+    });
+  }
 
   function faqModal() {
     const items = FAQ_ITEMS
@@ -309,7 +363,19 @@
     openModal({
       title: 'Frequently asked questions',
       width: '560px',
-      body: `<div class="pvh-faq-wrap">${items}</div>`,
+      body: `
+        <div class="pvh-faq-wrap">${items}</div>
+        <hr class="pvh-faq-hr">
+        <p class="pvh-about">${PULSE_TREND.about}</p>
+        <h4 class="pvh-social-title">Connect with us</h4>
+        <div class="pvh-social-grid">${socialLinks()}</div>
+        <p class="pvh-contact">Contact: <strong>020 469 9001</strong></p>
+      `,
+      onMount(bodyEl) {
+        bodyEl.querySelectorAll('.pvh-social').forEach((a) =>
+          a.addEventListener('click', (e) => { e.preventDefault(); openExternalUrl(a.dataset.href); })
+        );
+      },
     });
   }
 

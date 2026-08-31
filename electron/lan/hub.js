@@ -14,8 +14,41 @@ const voter = require('../voter');
 const station = require('../station');
 const checkInLink = require('../checkin-link');
 
-function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEnabled, onWritten, onCheckin }) {
+// Sliding-window rate limiter: at most `limit` requests per `windowMs` per key
+// (keyed by client IP and/or voter id). Exceeding the window rejects further
+// attempts, which blunts remote brute-forcing of voter PINs.
+function makeRateLimiter(limit, windowMs) {
+  const hits = new Map();
+  return function check(key) {
+    if (!key) return { ok: true };
+    const now = Date.now();
+    const arr = hits.get(key) || [];
+    const kept = arr.filter((t) => now - t < windowMs);
+    kept.push(now);
+    hits.set(key, kept);
+    if (hits.size > 10000) {
+      for (const [k, v] of hits) if (!v.length || now - v[v.length - 1] >= windowMs) hits.delete(k);
+    }
+    const remaining = Math.max(0, limit - kept.length);
+    return { ok: kept.length <= limit, remaining, retryAfterMs: kept.length ? windowMs - (now - kept[0]) : 0 };
+  };
+}
+
+// Best-effort client IP from the socket; X-Forwarded-For is trusted only for
+// loopback/local proxies, so remote callers can't spoof their limiter bucket.
+function clientIp(req) {
+  const sock = (req.socket && (req.socket.remoteAddress || (req.connection && req.connection.remoteAddress))) || 'unknown';
+  const raw = String(sock).replace(/^::ffff:/, '');
+  if (raw === '::1' || raw === '127.0.0.1') {
+    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    if (fwd) return fwd;
+  }
+  return raw;
+}
+
+function Hub({ d, secret, deviceId, deviceName, version, onStatus, rendererDir, kioskEnabled, onWritten, onCheckin }) {
   this.d = d;
+  this.secret = secret || null;
   this.deviceId = deviceId;
   this.deviceName = deviceName;
   this.version = version;
@@ -24,11 +57,18 @@ function Hub({ d, deviceId, deviceName, version, onStatus, rendererDir, kioskEna
   this.kioskEnabled = kioskEnabled !== false;
   this.onWritten = onWritten || (() => {});
   this.onCheckin = onCheckin || (() => {});
-  // Browser check-in sessions issued after a correct PIN (token -> sessions),
-  // and per-link PIN attempt throttling (tokenId -> { fails, lockedUntil }).
-  this._sessions = new Map();
-  this._pinTries = new Map();
-  this.port = null;
+// Browser check-in sessions issued after a correct PIN (token -> sessions),
+// and per-link PIN attempt throttling (tokenId -> { fails, lockedUntil }).
+this._sessions = new Map();
+this._pinTries = new Map();
+// HTTP rate limiting for the network voting endpoints (per key).
+this._rate = new Map();
+// Per-IP limits: allow a burst of 12 attempts, then 10 per 60s window.
+this._ipLimit = makeRateLimiter(10, 60 * 1000);
+// Per-voter verify limit: a tighter cap on credential guesses (5 per minute).
+this._verifyLimit = makeRateLimiter(5, 60 * 1000);
+this._castLimit = makeRateLimiter(6, 60 * 1000);
+this.port = null;
   this.server = null;
   this.wss = null;
   this.peers = new Set(); // ws sockets
@@ -48,7 +88,17 @@ Hub.prototype.start = function (port) {
     res.json({ ok: true, deviceName: self.deviceName, version: self.version, peers: self.peers.size });
   });
 
-  app.get('/api/snapshot', (_req, res) => {
+  app.get('/api/snapshot', (req, res) => {
+    // This endpoint returns the full election dataset (voters, votes, messages),
+    // so it requires the shared network secret. No browser flow calls it; only
+    // authorized peers/operators with the token may read a snapshot.
+    if (self.secret) {
+      const provided = (req.query.token) || req.get('x-hub-token') || '';
+      if (provided !== self.secret) {
+        res.status(403).json({ ok: false, error: 'Forbidden' });
+        return;
+      }
+    }
     try {
       res.json({ ok: true, generated_at: Date.now(), ...sync.buildSnapshot(self.d) });
     } catch (err) {
@@ -158,13 +208,23 @@ Hub.prototype._mountKiosk = function (app) {
     }
   });
 
-  // Candidate photos, resolved the same way the desktop does.
+  // Candidate photos, resolved the same way the desktop does. Restricted to
+  // files under the app's own candidate-photos directory and to image file
+  // extensions only, so this endpoint can't be used to read arbitrary files.
   app.get('/api/kiosk/photo', (req, res) => {
     const stored = req.query.p;
     if (!stored) { res.status(400).json({ ok: false, error: 'Missing photo path' }); return; }
-    const abs = path.isAbsolute(stored) ? stored : path.join(db.getDataDir(), stored);
-    if (!fs.existsSync(abs)) { res.status(404).json({ ok: false, error: 'Photo not found' }); return; }
-    const ct = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(abs).toLowerCase()] || 'application/octet-stream';
+    const raw = String(stored);
+    const photosDir = path.resolve(path.join(db.getDataDir(), 'candidate-photos'));
+    const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(path.join(photosDir, raw));
+    const rel = path.relative(photosDir, abs);
+    if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') {
+      res.status(403).json({ ok: false, error: 'Forbidden' });
+      return;
+    }
+    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { res.status(404).json({ ok: false, error: 'Photo not found' }); return; }
+    const ct = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(abs).toLowerCase()];
+    if (!ct) { res.status(403).json({ ok: false, error: 'Forbidden' }); return; }
     res.type(ct);
     fs.createReadStream(abs).on('error', () => res.status(404).end()).pipe(res);
   });
@@ -176,16 +236,34 @@ Hub.prototype._mountKiosk = function (app) {
       res.status(400).json({ ok: false, error: 'Missing verification fields' });
       return;
     }
+    // Rate-limit credential guessing: per-IP burst cap + per-voter tick.
+    const ip = clientIp(req);
+    const ipR = self._ipLimit(ip);
+    const voterKey = b.electionId + '|' + String(b.voterId).trim().toUpperCase();
+    const vR = self._verifyLimit(voterKey);
+    if (!ipR.ok || !vR.ok) {
+      res.status(429).json({ ok: false, error: 'Too many attempts. Please slow down and try again in a minute.', code: 'rate-limited' });
+      return;
+    }
     res.json(voter.verifyVoter(b.electionId, b.voterId, b.password));
   });
 
   app.post('/api/kiosk/verify-details', express.json(), (req, res) => {
     const b = req.body || {};
-    if (!b.electionId || !b.voterId) {
+    const details = (b.details || {}).voterId ? b.details : b;
+    if (!b.electionId || !details.voterId) {
       res.status(400).json({ ok: false, error: 'Missing recovery fields' });
       return;
     }
-    res.json(voter.verifyVoterDetails(b.electionId, b.details || {}));
+    const ipR = self._ipLimit(clientIp(req));
+    if (!ipR.ok) {
+      res.status(429).json({ ok: false, error: 'Too many attempts. Please slow down and try again in a minute.', code: 'rate-limited' });
+      return;
+    }
+    // IMPORTANT: this network endpoint never reveals the voting password
+    // (revealPassword stays false), so a leaked voterId+name/phone cannot be
+    // used to obtain credentials remotely.
+    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: false })));
   });
 
   // Cast a ballot from a browser. Reuses the desktop castVote (validation,
@@ -195,6 +273,12 @@ Hub.prototype._mountKiosk = function (app) {
     const b = req.body || {};
     if (!b.electionId || !b.voterId || !Array.isArray(b.selection)) {
       res.status(400).json({ ok: false, error: 'Missing cast fields' });
+      return;
+    }
+    const ipR = self._ipLimit(clientIp(req));
+    const castR = self._castLimit(b.electionId + '|' + String(b.voterId).trim().toUpperCase());
+    if (!ipR.ok || !castR.ok) {
+      res.status(429).json({ ok: false, error: 'Too many requests. Please try again shortly.', code: 'rate-limited' });
       return;
     }
     const r = voter.castVote(b.electionId, b.voterId, b.selection, b.station);
@@ -211,6 +295,98 @@ Hub.prototype._mountKiosk = function (app) {
       version: self.version,
       ballotUrl: self.port ? `http://localhost:${self.port}/kiosk` : null,
     });
+  });
+
+  // ---- Live agent tally ("pink sheet" live view) ----
+  // Polling agents open this in a browser over the LAN and watch per-candidate
+  // vote totals update as ballots land on the hub. Mirrors the Ghana "pink
+  // sheet" idea: candidate -> votes, per office, with turnout + valid-ballot
+  // reconciliation the agent can cross-check against their own records.
+  app.get('/api/kiosk/agent-tally', (req, res) => {
+    try {
+      const eid = String(req.query.election || '');
+      if (!eid) { res.json({ ok: false, error: 'Missing election' }); return; }
+      const d = self.d;
+      const e = d.prepare('SELECT * FROM elections WHERE id = ?').get(eid);
+      if (!e) { res.json({ ok: false, error: 'Election not found' }); return; }
+
+      const now = Date.now();
+      const end = Number(e.end_date) || 0;
+      const closed = e.status === 'closed' || (end > 0 && now >= end);
+
+      const positions = d.prepare('SELECT * FROM positions WHERE election_id = ? ORDER BY title').all(eid);
+      const candidates = d.prepare('SELECT * FROM candidates WHERE election_id = ? ORDER BY sort_order, ballot_number').all(eid);
+      const tallyRows = d.prepare(
+        'SELECT candidate_id, position_id, COUNT(*) AS n FROM votes WHERE election_id = ? GROUP BY candidate_id, position_id'
+      ).all(eid);
+      const countByCand = new Map();
+      for (const r of tallyRows) countByCand.set(r.candidate_id, r.n);
+
+      let totalValid = 0;
+      const categories = [];
+      for (const p of positions) {
+        const list = candidates
+          .filter((c) => c.position_id === p.id)
+          .map((c) => ({ id: c.id, name: c.name, party: c.party || null, votes: countByCand.get(c.id) || 0 }))
+          .sort((a, b) => b.votes - a.votes);
+        const catVotes = list.reduce((s, c) => s + c.votes, 0);
+        totalValid += catVotes;
+        categories.push({
+          id: p.id,
+          name: p.title,
+          votes: catVotes,
+          candidates: list.map((c) => ({
+            ...c,
+            percentage: catVotes > 0 ? Number(((c.votes / catVotes) * 100).toFixed(1)) : 0,
+          })),
+        });
+      }
+
+      const registered = (d.prepare('SELECT COUNT(*) n FROM voters WHERE election_id = ?').get(eid) || { n: 0 }).n;
+      const castVoters = (d.prepare('SELECT COUNT(DISTINCT voter_id) n FROM votes WHERE election_id = ?').get(eid) || { n: 0 }).n;
+      const turnoutPct = registered > 0 ? Number(((castVoters / registered) * 100).toFixed(1)) : 0;
+
+      let stations = [];
+      if (e.type === 'station') {
+        const stRows = d.prepare('SELECT id, code, name, status FROM stations WHERE election_id = ? ORDER BY name').all(eid);
+        const votes = d.prepare('SELECT station_id, COUNT(*) n FROM votes WHERE election_id = ? GROUP BY station_id').all(eid);
+        const voteMap = new Map(votes.map((v) => [v.station_id, v.n]));
+        stations = stRows.map((s) => ({
+          id: s.id,
+          code: s.code,
+          name: s.name,
+          status: s.status,
+          votes: voteMap.get(s.id) || 0,
+        }));
+      }
+
+      res.json({
+        ok: true,
+        election: { id: e.id, title: e.title, type: e.type, status: e.status },
+        regime: closed ? 'sealed' : 'live',
+        generated_at: now,
+        totalValid,
+        castVoters,
+        registered,
+        turnoutPct,
+        categories,
+        stations,
+      });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  // Live agent display page (a plain browser, no login, on the LAN).
+  app.get('/kiosk/agent', (_req, res) => {
+    const p = path.join(self.rendererDir, 'agent.html');
+    if (!fs.existsSync(p)) { res.status(404).json({ ok: false, error: 'Agent page unavailable' }); return; }
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.type('html').send(fs.readFileSync(p, 'utf8'));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: 'Agent page unavailable' });
+    }
   });
 
   // ---- Secure station check-in (magic link + one-time PIN) ----
@@ -373,6 +549,8 @@ Hub.prototype._onConnection = function (ws) {
   this.peers.add(ws);
   this._touch();
   ws.isAlive = true;
+  ws.authorized = !self.secret; // no secret configured => legacy open behavior
+  ws.deviceId = null;
   ws.on('pong', () => { ws.isAlive = true; });
   ws.on('message', (raw) => {
     let msg;
@@ -395,18 +573,25 @@ Hub.prototype._handleMessage = function (ws, msg) {
   switch (msg.t) {
     case 'hello':
       this.peerMeta.set(ws, { deviceId: msg.device_id, deviceName: msg.device_name });
+      // Authenticate the peer against the shared network secret. When a secret
+      // is configured, only authorized peers may mutate data (vote/checkin/
+      // unvote/message). `sync`/`get_voter` are only meaningful after auth too.
+      if (this.secret) ws.authorized = String(msg.secret || '') === this.secret;
+      ws.deviceId = msg.device_id || null;
       this._bumpStatus();
       send({
         t: 'welcome', server_id: this.deviceId, server_name: this.deviceName,
-        server_version: this.version, port: this.port,
+        server_version: this.version, port: this.port, authorized: ws.authorized,
       });
       break;
 
     case 'sync':
+      if (!this._requireAuth(ws)) return;
       this._sendSnapshot(ws);
       break;
 
     case 'vote': {
+      if (!this._requireAuth(ws)) return;
       const res = sync.recordRemoteVote(this.d, msg.election_id, {
         voter_id: msg.voter_id,
         device_id: msg.device_id,
@@ -425,6 +610,7 @@ Hub.prototype._handleMessage = function (ws, msg) {
     }
 
     case 'checkin': {
+      if (!this._requireAuth(ws)) return;
       const res = sync.recordRemoteCheckin(this.d, msg.election_id, {
         voter_id: msg.voter_id, officer_name: msg.officer_name, device_id: msg.device_id, station: msg.station,
       });
@@ -443,6 +629,7 @@ Hub.prototype._handleMessage = function (ws, msg) {
     }
 
     case 'unvote': {
+      if (!this._requireAuth(ws)) return;
       const res = sync.recordRemoteUnvote(this.d, msg.election_id, { voter_id: msg.voter_id });
       if (!res.ok) {
         send({ t: 'conflict', type: 'unvote', ref: res.ref, code: res.code, reason: res.reason });
@@ -456,6 +643,7 @@ Hub.prototype._handleMessage = function (ws, msg) {
     }
 
     case 'message': {
+      if (!this._requireAuth(ws)) return;
       const rec = {
         id: msg.id, from_officer_id: msg.from_officer_id, from_name: msg.from_name,
         from_officer: msg.from_officer, to_officer: msg.to_officer,
@@ -475,6 +663,7 @@ Hub.prototype._handleMessage = function (ws, msg) {
     }
 
     case 'get_voter': {
+      if (!this._requireAuth(ws)) return;
       const state = sync.buildVoterState(this.d, msg.election_id, msg.voter_id);
       send({ t: 'voter_state', election_id: msg.election_id, state });
       break;
@@ -487,6 +676,13 @@ Hub.prototype._handleMessage = function (ws, msg) {
     default:
       break;
   }
+};
+
+// Reject a frame from a connection that hasn't presented the shared secret.
+Hub.prototype._requireAuth = function (ws) {
+  if (!ws || ws.authorized) return true;
+  if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'conflict', type: 'auth', code: 'unauthorized', reason: 'Not authorized' }));
+  return false;
 };
 
 // Convert a client vote message into the authoritative broadcast row (symbolic).

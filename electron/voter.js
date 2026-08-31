@@ -271,7 +271,10 @@ function verifyVoter(electionId, voterId, password) {
 // Voter self-service password recovery. The voter types the details matching
 // the scheme used to generate them; if a record matches, their cast password
 // is returned so they can use it on the kiosk ballot.
-function verifyVoterDetails(electionId, { voterId, name, phone } = {}) {
+// NOTE: `revealPassword` must be FALSE for any network-exposed path (the LAN
+// kiosk endpoint). The voting password is never sent over the network; only
+// the local desktop recovery flow may reveal it to the help desk.
+function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword = false } = {}) {
   const d = db.get();
   const election = d.prepare('SELECT * FROM elections WHERE id = ?').get(electionId);
   if (!election) return { ok: false, error: 'Election not found', code: 'not-found' };
@@ -323,7 +326,7 @@ function verifyVoterDetails(electionId, { voterId, name, phone } = {}) {
       voter_id: voter.voter_id,
       name: voter.name,
       phone: voter.phone,
-      password: voter.plain_password || null,
+      password: (revealPassword && voter.plain_password) || null,
       assigned_station: voter.assigned_station,
       has_voted: !!voter.has_voted,
     },
@@ -489,9 +492,9 @@ function generateVoterId(n) {
   return `V${num}`;
 }
 
-// Voting password: auto-generated 4-digit numeric code.
+// Voting password: auto-generated 6-digit numeric code.
 function generatePassword() {
-  return randomDigits(4);
+  return randomDigits(6);
 }
 
 function randomDigits(len) {

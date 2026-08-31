@@ -1066,6 +1066,32 @@ tbody tr {
   color: var(--text-muted);
 }
 
+/* About Pulse Trend (FAQ / About modal footer) */
+.pvh-faq-hr { border: none; border-top: 1px solid var(--border); margin: var(--space-4) 0; }
+.pvh-about { font-size: 13px; line-height: 1.6; color: var(--text-muted); margin: 0; }
+.pvh-social-title { margin: var(--space-3) 0 var(--space-2); font-size: 13px; font-weight: var(--fw-semibold); color: var(--text); }
+.pvh-social-grid { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pvh-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
+  transition: var(--transition);
+}
+.pvh-social svg { flex: none; }
+.pvh-social span { color: var(--text-muted); }
+.pvh-social:hover { background: var(--surface-2); border-color: var(--accent); }
+.pvh-social:hover span { color: var(--accent); }
+.pvh-contact { margin: var(--space-3) 0 0; font-size: 13px; color: var(--text-muted); }
+.pvh-contact strong { color: var(--text); }
+
 /* Privacy */
 .pvh-privacy-wrap { display: flex; flex-direction: column; gap: var(--space-4); }
 .pvh-privacy h3 {

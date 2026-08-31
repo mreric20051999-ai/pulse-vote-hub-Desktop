@@ -247,6 +247,46 @@ function publicOfficer(row) {
   };
 }
 
+// ---- Signed sessions ----
+// A successful login returns an opaque, unguessable token that the renderer
+// must present on every privileged IPC call. The main process never trusts a
+// caller-supplied officer id again; it validates the token and derives the
+// actor (and its role) from the stored session. Tokens are kept in memory and
+// expire, so app restart or timeout ends the right to act.
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12h, sliding
+const sessions = new Map(); // token -> { officerId, expiresAt, senderId }
+
+function createSession(officer, senderId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, { officerId: officer.id, expiresAt: Date.now() + SESSION_TTL_MS, senderId: senderId || null });
+  return token;
+}
+
+// Validate a session token and return the acting officer, or null.
+function validateSession(token, senderId) {
+  if (!token || typeof token !== 'string') return null;
+  const s = sessions.get(token);
+  if (!s) return null;
+  // Bound to the webContents that originally logged in, so a session minted in
+  // one window cannot be replayed from a different renderer.
+  if (s.senderId != null && senderId != null && s.senderId !== senderId) return null;
+  if (Date.now() > s.expiresAt) { sessions.delete(token); return null; }
+  // Sliding expiry.
+  s.expiresAt = Date.now() + SESSION_TTL_MS;
+  const officer = findById(s.officerId);
+  if (!officer || officer.suspended) { sessions.delete(token); return null; }
+  return { officer, token };
+}
+
+function revokeSession(token) {
+  if (token) sessions.delete(token);
+}
+
+function sessionTokenFor(officerId) {
+  for (const [token, s] of sessions.entries()) if (s.officerId === officerId) return token;
+  return null;
+}
+
 // Link an assistant (station officer) account to a station for an election.
 // Passing stationId = null clears the assignment.
 function assignStationOfficer(officerId, stationId, electionId) {
@@ -276,4 +316,8 @@ module.exports = {
   changePassword,
   assignStationOfficer,
   insertOfficer,
+  createSession,
+  validateSession,
+  revokeSession,
+  sessionTokenFor,
 };

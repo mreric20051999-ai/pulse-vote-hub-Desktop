@@ -16,6 +16,19 @@
   function show(name) {
     Object.entries(views).forEach(([k, el]) => { el.hidden = (k !== name); });
   }
+
+  // ---- Password visibility toggle (eye) ----
+  const passInput = $('login-pass');
+  const passToggle = $('login-pass-toggle');
+  if (passInput && passToggle) {
+    passToggle.addEventListener('click', () => {
+      const showPw = passInput.type === 'password';
+      passInput.type = showPw ? 'text' : 'password';
+      passToggle.setAttribute('aria-pressed', String(showPw));
+      passToggle.setAttribute('aria-label', showPw ? 'Hide password' : 'Show password');
+    });
+  }
+
   function focus(name) {
     const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name' };
     const el = $(map[name]);
@@ -131,7 +144,8 @@
       const login = await window.pvh.login({ officerId: res.coordinator.officer_id, password: setup });
       if (login.ok) {
         const officer = login.officer;
-        window.localStorage.setItem('pvh_session', JSON.stringify(officer));
+        const session = Object.assign({}, officer, login.session && login.session.token ? { token: login.session.token } : {});
+        window.localStorage.setItem('pvh_session', JSON.stringify(session));
         window.location.assign('location-runs.html');
       } else {
         overlay.querySelector('#first-import-err').textContent = 'Imported. Sign in with the setup code to continue.';
@@ -194,8 +208,9 @@
   });
 
   // ---- Officer login (routes by role) ----
-  function completeLogin(officer) {
-    window.localStorage.setItem('pvh_session', JSON.stringify(officer));
+  function completeLogin(officer, token) {
+    const session = Object.assign({}, officer, token ? { token } : {});
+    window.localStorage.setItem('pvh_session', JSON.stringify(session));
     // A station officer (assistant assigned to a station) lands directly on
     // their station portal; everyone else goes to the dashboard.
     const isStationOfficer = officer.role === 'assistant' && !!officer.assigned_station_id;
@@ -215,7 +230,7 @@
     });
 
     if (res.ok) {
-      completeLogin(res.officer);
+      completeLogin(res.officer, res.session && res.session.token);
     } else {
       applyAuthResult(res, errors.login, $('login-btn'), 'Sign in');
       $('login-pass').value = '';

@@ -7,8 +7,9 @@ const sync = require('./sync');
 const BACKOFF_BASE = 1200;
 const BACKOFF_MAX = 10000;
 
-function Peer({ d, deviceId, deviceName, version, onStatus }) {
+function Peer({ d, secret, deviceId, deviceName, version, onStatus }) {
   this.d = d;
+  this.secret = secret || null;
   this.deviceId = deviceId;
   this.deviceName = deviceName;
   this.version = version;
@@ -51,7 +52,9 @@ Peer.prototype._open = function () {
   ws.on('open', () => {
     self.reconnectAttempts = 0;
     self.reconnectDelay = BACKOFF_BASE;
-    self._send({ t: 'hello', device_id: self.deviceId, device_name: self.deviceName, app_version: self.version });
+    const hello = { t: 'hello', device_id: self.deviceId, device_name: self.deviceName, app_version: self.version };
+    if (self.secret) hello.secret = self.secret;
+    self._send(hello);
   });
 
   ws.on('message', (raw) => {

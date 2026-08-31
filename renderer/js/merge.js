@@ -7,6 +7,8 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ic = (name, size = 20) =>
+    (window.pvhIcons && window.pvhIcons.icon) ? window.pvhIcons.icon(name, size) : '';
   const normKey = C.normKey;
   const fmt = (n) => Number(n || 0).toLocaleString();
 
@@ -271,7 +273,7 @@
     if (r.winner) {
       html += `
         <div class="winner-card">
-          <div class="wc-trophy">🏆</div>
+          <div class="wc-trophy">${ic('trophy', 40)}</div>
           <div>
             <h2>${esc(r.winner.name)}</h2>
             <p>${fmt(r.winner.votes)} votes (${r.winner.percentage}%) &middot; ${esc(r.winner.catName)}</p>
@@ -280,7 +282,7 @@
     } else if (r.tie) {
       html += `
         <div class="winner-card">
-          <div class="wc-trophy" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">🤝</div>
+          <div class="wc-trophy" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);">${ic('handshake', 40)}</div>
           <div>
             <h2>${esc(r.tie.name)}</h2>
             <p>Co-winners — tied at ${fmt(r.tie.votes)} votes each</p>
