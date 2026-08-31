@@ -131,9 +131,11 @@
 .station-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; align-items: start; }
 @media (max-width: 860px) { .station-grid { grid-template-columns: 1fr; } }
 
-/* ---------- Add / officer modals (fixed + centered) ---------- */
+/* ---------- Add / officer / grace / link modals (fixed + centered) ---------- */
 #add-overlay.modal-overlay,
-#officer-overlay.modal-overlay {
+#officer-overlay.modal-overlay,
+#grace-overlay.modal-overlay,
+#link-overlay.modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 1000;
@@ -145,7 +147,9 @@
   animation: fadeIn var(--transition) ease;
 }
 #add-overlay.modal-overlay[hidden],
-#officer-overlay.modal-overlay[hidden] { display: none; }
+#officer-overlay.modal-overlay[hidden],
+#grace-overlay.modal-overlay[hidden],
+#link-overlay.modal-overlay[hidden] { display: none; }
 
 /* ---------- Professional "Add station" modal ---------- */
 .add-station-modal {

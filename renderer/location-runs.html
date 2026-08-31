@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Results &middot; Pulse Vote Hub</title>
+  <title>Location Runs &middot; Pulse Vote Hub</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/theme.js"></script>
   <link rel="stylesheet" href="css/dashboard.css">
-  <link rel="stylesheet" href="css/officers.css">
-  <link rel="stylesheet" href="css/results.css">
+  <link rel="stylesheet" href="css/location-runs.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -27,7 +26,7 @@
       <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
       <a class="nav-item" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
       <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
-      <a class="nav-item" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
+      <a class="nav-item active" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
       <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
@@ -36,39 +35,28 @@
   <main class="main">
     <div class="page-header">
       <div>
-        <h1>Results</h1>
-        <p id="page-subtitle">Professional results report for your elections.</p>
+        <h1>Location Runs</h1>
+        <p id="page-subtitle">Run one election across multiple locations, then compile the results.</p>
       </div>
-      <div class="page-actions" id="results-actions" style="display:none;">
-        <button class="btn btn-primary" id="declaration-btn" title="Open the official declaration of results"><span class="icon btn-icon" data-icon="check"></span>Official Declaration</button>
-        <button class="btn btn-secondary" id="export-csv-btn" title="Export results to CSV"><span class="icon btn-icon" data-icon="download"></span>CSV</button>
-        <button class="btn btn-secondary" id="export-html-btn" title="Export results as a standalone HTML report"><span class="icon btn-icon" data-icon="download"></span>HTML</button>
-        <button class="btn btn-secondary" id="export-pdf-btn" title="Save results as a PDF report"><span class="icon btn-icon" data-icon="download"></span>PDF</button>
-        <button class="btn btn-secondary" id="print-btn" title="Print report"><span class="icon btn-icon" data-icon="download"></span>Print</button>
-      </div>
+      <div class="page-actions" id="page-actions"></div>
     </div>
 
-    <!-- Election picker -->
-    <section class="card panel" id="picker-panel">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">Select election</div>
-          <p class="text-muted panel-sub">Choose an election to view its official results report.</p>
-        </div>
-      </div>
-      <div class="picker" id="election-picker">
-        <p class="text-muted hint">Loading elections…</p>
-      </div>
+    <section class="card panel" id="role-panel"></section>
+
+    <section class="card panel" id="election-panel">
+      <div class="card-title">Choose an election</div>
+      <p class="text-muted hint" id="election-hint"></p>
+      <div id="election-select-wrap"></div>
+      <div id="election-detail"></div>
     </section>
 
-    <!-- Report -->
-    <section class="card panel ofc-section" id="report-panel" style="display:none;">
-      <div id="report-root"></div>
-    </section>
+    <section class="card panel" id="actions-panel" hidden></section>
+    <section class="card panel" id="compile-panel" hidden></section>
+    <section class="card panel" id="packs-panel" hidden></section>
   </main>
 
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
-  <script src="js/results.js"></script>
+  <script src="js/location-runs.js"></script>
 </body>
 </html>

@@ -105,6 +105,14 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   backupDatabase: () => ipcRenderer.invoke('backup:database'),
   exportElection: (electionId) => ipcRenderer.invoke('backup:election', electionId, oid()),
 
+  // Multi-location runs ("Location Coordinator")
+  listLocations: (electionId) => ipcRenderer.invoke('location:list', electionId),
+  createRunPack: (opts) => ipcRenderer.invoke('location:create-run', opts, oid()),
+  importRunPack: (opts) => ipcRenderer.invoke('location:import-run', opts, oid()),
+  createResultPack: (electionId) => ipcRenderer.invoke('location:create-result', electionId, oid()),
+  pickResultPacks: () => ipcRenderer.invoke('location:pick-result', oid()),
+  compileResultPacks: (packs) => ipcRenderer.invoke('location:compile', { packs }, oid()),
+
   // Multi-location merge
   pickMergeFiles: () => ipcRenderer.invoke('merge:pick-files'),
   exportJson: (content, defaultName) => ipcRenderer.invoke('merge:export-json', { content, defaultName }),

@@ -30,10 +30,11 @@ CREATE TABLE IF NOT EXISTS officers (
   name TEXT NOT NULL,
   officer_id TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
-  role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant')) DEFAULT 'assistant',
+  role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant', 'location_coordinator')) DEFAULT 'assistant',
   assigned_device TEXT,
   assigned_election_id TEXT,
   assigned_station_id TEXT,
+  location_id TEXT,
   suspended INTEGER DEFAULT 0,
   created_at INTEGER
 );
@@ -198,6 +199,54 @@ CREATE TABLE IF NOT EXISTS deployments (
   registered_by TEXT,
   registered_at INTEGER
 );
+
+-- Multi-location run: the main coordinator creates elections, hands a Run Pack
+-- to a location coordinator who runs the same election (same stations, same
+-- voter registry, no reconfiguration) at one named "location", then returns a
+-- sealed Result Pack that the main coordinator verifies and compiles.
+CREATE TABLE IF NOT EXISTS locations (
+  id TEXT PRIMARY KEY,
+  election_id TEXT NOT NULL REFERENCES elections(id),
+  name TEXT NOT NULL,
+  code TEXT,
+  main_coordinator_id TEXT,
+  setup_code_hash TEXT,
+  setup_code_expires INTEGER,
+  created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS locations_officers (
+  id TEXT PRIMARY KEY,
+  location_id TEXT NOT NULL REFERENCES locations(id),
+  officer_id TEXT NOT NULL,
+  created_at INTEGER,
+  UNIQUE(location_id, officer_id)
+);
+
+-- Run packs issued to each location (one per location per election generation).
+CREATE TABLE IF NOT EXISTS run_packs (
+  id TEXT PRIMARY KEY,
+  election_id TEXT NOT NULL,
+  location_id TEXT,
+  pack_hash TEXT NOT NULL,
+  version INTEGER DEFAULT 1,
+  created_at INTEGER,
+  created_by TEXT,
+  active INTEGER DEFAULT 1
+);
+
+-- Result packs returned by each location after sealing.
+CREATE TABLE IF NOT EXISTS result_packs (
+  id TEXT PRIMARY KEY,
+  election_id TEXT NOT NULL,
+  location_id TEXT,
+  file_hash TEXT NOT NULL,
+  pack_hash TEXT,
+  compiled INTEGER DEFAULT 0,
+  imported_at INTEGER,
+  imported_by TEXT,
+  summary TEXT
+);
 `;
 
 function init() {
@@ -293,12 +342,60 @@ function migrate() {
     );
   `);
 
+  // Multi-location run tables (added for existing databases).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS locations (
+      id TEXT PRIMARY KEY,
+      election_id TEXT NOT NULL REFERENCES elections(id),
+      name TEXT NOT NULL,
+      code TEXT,
+      main_coordinator_id TEXT,
+      setup_code_hash TEXT,
+      setup_code_expires INTEGER,
+      created_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS locations_officers (
+      id TEXT PRIMARY KEY,
+      location_id TEXT NOT NULL REFERENCES locations(id),
+      officer_id TEXT NOT NULL,
+      created_at INTEGER,
+      UNIQUE(location_id, officer_id)
+    );
+    CREATE TABLE IF NOT EXISTS run_packs (
+      id TEXT PRIMARY KEY,
+      election_id TEXT NOT NULL,
+      location_id TEXT,
+      pack_hash TEXT NOT NULL,
+      version INTEGER DEFAULT 1,
+      created_at INTEGER,
+      created_by TEXT,
+      active INTEGER DEFAULT 1
+    );
+    CREATE TABLE IF NOT EXISTS result_packs (
+      id TEXT PRIMARY KEY,
+      election_id TEXT NOT NULL,
+      location_id TEXT,
+      file_hash TEXT NOT NULL,
+      pack_hash TEXT,
+      compiled INTEGER DEFAULT 0,
+      imported_at INTEGER,
+      imported_by TEXT,
+      summary TEXT
+    );
+  `);
+
   // Older databases had a role CHECK constraint without 'admin'. SQLite cannot
   // ALTER a CHECK constraint, so rebuild the officers table to allow the role.
   const hasAdminRole = db.prepare(
     "SELECT sql FROM sqlite_master WHERE type='table' AND name='officers'"
   ).get();
-  if (hasAdminRole && !/role IN \('admin'/.test(hasAdminRole.sql)) {
+  const roleAllowsTier = (sql) => {
+    if (!sql) return false;
+    // Location coordinators are stored in the officers table; ensure both the
+    // tier role and the location binding column exist before running imports.
+    return /location_coordinator/.test(sql) && /location_id/.test(sql);
+  };
+  if (hasAdminRole && !roleAllowsTier(hasAdminRole.sql)) {
     db.exec(`
       ALTER TABLE officers RENAME TO officers_old;
       CREATE TABLE officers (
@@ -306,18 +403,26 @@ function migrate() {
         name TEXT NOT NULL,
         officer_id TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant')) DEFAULT 'assistant',
+        role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant', 'location_coordinator')) DEFAULT 'assistant',
         assigned_device TEXT,
         assigned_election_id TEXT,
         assigned_station_id TEXT,
+        location_id TEXT,
         suspended INTEGER DEFAULT 0,
         created_at INTEGER
       );
-      INSERT INTO officers (id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, suspended, created_at)
-        SELECT id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, COALESCE(suspended, 0), created_at
+      INSERT INTO officers (id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, location_id, suspended, created_at)
+        SELECT id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, NULL, COALESCE(suspended, 0), created_at
         FROM officers_old;
       DROP TABLE officers_old;
     `);
+  } else {
+    // Table already uses the modern role set; just make sure the location
+    // binding column is present on older installs that kept the old CHECK.
+    const offCols = db.prepare(`PRAGMA table_info(officers)`).all().map((c) => c.name);
+    if (!offCols.includes('location_id')) {
+      db.exec('ALTER TABLE officers ADD COLUMN location_id TEXT');
+    }
   }
 
   // Migrate legacy statuses to the web-app model:

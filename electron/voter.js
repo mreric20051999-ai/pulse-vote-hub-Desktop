@@ -475,6 +475,15 @@ function fallbackSalt() {
   return s;
 }
 
+// Adopt a voter-salt supplied by an imported Run Pack so that the same voter
+// IDs / passwords issued by the main coordinator verify on this machine too.
+function setVoterSalt(salt) {
+  if (!salt) return;
+  db.setConfig('voter_salt', String(salt));
+  _saltCache = null;
+  fallbackSalt();
+}
+
 function generateVoterId(n) {
   const num = n ? String(n).padStart(4, '0') : randomDigits(6);
   return `V${num}`;
@@ -503,6 +512,8 @@ module.exports = {
   verifyVoter,
   verifyVoterDetails,
   castVote,
+  setVoterSalt,
+  getVoterSalt: () => fallbackSalt(),
   generateVoterId,
   generatePassword,
 };

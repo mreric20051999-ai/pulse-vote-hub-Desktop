@@ -1,0 +1,79 @@
+/* ---------- Location Runs page ---------- */
+
+.loc-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+.loc-tools .btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.election-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0 2px;
+}
+.election-summary strong { font-size: 16px; }
+
+.pack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 10px 0;
+}
+.pack-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--surface-2, #283549);
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+}
+.pack-row.pack-bad { border-color: var(--danger, #ef4444); }
+.pack-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Compiled result table */
+.table-wrap {
+  overflow-x: auto;
+  margin: 10px 0;
+  border: 1px solid var(--border, #334155);
+  border-radius: 8px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text, #f1f5f9);
+}
+.data-table th {
+  background: var(--surface-3, #31405a);
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border, #334155);
+}
+.data-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border, #334155);
+  font-size: 13.5px;
+  vertical-align: middle;
+}
+.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--surface-2, #283549); }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+.mb { margin-bottom: 10px; }

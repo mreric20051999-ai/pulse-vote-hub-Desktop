@@ -133,13 +133,14 @@ function insertOfficer(name, officerId, password, role, extra = {}) {
     assigned_device: extra.assigned_device != null ? extra.assigned_device : null,
     assigned_election_id: extra.assigned_election_id != null ? extra.assigned_election_id : null,
     assigned_station_id: extra.assigned_station_id != null ? extra.assigned_station_id : null,
+    location_id: extra.location_id != null ? extra.location_id : null,
     suspended: extra.suspended ? 1 : 0,
     created_at: Date.now(),
   };
 
   db.get().prepare(`
-    INSERT INTO officers (id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, suspended, created_at)
-    VALUES (@id, @name, @officer_id, @password, @role, @assigned_device, @assigned_election_id, @assigned_station_id, @suspended, @created_at)
+    INSERT INTO officers (id, name, officer_id, password, role, assigned_device, assigned_election_id, assigned_station_id, location_id, suspended, created_at)
+    VALUES (@id, @name, @officer_id, @password, @role, @assigned_device, @assigned_election_id, @assigned_station_id, @location_id, @suspended, @created_at)
   `).run(officer);
 
   return officer;
@@ -274,4 +275,5 @@ module.exports = {
   setSuspended,
   changePassword,
   assignStationOfficer,
+  insertOfficer,
 };

@@ -108,3 +108,30 @@
   transition: color var(--transition);
 }
 .auth-footer a.guide-link:hover { color: var(--accent); }
+
+/* First-run "Import a Location Run Pack" entry */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 14px 0 4px;
+}
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border, #334155);
+}
+#setup-import-run.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-icon { display: inline-flex; vertical-align: middle; }
+.btn-icon svg { display: block; }

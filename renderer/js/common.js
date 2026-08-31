@@ -505,7 +505,7 @@
         e.preventDefault();
         const navName = a.getAttribute('data-nav');
         // Navigate to the matching page if it exists
-        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', results: 'results.html', admin: 'administration.html', officers: 'officers.html' };
+        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', results: 'results.html', admin: 'administration.html', officers: 'officers.html', 'location-runs': 'location-runs.html' };
         const target = map[navName];
         if (!target) return;
         // If we're already on the target page, don't reload — scroll to the

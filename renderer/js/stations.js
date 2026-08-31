@@ -89,7 +89,7 @@
       case 'open':     return btn('Close / Grace', 'btn-amber', 'close') + ' ' + btn('Submit', 'btn-primary', 'submit') + ' ';
       case 'queuing':  return btn('Close Queue Now', 'btn-amber', 'closeq') + ' ' + btn('Submit', 'btn-primary', 'submit') + ' ';
       case 'counted':  return btn('Submit', 'btn-primary', 'submit') + ' ';
-      case 'submitted': return '<span class="text-muted" style="font-size:var(--fs-xs);">Sealed</span> ';
+      case 'submitted': return '<span class="pill pill-success st-sealed">Sealed</span> ';
       default:         return btn('Open Polls', 'btn-success', 'open') + ' ';
     }
   }

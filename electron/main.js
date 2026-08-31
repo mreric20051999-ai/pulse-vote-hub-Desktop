@@ -24,6 +24,7 @@ const merge = require('./merge');
 const messages = require('./messages');
 const distribution = require('./distribution');
 const checkInLink = require('./checkin-link');
+const locationPack = require('./location');
 const { LanManager } = require('./lan');
 
 let lan = null;
@@ -914,6 +915,135 @@ ipcMain.handle('merge:export-json', async (_e, { content, defaultName }) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+// ---------- Multi-location runs ("Location Coordinator") ----------
+
+// List the locations (and their result-pack state) for an election.
+ipcMain.handle('location:list', (_e, electionId) => {
+  try {
+    const d = db.get();
+    const rows = d.prepare(
+      `SELECT l.id, l.election_id, l.name, l.code, l.created_at,
+              (SELECT COUNT(*) FROM locations_officers lo WHERE lo.location_id = l.id) AS coordinators,
+              (SELECT COUNT(*) FROM result_packs rp WHERE rp.location_id = l.id AND rp.compiled = 1) AS compiled_packs
+       FROM locations l WHERE l.election_id = ? ORDER BY l.name`
+    ).all(electionId);
+    return { ok: true, locations: rows };
+  } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Main coordinator: create (and offer to save) a run pack for a location.
+ipcMain.handle('location:create-run', async (_e, { electionId, locationName, locationCode, passphrase }, officerId) => {
+  const actor = resolveActor(officerId);
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  const created = locationPack.createRunPackBody({ electionId, locationName, locationCode, passphrase });
+  if (!created.ok) return created;
+  try {
+    const e = election.getElection(electionId);
+    const base = `run-${(locationName || 'location').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${(e && e.title || 'election').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Run Pack',
+      defaultPath: `${base}.json`,
+      filters: [{ name: 'Run Pack (JSON)', extensions: ['json'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+    fs.writeFileSync(res.filePath, JSON.stringify(created.pack, null, 2), 'utf8');
+    // Record the run pack in the DB so result packs can be linked back.
+    const d = db.get();
+    d.prepare(`
+      INSERT OR REPLACE INTO run_packs (id, election_id, location_id, pack_hash, version, created_at, created_by, active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    `).run(created.pack.pack_id, electionId, null, created.packHash || '', 1, Date.now(), actor && actor.id);
+    return { ok: true, path: res.filePath, packId: created.pack.pack_id };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Location coordinator (or admin): import a run pack file. The renderer collects
+// the passphrase + setup code in a modal (this is a desktop app — no console prompts).
+ipcMain.handle('location:import-run', async (_e, { passphrase, setupCode }, officerId) => {
+  const actor = resolveActor(officerId);
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose a Run Pack to import',
+    properties: ['openFile'],
+    filters: [{ name: 'Run Pack (JSON)', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) return { ok: false, error: 'Pick cancelled', canceled: true };
+  const filePath = res.filePaths[0];
+  let parsed;
+  try {
+    parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    return { ok: false, error: 'Could not read that file as JSON.' };
+  }
+  const out = locationPack.importRunPack(parsed, { passphrase: passphrase || '', setupCode: setupCode || '', actor });
+  if (!out.ok) return { ok: false, error: out.error, code: out.code };
+  return { ...out, path: filePath };
+});
+
+// Location coordinator: export the result pack after sealing every station.
+ipcMain.handle('location:create-result', async (_e, electionId, officerId) => {
+  const actor = resolveActor(officerId);
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  const created = locationPack.createResultPack(electionId);
+  if (!created.ok) return created;
+  try {
+    const e = election.getElection(electionId);
+    const base = `result-${(e && e.title || 'election').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Result Pack',
+      defaultPath: `${base}.json`,
+      filters: [{ name: 'Result Pack (JSON)', extensions: ['json'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+    fs.writeFileSync(res.filePath, JSON.stringify(created.pack, null, 2), 'utf8');
+    return { ok: true, path: res.filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Main coordinator: pick one or more result packs, verify each, and store them
+// for compilation.
+ipcMain.handle('location:pick-result', async (_e, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor || (actor.role !== 'admin')) return { ok: false, error: 'Only the main coordinator can import result packs.' };
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose result pack(s) from locations',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Result Pack (JSON)', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) return { ok: false, error: 'Pick cancelled', canceled: true };
+  const results = [];
+  for (const filePath of res.filePaths) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const report = locationPack.verifyResultPack(parsed);
+      results.push({
+        base: path.basename(filePath),
+        ok: report.ok,
+        report,
+        pack: parsed,
+      });
+    } catch (err) {
+      results.push({ base: path.basename(filePath), ok: false, report: { ok: false, errors: ['Could not parse file.'] }, pack: null });
+    }
+  }
+  return { ok: true, results };
+});
+
+// Main coordinator: compile verified result packs into the aggregate result.
+ipcMain.handle('location:compile', (_e, { packs }, officerId) => {
+  const actor = resolveActor(officerId);
+  if (!actor || (actor.role !== 'admin')) return { ok: false, error: 'Only the main coordinator can compile results.' };
+  const valid = (Array.isArray(packs) ? packs : [])
+    .map((p) => (p && p.pack) || p)
+    .filter((p) => p && p.payload);
+  return locationPack.compileResult(valid);
 });
 
 // ---------- LAN Networking (Phase 2) ----------

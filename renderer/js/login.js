@@ -85,6 +85,64 @@
   $('setup-admin-link').addEventListener('click', openAdminSetupOrLogin);
   $('admin-setup-back').addEventListener('click', () => { show('setup'); focus('setup'); });
 
+  // ---- First-run: import a Location Run Pack (fresh machine) ----
+  $('setup-import-run').addEventListener('click', async () => {
+    const err = $('setup-import-error');
+    err.textContent = '';
+    const overlay = document.createElement('div');
+    overlay.className = 'pvh-modal-overlay';
+    overlay.innerHTML = `
+      <div class="pvh-modal" role="dialog" aria-modal="true" style="width:min(520px,92vw)">
+        <header class="pvh-modal-head">
+          <h2 class="pvh-modal-title">Import a Location Run Pack</h2>
+          <button type="button" class="pvh-modal-close" aria-label="Close">×</button>
+        </header>
+        <div class="pvh-modal-body">
+          <p class="text-muted mb">Choose the run pack file from your main coordinator, then enter its passphrase and the setup code to create your location coordinator account.</p>
+          <p class="auth-error" id="first-import-err"></p>
+          <div class="field">
+            <label class="label" for="fi-pass">Passphrase</label>
+            <input class="input" type="password" id="fi-pass" autocomplete="new-password" placeholder="Set by the main coordinator">
+          </div>
+          <div class="field">
+            <label class="label" for="fi-setup">Setup code</label>
+            <input class="input" type="text" id="fi-setup" placeholder="e.g. AB12CD34EF56">
+          </div>
+          <button class="btn btn-primary btn-block" id="fi-go">Choose file &amp; import</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('.pvh-modal-close').addEventListener('click', close);
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('#fi-go').addEventListener('click', async () => {
+      const pass = overlay.querySelector('#fi-pass').value.trim();
+      const setup = overlay.querySelector('#fi-setup').value.trim();
+      const b = overlay.querySelector('#fi-go');
+      b.disabled = true; b.textContent = 'Importing…';
+      const res = await window.pvh.importRunPack({ passphrase: pass, setupCode: setup });
+      if (res && res.canceled) { b.disabled = false; b.textContent = 'Choose file & import'; return; }
+      if (!res || !res.ok) {
+        overlay.querySelector('#first-import-err').textContent = (res && res.error) || 'Import failed';
+        b.disabled = false; b.textContent = 'Choose file & import';
+        return;
+      }
+      // After import, log into the freshly-created location coordinator account.
+      const login = await window.pvh.login({ officerId: res.coordinator.officer_id, password: setup });
+      if (login.ok) {
+        const officer = login.officer;
+        window.localStorage.setItem('pvh_session', JSON.stringify(officer));
+        window.location.assign('location-runs.html');
+      } else {
+        overlay.querySelector('#first-import-err').textContent = 'Imported. Sign in with the setup code to continue.';
+        show('login'); focus('login');
+        $('login-id').value = res.coordinator.officer_id;
+        $('login-pass').value = setup;
+      }
+      close();
+    });
+  });
+
   // ---- Coordinator setup ----
   $('setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
