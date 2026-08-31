@@ -157,6 +157,77 @@
     });
   });
 
+  // ---- Stepped setup (name → id → password) for coordinator & admin ----
+  function initSetupSteps(opts) {
+    const form = $(opts.formId);
+    if (!form) return;
+    const steps = Array.from(form.querySelectorAll('.setup-step'));
+    const dots = Array.from(document.querySelectorAll(opts.dotsId + ' .step-dot'));
+    if (steps.length < 2) return;
+    const vals = opts.fieldIds.map((id) => $(id));
+    let current = 0;
+
+    function showStep(i, dir) {
+      if (dots.length) dots.forEach((d, k) => d.classList.toggle('is-active', k === i));
+      const el = steps[i];
+      el.hidden = false;
+      el.classList.toggle('is-back', dir === 'back');
+      el.classList.remove('is-processing');
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+      const inp = vals[i];
+      if (inp) inp.focus();
+    }
+
+    function move(i) {
+      if (i < 0 || i >= steps.length || i === current) return;
+      const dir = i > current ? 'forward' : 'back';
+      const cur = steps[current];
+      cur.classList.add('is-processing');
+      cur.classList.toggle('is-back', dir === 'back');
+      const onEnd = () => {
+        cur.removeEventListener('animationend', onEnd);
+        cur.hidden = true;
+        cur.classList.remove('is-processing', 'is-back');
+        current = i;
+        showStep(i, dir);
+      };
+      cur.addEventListener('animationend', onEnd);
+    }
+
+    form.querySelectorAll('.step-next').forEach((btn, idx) => {
+      btn.addEventListener('click', () => {
+        const inp = vals[idx];
+        if (!inp || !inp.value.trim()) { if (inp) inp.focus(); return; }
+        move(idx + 1);
+      });
+    });
+
+    form.querySelectorAll('.step-back').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const stepNo = Number((btn.closest('.setup-step') || {}).dataset.step || 0);
+        move(stepNo - 2);
+      });
+    });
+
+    for (let idx = 0; idx < vals.length - 1; idx++) {
+      const inp = vals[idx];
+      if (!inp) continue;
+      inp.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (!inp.value.trim()) return;
+        move(idx + 1);
+      });
+    }
+
+    showStep(0);
+  }
+
+  initSetupSteps({ formId: 'setup-form', dotsId: '#setup-dots', fieldIds: ['setup-name', 'setup-id', 'setup-pass'] });
+  initSetupSteps({ formId: 'admin-setup-form', dotsId: '#admin-setup-dots', fieldIds: ['admin-setup-name', 'admin-setup-id', 'admin-setup-pass'] });
+
   // ---- Coordinator setup ----
   $('setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();

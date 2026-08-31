@@ -12,7 +12,13 @@
   <link rel="stylesheet" href="css/login.css">
 </head>
 <body class="auth-body">
-  <div class="auth-bg" aria-hidden="true"></div>
+  <div class="auth-bg" aria-hidden="true">
+    <svg viewBox="0 0 600 120" fill="none" preserveAspectRatio="xMidYMid meet">
+      <path d="M0 60 H120 L140 60 L158 28 L178 92 L196 40 L208 60 H260 L282 60 L298 34 L318 86 L336 42 L348 60 H420 L442 60 L458 26 L478 96 L496 38 L512 60 H600"
+        stroke="#ef4444" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"
+        stroke-dasharray="340"/>
+    </svg>
+  </div>
 
   <div class="auth-card">
     <div class="auth-brand">
@@ -25,20 +31,35 @@
     <div id="setup-view" class="auth-view" hidden>
       <h2 class="auth-heading">Set up your coordinator</h2>
       <p class="auth-hint">Create the coordinator account that manages elections here. To run the entire election yourself, use <strong>Set up as an Administrator</strong> below instead.</p>
+      <div class="step-dots" id="setup-dots" aria-hidden="true">
+        <span class="step-dot is-active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+      </div>
       <form id="setup-form">
-        <div class="field">
-          <label class="label" for="setup-name">Full name</label>
-          <input class="input" id="setup-name" type="text" autocomplete="name" placeholder="e.g. Jane Doe">
+        <div class="setup-step is-active" data-step="1">
+          <div class="field">
+            <label class="label" for="setup-name">Full name</label>
+            <input class="input" id="setup-name" type="text" autocomplete="name" placeholder="e.g. Jane Doe">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="setup-id">Coordinator ID</label>
-          <input class="input" id="setup-id" type="text" autocomplete="username" placeholder="e.g. CO1">
+        <div class="setup-step" data-step="2" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="setup-id">Coordinator ID</label>
+            <input class="input" id="setup-id" type="text" autocomplete="username" placeholder="e.g. CO1">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="setup-pass">Password</label>
-          <input class="input" id="setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        <div class="setup-step" data-step="3" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="setup-pass">Password</label>
+            <input class="input" id="setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="setup-btn">Create Coordinator</button>
         </div>
-        <button type="submit" class="btn btn-primary btn-lg btn-block" id="setup-btn">Create Coordinator</button>
       </form>
       <p class="auth-error" id="setup-error"></p>
       <button class="btn btn-ghost btn-block admin-toggle" id="setup-admin-link">Set up as an Administrator</button>
@@ -73,22 +94,43 @@
 
     <!-- Administrator setup (superuser) -->
     <div id="admin-setup-view" class="auth-view" hidden>
-      <h2 class="auth-heading">Set up your administrator</h2>
-      <p class="auth-hint">Create the superuser account. This account manages coordinators, and can back up the election database.</p>
+      <div class="auth-context">
+        <span class="auth-context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <span class="auth-context-label">Administrator setup</span>
+      </div>
+      <h2 class="auth-heading">Create the superuser</h2>
+      <p class="auth-hint">This account manages coordinators, restores access, and backs up the election database.</p>
+      <div class="step-dots" id="admin-setup-dots" aria-hidden="true">
+        <span class="step-dot is-active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+      </div>
       <form id="admin-setup-form">
-        <div class="field">
-          <label class="label" for="admin-setup-name">Full name</label>
-          <input class="input" id="admin-setup-name" type="text" autocomplete="name" placeholder="e.g. Alex Admin">
+        <div class="setup-step is-active" data-step="1">
+          <div class="field">
+            <label class="label" for="admin-setup-name">Full name</label>
+            <input class="input" id="admin-setup-name" type="text" autocomplete="name" placeholder="e.g. Alex Admin">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="admin-setup-id">Admin ID</label>
-          <input class="input" id="admin-setup-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
+        <div class="setup-step" data-step="2" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="admin-setup-id">Admin ID</label>
+            <input class="input" id="admin-setup-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="admin-setup-pass">Password</label>
-          <input class="input" id="admin-setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        <div class="setup-step" data-step="3" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="admin-setup-pass">Password</label>
+            <input class="input" id="admin-setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="admin-setup-btn">Create Administrator</button>
         </div>
-        <button type="submit" class="btn btn-primary btn-lg btn-block" id="admin-setup-btn">Create Administrator</button>
       </form>
       <p class="auth-error" id="admin-setup-error"></p>
       <button class="btn btn-ghost btn-block admin-toggle" id="admin-setup-back">Back to sign in</button>

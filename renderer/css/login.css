@@ -13,10 +13,11 @@
   position: fixed;
   inset: 0;
   z-index: 0;
+  overflow: hidden;
   background:
-    radial-gradient(1200px 800px at 15% -10%, rgba(37, 99, 235, 0.28), transparent 55%),
-    radial-gradient(1000px 700px at 100% 110%, rgba(185, 28, 28, 0.20), transparent 55%),
-    radial-gradient(900px 600px at 85% -10%, rgba(30, 64, 175, 0.32), transparent 60%),
+    radial-gradient(1200px 800px at 15% -10%, rgba(37, 99, 235, 0.32), transparent 55%),
+    radial-gradient(1000px 700px at 100% 110%, rgba(185, 28, 28, 0.24), transparent 55%),
+    radial-gradient(900px 600px at 85% -10%, rgba(30, 64, 175, 0.36), transparent 60%),
     var(--bg);
 }
 .auth-bg::before {
@@ -30,6 +31,35 @@
   opacity: 0.12;
   -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 20%, transparent 78%);
   mask-image: radial-gradient(circle at 50% 40%, #000 20%, transparent 78%);
+}
+/* soft glow behind the card for depth */
+.auth-bg::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 460px;
+  height: 560px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.12), transparent 70%);
+  filter: blur(12px);
+}
+/* heartbeat pulse line — echoes the red logo */
+.auth-bg svg {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  width: min(620px, 80vw);
+  transform: translateX(-50%);
+  opacity: 0.14;
+  pointer-events: none;
+}
+.auth-bg svg path {
+  animation: traceLine 2.6s ease-in-out infinite;
+}
+@keyframes traceLine {
+  from { stroke-dashoffset: 340; }
+  to { stroke-dashoffset: 0; }
 }
 
 .auth-card {
@@ -64,6 +94,115 @@
   color: var(--text-muted);
   font-size: var(--fs-sm);
   margin-top: 2px;
+}
+
+/* Context overline used on secondary auth views (e.g. admin setup) */
+.auth-context {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: var(--space-4);
+}
+.auth-context-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--accent-soft, rgba(37, 99, 235, 0.12));
+}
+.auth-context-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.auth-context-label {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+.auth-view .auth-heading {
+  margin-bottom: var(--space-1);
+}
+.auth-view .auth-context + .auth-heading {
+  margin-bottom: var(--space-2);
+}
+
+/* Stepped first-run setup card */
+.step-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: var(--space-3) 0 var(--space-4);
+}
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: width 220ms ease, background 220ms ease;
+}
+.step-dot.is-active {
+  width: 22px;
+  background: var(--accent);
+}
+.setup-step {
+  animation: stepIn 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.setup-step.is-processing {
+  animation: stepOut 220ms ease forwards;
+}
+@keyframes stepIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes stepOut {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(10px); }
+}
+/* Backward transitions (returning to an earlier step) */
+.setup-step.is-back {
+  animation-name: stepInBack;
+}
+.setup-step.is-processing.is-back {
+  animation-name: stepOutUp;
+}
+@keyframes stepInBack {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes stepOutUp {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-10px); }
+}
+/* "Back" control on steps 2+ so users can cross-check earlier details */
+.step-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  margin: -6px 0 8px -10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  cursor: pointer;
+  border-radius: var(--radius-md, 8px);
+  transition: color 160ms ease, background 160ms ease;
+}
+.step-back:hover {
+  color: var(--text);
+  background: var(--bg-hover, rgba(0, 0, 0, 0.06));
+}
+.step-back-chevron {
+  font-size: 1.3em;
+  line-height: 1;
 }
 
 .auth-view {
@@ -136,13 +275,13 @@
 }
 
 .auth-footer {
-  margin-top: var(--space-5);
+  margin-top: var(--space-3);
   text-align: center;
   color: var(--text-dim);
   font-size: var(--fs-xs);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  padding-top: var(--space-4);
+  padding-top: var(--space-3);
   border-top: 1px solid var(--border);
 }
 .auth-footer a.guide-link {
@@ -176,6 +315,12 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+/* Keep the empty import-error from pushing the footer down unnecessarily */
+#setup-import-error,
+#login-error {
+  margin-top: 6px;
+  min-height: 0;
 }
 .btn-icon { display: inline-flex; vertical-align: middle; }
 .btn-icon svg { display: block; }
