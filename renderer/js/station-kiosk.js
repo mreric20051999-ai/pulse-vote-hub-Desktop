@@ -14,6 +14,7 @@
   let state = null; // { session, election, station, officerName, voters, stats }
   let searchTerm = '';
   let refreshTimer = null;
+  let countTimer = null;
 
   async function j(url, body) {
     try {
@@ -70,6 +71,43 @@
     $('st-in').textContent = state.stats.checkedIn || 0;
     $('st-q').textContent = state.stats.inQueue || 0;
     $('st-b').textContent = state.stats.ballots || 0;
+    updateCountdown();
+  }
+
+  // ---- Live countdown: poll close (open) / grace end (queuing) ----
+  function fmtRemaining(ms) {
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function startCountdown(target, label, kind) {
+    const box = $('countdown'), time = $('count-time'), lb = $('count-label');
+    if (countTimer) { clearInterval(countTimer); countTimer = null; }
+    lb.textContent = label || '';
+    box.classList.toggle('is-grace', kind === 'grace');
+    box.classList.toggle('is-closed', kind === 'closed');
+    const targetMs = Number(target) || 0;
+    const tick = () => {
+      const rem = targetMs - Date.now();
+      if (rem <= 0) {
+        time.textContent = '00:00:00';
+        if (countTimer) { clearInterval(countTimer); countTimer = null; }
+        return;
+      }
+      time.textContent = fmtRemaining(rem);
+    };
+    if (!targetMs) { time.textContent = '00:00:00'; return; }
+    tick();
+    countTimer = setInterval(tick, 1000);
+  }
+  function updateCountdown() {
+    if (!state) return;
+    const eff = (state.station || {}).effStatus;
+    const e = state.election || {}, st = state.station || {};
+    if (eff === 'open' && e.end_date) startCountdown(e.end_date, 'Polls close in', 'open');
+    else if (eff === 'queuing' && st.grace_ends_at) startCountdown(st.grace_ends_at, 'Grace period ends in', 'grace');
+    else startCountdown(0, 'Polls closed', 'closed');
   }
 
   function voterRow(v) {
@@ -142,6 +180,7 @@
     sessionStorage.removeItem(SESSION_KEY);
     state = null;
     clearInterval(refreshTimer); refreshTimer = null;
+    if (countTimer) { clearInterval(countTimer); countTimer = null; }
     setView('pin-view');
     failPin('Your session ended. Enter the PIN again to continue.');
   }

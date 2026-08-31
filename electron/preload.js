@@ -12,7 +12,11 @@ function sessionOfficerId() {
 }
 const oid = () => sessionOfficerId();
 
-contextBridge.exposeInMainWorld('pvh', {
+// contextBridge exports a read-only `window.pvh`, which would shadow the pure
+// fetch shim that kiosk-server.js installs on hub-served pages (/kiosk). So the
+// Electron IPC bridge is exposed ONLY on the file:// portal; http:// hub pages
+// get no bridge and the page-level shim takes over cleanly.
+if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   platform: () => ipcRenderer.invoke('platform:info'),
   getTheme: () => ipcRenderer.invoke('theme:get'),
   setTheme: (theme) => ipcRenderer.invoke('theme:set', theme),

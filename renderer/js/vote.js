@@ -7,7 +7,7 @@
   const titleEl = $('election-title');
 
   // Station ballots are opened for one physical station (?station= code/id/name).
-  const ballotStation = (new URLSearchParams(window.location.search).get('station') || '').trim();
+  let ballotStation = (new URLSearchParams(window.location.search).get('station') || '').trim();
 
   // App state for the current voting session (reset per voter).
   let election = null;      // selected election obj
@@ -120,13 +120,32 @@
     setTitle(election.title);
     setBackVisible(true);
     if (election.type === 'station' && !ballotStation) {
+      const stations = (election.stations || []).filter((s) => s && s.code);
+      const list = stations.length
+        ? `<div class="station-pick">
+            ${stations.map((st) => `
+              <button type="button" class="btn btn-outline station-pick-btn" data-code="${esc(st.code)}">
+                <span class="sp-name">${esc(st.name)}</span>
+                <span class="sp-code">${esc(st.code)}</span>
+              </button>`).join('')}
+          </div>`
+        : '';
       content.innerHTML = `
         <div class="kiosk-panel">
           <div class="icon auth-icon">📍</div>
           <h2>Station ballot</h2>
-          <p class="subtitle">This election is run polling-station by polling-station. Open the ballot for your own station from its dashboard, then sign in to cast your vote.</p>
-          <button class="btn btn-primary btn-xl" onclick="window.location.assign(window.location.pathname)">Back to elections</button>
+          <p class="subtitle">This election is run polling-station by polling-station. Pick your station to open its ballot, then sign in as a voter registered there.</p>
+          ${list}
+          <button class="btn btn-ghost btn-xl" style="margin-top:16px;" onclick="window.location.assign(window.location.pathname)">Back to elections</button>
         </div>`;
+      if (list) {
+        content.querySelectorAll('.station-pick-btn').forEach((b) => {
+          b.addEventListener('click', () => {
+            ballotStation = b.dataset.code;
+            showAccess();
+          });
+        });
+      }
       return;
     }
     content.innerHTML = `

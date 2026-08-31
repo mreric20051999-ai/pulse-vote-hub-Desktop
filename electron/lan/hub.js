@@ -83,10 +83,15 @@ Hub.prototype._mountKiosk = function (app) {
   const self = this;
   const rd = this.rendererDir;
 
-  // Ballot statics (same relative paths vote.html uses).
+  // Ballot statics (same relative paths vote.html uses). Pages are served
+  // under /kiosk, so mirror the mount under that prefix as well — otherwise a
+  // browser resolving `css/styles.css` from /kiosk gets a 404 HTML error page.
   app.use('/js', express.static(path.join(rd, 'js'), { index: false, maxAge: 0 }));
   app.use('/css', express.static(path.join(rd, 'css'), { index: false, maxAge: 0 }));
   app.use('/assets', express.static(path.join(rd, 'assets'), { index: false, maxAge: 0 }));
+  app.use('/kiosk/js', express.static(path.join(rd, 'js'), { index: false, maxAge: 0 }));
+  app.use('/kiosk/css', express.static(path.join(rd, 'css'), { index: false, maxAge: 0 }));
+  app.use('/kiosk/assets', express.static(path.join(rd, 'assets'), { index: false, maxAge: 0 }));
 
   // The ballot page, with the browser transport shim injected so vote.js runs
   // unchanged in a plain browser.
@@ -100,6 +105,7 @@ Hub.prototype._mountKiosk = function (app) {
       html = html.replace(
         '<script src="js/vote.js"></script>',
         '<script src="js/kiosk-server.js"></script>\n  <script src="js/vote.js"></script>');
+      res.set('Cache-Control', 'no-store');
       res.type('html').send(html);
     } catch (err) {
       res.status(500).json({ ok: false, error: 'Ballot template unavailable' });
@@ -113,6 +119,7 @@ Hub.prototype._mountKiosk = function (app) {
     const p = path.join(self.rendererDir, 'station-link.html');
     if (!fs.existsSync(p)) { res.status(404).json({ ok: false, error: 'Check-in page unavailable' }); return; }
     try {
+      res.set('Cache-Control', 'no-store');
       res.type('html').send(fs.readFileSync(p, 'utf8'));
     } catch (err) {
       res.status(500).json({ ok: false, error: 'Check-in page unavailable' });
@@ -340,17 +347,25 @@ Hub.prototype._kioskElections = function () {
     FROM elections e
     ORDER BY e.created_at DESC
   `).all();
-  return rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    type: r.type,
-    status: r.status,
-    election_date: r.election_date,
-    start_date: r.start_date,
-    end_date: r.end_date,
-    voter_scheme: r.voter_scheme,
-    candidate_count: r.candidate_count,
-  }));
+  return rows.map((r) => {
+    const out = {
+      id: r.id,
+      title: r.title,
+      type: r.type,
+      status: r.status,
+      election_date: r.election_date,
+      start_date: r.start_date,
+      end_date: r.end_date,
+      voter_scheme: r.voter_scheme,
+      candidate_count: r.candidate_count,
+    };
+    if (r.type === 'station') {
+      out.stations = this.d.prepare(
+        'SELECT s.id, s.code, s.name FROM stations s WHERE s.election_id = ? ORDER BY s.name'
+      ).all(r.id).map((s) => ({ id: s.id, code: s.code, name: s.name }));
+    }
+    return out;
+  });
 };
 
 Hub.prototype._onConnection = function (ws) {

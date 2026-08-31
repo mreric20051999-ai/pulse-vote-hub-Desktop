@@ -5,7 +5,13 @@
 // Votes still land in the hub's database through the desktop code path —
 // identity checks, the vote/audit hash chain and LAN sync are unchanged.
 (function () {
-  if (window.pvh || typeof fetch === 'undefined') return; // Electron / unsupported
+  // Served over http:// (the LAN hub /kiosk page): the fetch shim must ALWAYS
+  // win, even inside the Electron window where a preload `window.pvh` already
+  // exists — the preload bridge talks IPC to the desktop portal and cannot
+  // serve the hub's own kiosk endpoints. Only the file:// portal page keeps
+  // the preload bridge.
+  const isHttp = !!window.location.host;
+  if (!isHttp && (window.pvh || typeof fetch === 'undefined')) return; // Electron portal
 
   const json = async (url, opts) => {
     const res = await fetch(url, opts || {});
