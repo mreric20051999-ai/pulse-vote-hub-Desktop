@@ -107,6 +107,13 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   backupDatabase: () => ipcRenderer.invoke('backup:database'),
   exportElection: (electionId) => ipcRenderer.invoke('backup:election', electionId, oid()),
 
+  // Automatic backup & restore
+  backupAutoGet: () => ipcRenderer.invoke('backup:auto-get', oid()),
+  backupAutoSave: (settings) => ipcRenderer.invoke('backup:auto-save', settings, oid()),
+  backupAutoNow: () => ipcRenderer.invoke('backup:auto-now', oid()),
+  backupAutoRestore: (filePath) => ipcRenderer.invoke('backup:auto-restore', filePath, oid()),
+  backupAutoPickDir: () => ipcRenderer.invoke('backup:auto-pick-dir', oid()),
+
   // Multi-location runs ("Location Coordinator")
   listLocations: (electionId) => ipcRenderer.invoke('location:list', electionId),
   createRunPack: (opts) => ipcRenderer.invoke('location:create-run', opts, oid()),

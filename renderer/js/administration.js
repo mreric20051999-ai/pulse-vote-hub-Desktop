@@ -401,7 +401,163 @@
     refresh();
   }
 
+  // ---------- Automatic backup & restore ----------
+  function fmtSize(n) {
+    if (!n) return '0 B';
+    const u = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+    return n.toFixed(1) + ' ' + u[i];
+  }
+  function timeAgo(ts) {
+    if (!ts) return 'never';
+    const s = Math.max(1, Math.floor((Date.now() - ts) / 1000));
+    if (s < 60) return 'just now';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    return Math.floor(h / 24) + 'd ago';
+  }
+
+  function bindAutoBackup() {
+    const msg = $('auto-backup-msg');
+    const pillText = $('auto-backup-pill-text');
+    const pillDot = $('auto-backup-dot');
+    const enabledEl = $('auto-backup-enabled');
+    const intervalEl = $('auto-backup-interval');
+    const keepEl = $('auto-backup-keep');
+    const dirEl = $('auto-backup-dir');
+    const listEl = $('auto-backup-list');
+    const countEl = $('auto-backup-count');
+
+    function renderPill(on, lastRun) {
+      pillText.textContent = on ? (lastRun ? 'On · last ' + timeAgo(lastRun) : 'On') : 'Off';
+      pillDot.classList.toggle('lan-dot-active', !!on);
+    }
+
+    function renderList(backups) {
+      if (!backups || !backups.length) {
+        listEl.innerHTML = '<p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>';
+        countEl.textContent = '';
+        return;
+      }
+      countEl.textContent = backups.length + (backups.length === 1 ? ' backup' : ' backups');
+      const down = (window.pvhIcons && window.pvhIcons.icon) ? window.pvhIcons.icon('download', 14) : 'Restore';
+      listEl.innerHTML = backups.map((b) => `
+        <div class="ab-row" data-path="${esc(b.path)}">
+          <div class="ab-row-info">
+            <span class="ab-row-name">${esc(b.name)}</span>
+            <span class="text-muted ab-row-meta">${fmtSize(b.size)} · ${timeAgo(b.mtime)}</span>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm ab-restore" title="Verify and restore this backup">${down}</button>
+        </div>`).join('');
+    }
+
+    async function refresh() {
+      const res = await window.pvh.backupAutoGet();
+      if (!res || !res.ok) {
+        msg.textContent = (res && res.error) || 'Could not load backup settings.';
+        msg.className = 'auth-error';
+        return;
+      }
+      const s = res.settings;
+      enabledEl.checked = !!s.enabled;
+      intervalEl.value = s.intervalMin;
+      keepEl.value = s.keep;
+      dirEl.value = s.dir || '';
+      renderPill(s.enabled, s.lastRun);
+      renderList(s.backups);
+    }
+
+    async function save() {
+      const settings = {
+        enabled: enabledEl.checked,
+        intervalMin: Number(intervalEl.value) || 30,
+        keep: Number(keepEl.value) || 10,
+        dir: dirEl.value.trim(),
+      };
+      await window.pvhUI.busy($('auto-backup-save-btn'), 'Saving…', async () => {
+        const res = await window.pvh.backupAutoSave(settings);
+        if (!res || !res.ok) {
+          msg.textContent = (res && res.error) || 'Could not save settings.';
+          msg.className = 'auth-error';
+          return;
+        }
+        const s = res.settings;
+        renderPill(s.enabled, s.lastRun);
+        renderList(s.backups);
+        msg.textContent = s.enabled ? 'Automatic backups enabled.' : 'Automatic backups disabled.';
+        msg.className = 'notice-ok';
+        window.pvhUI.toast('Backup settings saved.', 'success');
+      });
+    }
+
+    async function now() {
+      await window.pvhUI.busy($('auto-backup-now-btn'), 'Backing up…', async () => {
+        const res = await window.pvh.backupAutoNow();
+        if (!res || !res.ok) {
+          msg.textContent = (res && res.error) || 'Backup failed.';
+          msg.className = 'auth-error';
+          window.pvhUI.toast((res && res.error) || 'Backup failed.', 'error');
+          return;
+        }
+        if (res.settings) {
+          renderPill(res.settings.enabled, res.settings.lastRun);
+          renderList(res.settings.backups);
+        }
+        msg.textContent = 'Backup saved to ' + res.path;
+        msg.className = 'notice-ok';
+        window.pvhUI.toast('Backup created.', 'success');
+      });
+    }
+
+    async function pick() {
+      const res = await window.pvh.backupAutoPickDir();
+      if (!res || !res.ok) {
+        if (res && res.error && res.error !== 'Pick cancelled') {
+          msg.textContent = res.error;
+          msg.className = 'auth-error';
+        }
+        return;
+      }
+      dirEl.value = res.path;
+    }
+
+    $('auto-backup-save-btn').addEventListener('click', save);
+    $('auto-backup-now-btn').addEventListener('click', now);
+    $('auto-backup-pick-btn').addEventListener('click', pick);
+    listEl.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.ab-restore');
+      if (!btn) return;
+      const row = btn.closest('.ab-row');
+      if (!row) return;
+      const p = row.dataset.path;
+      const nameEl = row.querySelector('.ab-row-name');
+      const name = nameEl ? nameEl.textContent : 'this backup';
+      if (!confirm(`Restore the database from "${name}"?\n\nThis replaces the current database and signs you out. The backup is fully verified first, and nothing changes if it fails the check. Continue?`)) return;
+      msg.textContent = 'Restoring…';
+      msg.className = '';
+      await window.pvhUI.busy(btn, 'Restoring…', async () => {
+        const res = await window.pvh.backupAutoRestore(p);
+        if (!res || !res.ok) {
+          msg.textContent = (res && res.error) || 'Restore failed.';
+          msg.className = 'auth-error';
+          window.pvhUI.toast((res && res.error) || 'Restore failed.', 'error');
+          return;
+        }
+        msg.textContent = 'Database restored successfully.';
+        msg.className = 'notice-ok';
+        window.pvhUI.toast('Database restored. Signing you back in…', 'success');
+        setTimeout(() => { window.location.assign('index.html'); }, 1200);
+      });
+    });
+
+    refresh();
+  }
+
   bindBackup();
   bindMyPassword();
   bindInbox();
+  bindAutoBackup();
 })();

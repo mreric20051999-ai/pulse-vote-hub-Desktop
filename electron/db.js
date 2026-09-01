@@ -261,6 +261,16 @@ function init() {
   return db;
 }
 
+// Close the open connection. Used by the automatic-backup restore path so the
+// on-disk DB file can be swapped without a live handle (and DB-at-rest writes)
+// getting in the way. The next get()/init() call reopens it lazily.
+function close() {
+  if (db) {
+    try { db.close(); } catch (e) { /* already closed */ }
+    db = null;
+  }
+}
+
 // Idempotent migrations for existing databases (safe to run every start).
 function migrate() {
   const addColumn = (table, column, ddl) => {
@@ -549,6 +559,7 @@ function setConfig(key, value) {
 module.exports = {
   init,
   get,
+  close,
   getDataDir,
   getDbPath,
   getConfig,

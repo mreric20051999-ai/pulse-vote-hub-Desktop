@@ -26,6 +26,7 @@ const distribution = require('./distribution');
 const checkInLink = require('./checkin-link');
 const locationPack = require('./location');
 const { LanManager } = require('./lan');
+const backup = require('./backup');
 
 let lan = null;
 function getLan() {
@@ -174,6 +175,12 @@ app.whenReady().then(() => {
   });
   getLan().resume().catch((err) => console.error('LAN resume failed:', err));
 
+  // Automatic backup: configure (db + lan for safe restores), then run the
+  // due-check scheduler in the background.
+  backup.configure({ db, lan: getLan() });
+  backup.setUserData(app.getPath('userData'));
+  backup.startScheduler();
+
   createSplashWindow();
   setTimeout(createMainWindow, 600);
 
@@ -202,6 +209,11 @@ app.on('activate', () => {
 app.on('before-quit', () => {
   try { getLan().stop(); } catch (err) { /* noop */ }
   try {
+    // If automatic backup is enabled, take one final snapshot on close so
+    // election-day data is safe the moment the app exits.
+    if (db.getConfig && db.getConfig('auto_backup_enabled') === '1') {
+      backup.runBackup().catch(() => { /* noop */ });
+    }
     // Append a close-time audit marker, then verify the chains once more so the
     // audit entry itself leaves a verifiable record of when the app last ran.
     election.audit('system', 'Application shutdown');
@@ -491,6 +503,52 @@ ipcMain.handle('backup:election', async (_e, electionId, officerId) => {
     return { ok: false, error: err.message };
   }
 });
+
+// ---- Automatic backup & restore ----
+
+// Read the current automatic-backup state (schedule settings + list of
+// existing snapshots). Admin-only.
+ipcMain.handle('backup:auto-get', (e, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return { ok: true, settings: backup.getSettings() }; } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Persist schedule + retention settings (and switch the backup folder).
+ipcMain.handle('backup:auto-save', (e, settings, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return { ok: true, settings: backup.saveSettings(settings) }; } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Force a backup right now (ignores the schedule).
+ipcMain.handle('backup:auto-now', async (e, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return await backup.runNow(); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Restore a previously-saved automatic backup. Verifies it, pauses LAN, swaps
+// the DB, re-verifies, and rolls back on any failure.
+ipcMain.handle('backup:auto-restore', async (e, filePath, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  if (!filePath || typeof filePath !== 'string') return { ok: false, error: 'No backup selected.' };
+  try { return await backup.restore(filePath.replace(/^file:\/\//, '')); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Pick a folder for automatic backups (e.g. a USB drive).
+ipcMain.handle('backup:auto-pick-dir', async (e, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose backup folder',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths[0]) return { ok: false, error: 'Pick cancelled' };
+  return { ok: true, path: res.filePaths[0] };
+});
+
 
 // Pick one or more election snapshot files for the merge tool. The files are
 // read and validated in the main process so the renderer never touches fs.
