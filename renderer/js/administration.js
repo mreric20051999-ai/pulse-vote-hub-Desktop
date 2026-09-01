@@ -575,12 +575,13 @@
       countEl.textContent = codes.length + (codes.length === 1 ? ' code' : ' codes') + ' total';
       listEl.innerHTML = codes.map((c) => {
         const done = !!c.redeemed_at;
-        const date = new Date(c.created_at).toLocaleString();
+        const d = new Date(c.created_at);
+        const date = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
         return `
           <div class="ab-row">
             <div class="ab-row-info">
               <span class="ab-row-name">${roleLabel(c.privilege)}</span>
-              <span class="text-muted ab-row-meta">Issued ${date} · ${done ? 'Redeemed — used' : 'Not yet used'}</span>
+              <span class="text-muted ab-row-meta">${date}</span>
             </div>
             <span class="lan-pill"><span class="lan-dot ${done ? '' : 'lan-dot-active'}"></span>${done ? 'Used' : 'Active'}</span>
           </div>`;

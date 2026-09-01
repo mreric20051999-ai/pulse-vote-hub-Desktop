@@ -388,7 +388,7 @@
       <div class="panel-head">
         <div>
           <div class="card-title panel-title">Access codes</div>
-          <p class="text-muted panel-sub">Issue one-time codes to grant someone a privilege. Hand the code to the invitee — they redeem it on a fresh install to create their account at that role. Codes are single-use and tied to the privilege you choose here.</p>
+          <p class="text-muted panel-sub">Issue one-time codes to grant someone a privilege. Each code is single-use and tied to the role you choose. The invitee redeems it on a fresh install to create their account.</p>
         </div>
       </div>
 
@@ -406,8 +406,7 @@
       <p class="auth-error" id="access-codes-msg"></p>
 
       <div class="code-output" id="issued-code-output" hidden>
-        <div class="code-display"><code id="issued-code-text"></code><button type="button" class="btn btn-ghost" id="copy-code-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button></div>
-        <p class="text-muted ab-hint">Share this code privately with the invitee. It appears here once and is stored only as a hash — after they redeem it, you can verify it was used below.</p>
+        <div class="code-display"><span class="code-label">One-time code</span><code id="issued-code-text"></code><span class="text-muted code-hint">Single-use — the invitee redeems it on a fresh install.</span><button type="button" class="btn btn-ghost" id="copy-code-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button></div>
       </div>
 
       <div class="ab-backups">
