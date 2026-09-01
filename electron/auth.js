@@ -104,6 +104,14 @@ function hasAdmin() {
   return row.c > 0;
 }
 
+// Is there at least one developer account?
+function hasDeveloper() {
+  const row = db.get()
+    .prepare("SELECT COUNT(*) AS c FROM officers WHERE role = 'developer'")
+    .get();
+  return row.c > 0;
+}
+
 function findByOfficerId(officerId) {
   return db.get()
     .prepare('SELECT * FROM officers WHERE officer_id = ?')
@@ -220,15 +228,204 @@ function setupCoordinator(name, officerId, password) {
   return { ok: true, officer: publicOfficer(officer) };
 }
 
+// ---- Developer bootstrap (top-level, above admin) ----
+// The developer role is deliberately NOT reachable via access codes. It is
+// created only here, gated by a dedicated developer key that is provisioned
+// independently of the admin setup code. This is the "root" identity that owns
+// deep system functions (backups, officer lifecycle, election deletion, access
+// codes) which administrators are intentionally stripped from seeing.
+const DEVELOPMENT_KEY = 'developer_key';
+// The officer ID of the developer account created via the setup key. Only this
+// "main developer" may invite further developers with short codes.
+const DEVELOPER_ROOT = 'developer_root';
+
+function isRootDeveloper(officerId) {
+  return !!officerId && String(officerId) === db.getConfig(DEVELOPER_ROOT);
+}
+
+function developmentKeyHash(code) {
+  const salt = generateSalt();
+  return encodeHash(salt, hashPassword(String(code).trim(), salt));
+}
+
+// Whether a developer key has been provisioned on this machine.
+function hasDevelopmentKey() {
+  return !!db.getConfig(DEVELOPMENT_KEY);
+}
+
+// Verify a submitted developer key against the provisioned one.
+function verifyDevelopmentKey(code) {
+  const stored = db.getConfig(DEVELOPMENT_KEY);
+  if (!stored) return false;
+  const decoded = decodeHash(stored);
+  if (!decoded) return false;
+  const expected = Buffer.from(decoded.hash, 'hex');
+  const actual = Buffer.from(hashPassword(String(code).trim(), decoded.salt), 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+// Set up the initial developer account (gated by the developer key).
+function setupDeveloper(name, officerId, password, devKey, confirmDevKey) {
+  if (hasDeveloper()) return { ok: false, error: 'A developer account already exists' };
+  if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
+  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
+
+  // First-time: the operator provisions and confirms the developer key.
+  // Subsequent: it must match the provisioned key.
+  if (!hasDevelopmentKey()) {
+    if (!devKey || !confirmDevKey || devKey !== confirmDevKey) {
+      return { ok: false, error: 'The developer key and its confirmation must match' };
+    }
+    db.setConfig(DEVELOPMENT_KEY, developmentKeyHash(devKey));
+  } else if (!verifyDevelopmentKey(devKey)) {
+    return { ok: false, error: 'Incorrect developer key for this machine' };
+  }
+
+  const officer = insertOfficer(name, officerId, password, 'developer');
+  db.setConfig('developer_claimed_at', String(Date.now()));
+  db.setConfig(DEVELOPER_ROOT, officer.id);
+  return { ok: true, officer: publicOfficer(officer) };
+}
+
+// ---- Developer short codes (main developer invites other developers) ----
+// The identity is deliberately NOT grantable via access codes nor via the
+// dev-key bootstrap (which only runs once). The main developer issues a short,
+// single-use code that an invitee redeems on the sign-in screen to create
+// their own developer account. Codes can be revoked at any time until used.
+
+// Issue a short code for a named developer. Main-developer only.
+function issueDeveloperCode(actingOfficerId, name) {
+  const actor = findById(actingOfficerId);
+  if (!actor || actor.role !== 'developer') return { ok: false, error: 'Not authorized' };
+  if (!isRootDeveloper(actor.id)) return { ok: false, error: 'Only the main developer can invite another developer' };
+  const person = String(name || '').trim();
+  if (!person) return { ok: false, error: 'The developer name is required' };
+
+  // Short, unambiguous code (no 0/O/1/I/L), 6 characters.
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += alphabet[crypto.randomInt(alphabet.length)];
+
+  const salt = generateSalt();
+  const record = {
+    id: uuidv4(),
+    code_hash: encodeHash(salt, hashPassword(code, salt)),
+    name: person,
+    created_by: actor.id,
+    created_at: Date.now(),
+  };
+  db.get().prepare(`
+    INSERT INTO developer_codes (id, code_hash, name, created_by, created_at, redeemed_at, redeemed_by, revoked_at)
+    VALUES (@id, @code_hash, @name, @created_by, @created_at, NULL, NULL, NULL)
+  `).run(record);
+  return { ok: true, code, id: record.id };
+}
+
+// List issued developer codes with usage/revocation status (developer-only).
+function listDeveloperCodes() {
+  return db.get().prepare(`
+    SELECT id, name, created_by, created_at, redeemed_at, redeemed_by, revoked_at
+    FROM developer_codes ORDER BY created_at DESC
+  `).all().map((c) => ({
+    ...c,
+    status: c.revoked_at ? 'revoked' : (c.redeemed_at ? 'used' : 'active'),
+  }));
+}
+
+// Revoke an unused developer code (main-developer only).
+function revokeDeveloperCode(actingOfficerId, codeId) {
+  const actor = findById(actingOfficerId);
+  if (!actor || actor.role !== 'developer') return { ok: false, error: 'Not authorized' };
+  if (!isRootDeveloper(actor.id)) return { ok: false, error: 'Only the main developer can revoke a developer code' };
+  const row = db.get().prepare('SELECT * FROM developer_codes WHERE id = ?').get(codeId);
+  if (!row) return { ok: false, error: 'Unknown developer code' };
+  if (row.revoked_at) return { ok: true };
+  if (row.redeemed_at) return { ok: false, error: 'This code was already redeemed' };
+  db.get().prepare('UPDATE developer_codes SET revoked_at = ? WHERE id = ?').run(Date.now(), codeId);
+  return { ok: true };
+}
+
+// Redeem a developer short code: creates the developer account using the name
+// the main developer registered with the code. Single-use and revoked codes
+// are rejected. This is a public (unauthenticated) operation like code redemption.
+function redeemDeveloperCode({ code, officerId, password, confirmPassword }) {
+  const raw = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!raw) return { ok: false, error: 'A developer short code is required' };
+  if (!officerId || !password) return { ok: false, error: 'All fields are required' };
+  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (password !== confirmPassword) return { ok: false, error: 'Password confirmation does not match' };
+  if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
+
+  // Bounded, timing-safe scan over the still-usable codes.
+  const candidates = db.get().prepare(
+    'SELECT * FROM developer_codes WHERE redeemed_at IS NULL AND revoked_at IS NULL'
+  ).all();
+  let match = null;
+  for (const row of candidates) {
+    const decoded = decodeHash(row.code_hash);
+    if (!decoded) continue;
+    const expected = Buffer.from(decoded.hash, 'hex');
+    const actual = Buffer.from(hashPassword(raw, decoded.salt), 'hex');
+    if (actual.length === expected.length && crypto.timingSafeEqual(actual, expected)) {
+      match = row;
+      break;
+    }
+  }
+  if (!match) return { ok: false, error: 'Invalid or revoked developer code' };
+
+  const officer = insertOfficer(match.name, officerId, password, 'developer');
+  db.get().prepare('UPDATE developer_codes SET redeemed_at = ?, redeemed_by = ? WHERE id = ?')
+    .run(Date.now(), officer.id, match.id);
+  return { ok: true, officer: publicOfficer(officer) };
+}
+
+// ---- Login audit log (track who signs in and from which device) ----
+function logLoginAttempt({ officerId, officerName, role, device, ip, success }) {
+  try {
+    db.get().prepare(`
+      INSERT INTO login_audit (id, officer_id, officer_name, role, device, ip, success, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      uuidv4(),
+      officerId || null,
+      officerName || null,
+      role || null,
+      device || null,
+      ip || null,
+      success ? 1 : 0,
+      Date.now()
+    );
+  } catch (e) { /* audit must never break a login */ }
+  return { ok: true };
+}
+
+// List recent login activity (developer only).
+function listLoginAudit(limit = 200) {
+  return db.get().prepare(
+    'SELECT officer_id, officer_name, role, device, ip, success, created_at FROM login_audit ORDER BY created_at DESC LIMIT ?'
+  ).all(Math.max(1, Math.min(Number(limit) || 200, 1000)));
+}
+
+// Clear the login audit log (developer only).
+function clearLoginAudit() {
+  db.get().prepare('DELETE FROM login_audit').run();
+  return { ok: true };
+}
+
 // ---- One-time privilege codes (operator issues codes to grant access) ----
 
-const ROLE_ORDER = { admin: 0, location_coordinator: 1, coordinator: 2, assistant: 3 };
+// developer > admin > location_coordinator > coordinator > assistant.
+// A negative rank keeps 'developer' above 'admin' so no admin (or any other
+// role) can ever issue a developer privilege — it is only bootstrap-able.
+const ROLE_ORDER = { developer: -1, admin: 0, location_coordinator: 1, coordinator: 2, assistant: 3 };
 function privilegeAllows(actor, priv) {
   const a = ROLE_ORDER[actor] == null ? 99 : ROLE_ORDER[actor];
   const p = ROLE_ORDER[priv];
   if (p == null) return false;
   // An actor can only issue a privilege equal to or below their own standing,
-  // so a coordinator cannot mint an admin (prevents privilege escalation).
+  // so a coordinator cannot mint an admin (prevents privilege escalation),
+  // and not even an admin can mint a developer.
   return a <= p;
 }
 
@@ -344,21 +541,23 @@ function addOfficer({ name, officerId, password, role = 'coordinator' }) {
   return { ok: true, officer: publicOfficer(officer) };
 }
 
-// Remove a coordinator/assistant (cannot remove admins or yourself)
+// Remove a coordinator/assistant (cannot remove admins, developers, or yourself)
 function removeOfficer(id, actingId) {
   const row = db.get().prepare('SELECT * FROM officers WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Account not found' };
   if (row.role === 'admin') return { ok: false, error: 'Cannot remove an admin account' };
+  if (row.role === 'developer') return { ok: false, error: 'Cannot remove the developer account' };
   if (row.id === actingId) return { ok: false, error: 'You cannot remove your own account' };
   db.get().prepare('DELETE FROM officers WHERE id = ?').run(id);
   return { ok: true };
 }
 
-// Suspend or activate a coordinator/assistant (cannot suspend admins)
+// Suspend or activate a coordinator/assistant (cannot suspend admins/devs)
 function setSuspended(id, suspended) {
   const row = db.get().prepare('SELECT * FROM officers WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Account not found' };
   if (row.role === 'admin') return { ok: false, error: 'Cannot suspend an admin account' };
+  if (row.role === 'developer') return { ok: false, error: 'Cannot suspend the developer account' };
   db.get().prepare('UPDATE officers SET suspended = ? WHERE id = ?').run(suspended ? 1 : 0, id);
   return { ok: true, officer: publicOfficer(db.get().prepare('SELECT * FROM officers WHERE id = ?').get(id)) };
 }
@@ -442,9 +641,21 @@ module.exports = {
   generateSalt,
   isConfigured,
   hasAdmin,
+  hasDeveloper,
   hasSetupCode,
   setupAdmin,
   setupCoordinator,
+  setupDeveloper,
+  hasDevelopmentKey,
+  verifyDevelopmentKey,
+  logLoginAttempt,
+  listLoginAudit,
+  clearLoginAudit,
+  isRootDeveloper,
+  issueDeveloperCode,
+  listDeveloperCodes,
+  revokeDeveloperCode,
+  redeemDeveloperCode,
   login,
   attemptLogin,
   remainingLockoutMs,

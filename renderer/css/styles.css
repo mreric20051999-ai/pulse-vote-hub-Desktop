@@ -586,6 +586,9 @@ body.sidebar-collapsed .sidebar-toggle svg, html.sidebar-collapsed-bp .sidebar-t
 body.is-admin .nav-item.admin-only {
   display: flex;
 }
+body.is-developer .nav-item.developer-only {
+  display: flex;
+}
 .nav-item i, .nav-item .nav-ic {
   width: 22px;
   height: 22px;

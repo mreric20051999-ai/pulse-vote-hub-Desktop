@@ -1,6 +1,6 @@
 (function () {
   const session = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
-  if (!session || session.role !== 'admin') return;
+  if (!session || (session.role !== 'admin' && session.role !== 'developer')) return;
   document.body.classList.add('is-admin');
   const C = window.MergeCore;
   if (!C) return;

@@ -32,6 +32,8 @@
       <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
       <a class="nav-item" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
       <a class="nav-item admin-only active" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
+      <a class="nav-item developer-only" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="shieldCheck"></span>Developer</a>
+
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
   </aside>
@@ -40,20 +42,17 @@
     <div class="page-header">
       <div>
         <h1>Administration</h1>
-        <p id="page-subtitle">Backup, export and your account.</p>
+        <p id="page-subtitle">Messages, sync and your account.</p>
       </div>
     </div>
 
     <!-- Section sub-menu -->
     <nav class="section-links" id="section-links">
       <a href="#inbox" class="sub-link" data-target="inbox"><span class="icon" data-icon="mail"></span>Inbox</a>
-      <a href="#backup" class="sub-link" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; export</a>
-      <a href="#auto-backup" class="sub-link" data-target="auto-backup"><span class="icon" data-icon="backup"></span>Auto backup &amp; restore</a>
       <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
       <a href="#distribution" class="sub-link" data-target="distribution"><span class="icon" data-icon="download"></span>Distribution</a>
-      <a href="#access-codes" class="sub-link" data-target="access-codes"><span class="icon" data-icon="key"></span>Access codes</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -71,88 +70,6 @@
         </div>
       </div>
       <div id="inbox-list" class="inbox-list"></div>
-    </section>
-
-    <!-- Backup & export -->
-    <section class="card panel ofc-section" id="backup">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">Backup &amp; export</div>
-          <p class="text-muted panel-sub">Download a full database backup or export an election as JSON.</p>
-        </div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-secondary" id="backup-db-btn"><span class="icon btn-icon" data-icon="download"></span>Back up database</button>
-        <button class="btn btn-secondary" id="export-election-btn"><span class="icon btn-icon" data-icon="upload"></span>Export election JSON</button>
-      </div>
-      <p class="auth-error" id="backup-msg"></p>
-
-      <div class="delete-stripe">
-        <div class="inline-form">
-          <div class="field">
-            <label class="label" for="delete-election">Election</label>
-            <select class="select" id="delete-election">
-              <option value="">— Select an election —</option>
-            </select>
-          </div>
-          <button type="button" class="btn btn-danger" id="delete-election-btn"><span class="icon btn-icon" data-icon="trash"></span>Delete election</button>
-        </div>
-        <p class="auth-error" id="delete-msg"></p>
-      </div>
-    </section>
-
-    <!-- Automatic backup & restore -->
-    <section class="card panel ofc-section" id="auto-backup">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">Automatic backup &amp; restore</div>
-          <p class="text-muted panel-sub">Take scheduled snapshots so a lost or damaged database never costs you the election. Backups are verified before they are ever restored.</p>
-        </div>
-        <div class="lan-pill" id="auto-backup-pill"><span class="lan-dot" id="auto-backup-dot"></span><span id="auto-backup-pill-text">Off</span></div>
-      </div>
-
-      <div class="auto-backup-grid">
-        <div class="field auto-backup-toggle">
-          <label class="label">Automatic backups</label>
-          <label class="ab-switch"><input type="checkbox" id="auto-backup-enabled"><span class="ab-slider"></span></label>
-        </div>
-        <div class="field">
-          <label class="label" for="auto-backup-interval">Every</label>
-          <div class="ab-inline">
-            <input class="input" id="auto-backup-interval" type="number" min="1" max="1440" value="30">
-            <span class="ab-unit">min</span>
-          </div>
-        </div>
-        <div class="field">
-          <label class="label" for="auto-backup-keep">Keep</label>
-          <div class="ab-inline">
-            <input class="input" id="auto-backup-keep" type="number" min="1" max="100" value="10">
-            <span class="ab-unit">backups</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="inline-form">
-        <div class="field ab-folder">
-          <label class="label" for="auto-backup-dir">Backup folder</label>
-          <input class="input" id="auto-backup-dir" type="text" placeholder="Default: app data /backups">
-        </div>
-        <button type="button" class="btn btn-ghost" id="auto-backup-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
-        <button type="button" class="btn btn-primary" id="auto-backup-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
-        <button type="button" class="btn btn-secondary" id="auto-backup-now-btn"><span class="icon btn-icon" data-icon="download"></span>Back up now</button>
-      </div>
-      <p class="auth-error" id="auto-backup-msg"></p>
-      <p class="text-muted ab-hint">Backups are written with SQLite's online-backup API, so a snapshot is always consistent even while votes are arriving. When backups are on, one is also taken automatically when the app closes.</p>
-
-      <div class="ab-backups">
-        <div class="ab-backups-head">
-          <span class="label">Saved backups</span>
-          <span class="text-muted ab-count" id="auto-backup-count"></span>
-        </div>
-        <div id="auto-backup-list">
-          <p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>
-        </div>
-      </div>
     </section>
 
     <!-- Merge results -->
@@ -383,42 +300,6 @@
       </div>
     </section>
 
-    <!-- Access codes -->
-    <section class="card panel ofc-section" id="access-codes">
-      <div class="panel-head">
-        <div>
-          <div class="card-title panel-title">Access codes</div>
-          <p class="text-muted panel-sub">Issue one-time codes to grant someone a privilege. Each code is single-use and tied to the role you choose. The invitee redeems it on a fresh install to create their account.</p>
-        </div>
-      </div>
-
-      <div class="inline-form">
-        <div class="field">
-          <label class="label" for="issue-code-privilege">Privilege</label>
-          <select class="select" id="issue-code-privilege">
-            <option value="admin">Administrator (full control)</option>
-            <option value="coordinator" selected>Coordinator</option>
-            <option value="assistant">Station officer</option>
-          </select>
-        </div>
-        <button type="button" class="btn btn-primary" id="issue-code-btn"><span class="icon btn-icon" data-icon="key"></span>Generate code</button>
-      </div>
-      <p class="auth-error" id="access-codes-msg"></p>
-
-      <div class="code-output" id="issued-code-output" hidden>
-        <div class="code-display"><span class="code-label">One-time code</span><code id="issued-code-text"></code><span class="text-muted code-hint">Single-use — the invitee redeems it on a fresh install.</span><button type="button" class="btn btn-ghost" id="copy-code-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button></div>
-      </div>
-
-      <div class="ab-backups">
-        <div class="ab-backups-head">
-          <span class="label">Issued codes</span>
-          <span class="text-muted ab-count" id="access-codes-count"></span>
-        </div>
-        <div id="access-codes-list">
-          <p class="text-muted hint">No codes issued yet.</p>
-        </div>
-      </div>
-    </section>
 
     <!-- My account -->
     <section class="card panel ofc-section" id="my-account">

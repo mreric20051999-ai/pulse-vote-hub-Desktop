@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS officers (
   name TEXT NOT NULL,
   officer_id TEXT UNIQUE NOT NULL,
   password TEXT NOT NULL,
-  role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant', 'location_coordinator')) DEFAULT 'assistant',
+  role TEXT CHECK(role IN ('admin', 'developer', 'coordinator', 'assistant', 'location_coordinator')) DEFAULT 'assistant',
   assigned_device TEXT,
   assigned_election_id TEXT,
   assigned_station_id TEXT,
@@ -257,6 +257,28 @@ CREATE TABLE IF NOT EXISTS setup_codes (
   redeemed_at INTEGER,
   redeemed_by TEXT
 );
+
+CREATE TABLE IF NOT EXISTS login_audit (
+  id TEXT PRIMARY KEY,
+  officer_id TEXT,
+  officer_name TEXT,
+  role TEXT,
+  device TEXT,
+  ip TEXT,
+  success INTEGER DEFAULT 0,
+  created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS developer_codes (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_by TEXT,
+  created_at INTEGER,
+  redeemed_at INTEGER,
+  redeemed_by TEXT,
+  revoked_at INTEGER
+);
 `;
 
 function init() {
@@ -413,7 +435,8 @@ function migrate() {
     if (!sql) return false;
     // Location coordinators are stored in the officers table; ensure both the
     // tier role and the location binding column exist before running imports.
-    return /location_coordinator/.test(sql) && /location_id/.test(sql);
+    // Also require the 'developer' role so older schemas rebuild to include it.
+    return /location_coordinator/.test(sql) && /location_id/.test(sql) && /developer/.test(sql);
   };
   if (hasAdminRole && !roleAllowsTier(hasAdminRole.sql)) {
     db.exec(`
@@ -423,7 +446,7 @@ function migrate() {
         name TEXT NOT NULL,
         officer_id TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        role TEXT CHECK(role IN ('admin', 'coordinator', 'assistant', 'location_coordinator')) DEFAULT 'assistant',
+        role TEXT CHECK(role IN ('admin', 'developer', 'coordinator', 'assistant', 'location_coordinator')) DEFAULT 'assistant',
         assigned_device TEXT,
         assigned_election_id TEXT,
         assigned_station_id TEXT,

@@ -5,6 +5,8 @@
     setup: $('setup-view'),
     login: $('login-view'),
     adminSetup: $('admin-setup-view'),
+    developerSetup: $('developer-setup-view'),
+    developerLogin: $('developer-login-view'),
     redeem: $('redeem-view'),
   };
 
@@ -12,6 +14,8 @@
     setup: $('setup-error'),
     login: $('login-error'),
     adminSetup: $('admin-setup-error'),
+    developerSetup: $('dev-setup-error'),
+    developerLogin: $('dev-login-error'),
     redeem: $('redeem-error'),
   };
 
@@ -22,19 +26,51 @@
   }
 
   // ---- Password visibility toggle (eye) ----
-  const passInput = $('login-pass');
-  const passToggle = $('login-pass-toggle');
-  if (passInput && passToggle) {
-    passToggle.addEventListener('click', () => {
-      const showPw = passInput.type === 'password';
-      passInput.type = showPw ? 'text' : 'password';
-      passToggle.setAttribute('aria-pressed', String(showPw));
-      passToggle.setAttribute('aria-label', showPw ? 'Hide password' : 'Show password');
+  // Wrap a password input in a .password-wrap with an eye toggle button.
+  function addPassToggle(input) {
+    if (!input) return;
+    const wrap = input.parentElement;
+    if (!wrap || !wrap.classList.contains('password-wrap')) return;
+    const toggle = wrap.querySelector('.password-toggle');
+    if (!toggle) return;
+    toggle.addEventListener('click', () => {
+      const showPw = input.type === 'password';
+      input.type = showPw ? 'text' : 'password';
+      toggle.setAttribute('aria-pressed', String(showPw));
+      toggle.setAttribute('aria-label', showPw ? 'Hide password' : 'Show password');
     });
   }
+  function buildPassToggle() {
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.className = 'password-toggle';
+    t.setAttribute('aria-label', 'Show password');
+    t.setAttribute('aria-pressed', 'false');
+    t.innerHTML = `
+      <svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+    return t;
+  }
+  function attachPassToggle(id) {
+    const input = $(id);
+    if (!input) return;
+    const wrap = input.parentElement;
+    if (!wrap) return;
+    if (wrap.classList.contains('password-wrap')) { addPassToggle(input); return; }
+    const w = document.createElement('div');
+    w.className = 'password-wrap';
+    input.parentNode.insertBefore(w, input);
+    w.appendChild(input);
+    const toggle = buildPassToggle();
+    w.appendChild(toggle);
+    addPassToggle(input);
+  }
+
+  const passFields = ['login-pass', 'setup-pass', 'admin-setup-code', 'admin-setup-code-confirm', 'admin-setup-pass', 'dev-setup-pass', 'dev-setup-key', 'dev-setup-key-confirm', 'dev-login-pass', 'dev-login-pass-confirm', 'redeem-pass', 'redeem-pass-confirm'];
+  passFields.forEach(attachPassToggle);
 
   function focus(name) {
-    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name', redeem: 'redeem-code' };
+    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name', developerSetup: 'dev-setup-name', developerLogin: 'dev-login-id', redeem: 'redeem-code' };
     const el = $(map[name]);
     if (el) el.focus();
   }
@@ -102,24 +138,65 @@
   $('setup-admin-link').addEventListener('click', openAdminSetupOrLogin);
   $('admin-setup-back').addEventListener('click', () => { show('setup'); focus('setup'); });
 
+  // ---- Developer bootstrap (root role, dedicated key) ----
+  // After the main developer exists, the hidden gesture opens the compact
+  // Developer sign-in (code + ID + password) rather than the setup form.
+  function openDeveloperSetupOrLogin() {
+    window.pvh.hasDeveloper().then((devExists) => {
+      if (devExists) {
+        show('developerLogin');
+        focus('developerLogin');
+      } else {
+        show('developerSetup');
+        focus('developerSetup');
+      }
+    });
+  }
+  const devSetupBack = () => {
+    window.pvh.setupCheck().then((configured) => { show(configured ? 'login' : 'setup'); focus(configured ? 'login' : 'setup'); });
+  };
+  // Developer bootstrap is deliberately hidden from the public first-run flow.
+  // The only entry point is the hidden keyboard shortcut (Ctrl/⌘+Shift+D) so
+  // installers and end users never see a developer option.
+  document.addEventListener('keydown', (ev) => {
+    if ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && (ev.key === 'D' || ev.key === 'd')) {
+      ev.preventDefault();
+      openDeveloperSetupOrLogin();
+    }
+  });
+  $('developer-setup-back').addEventListener('click', devSetupBack);
+  $('developer-login-back').addEventListener('click', devSetupBack);
+
+  // Explain the developer key: provisioned keys must be re-entered, while a
+  // fresh machine asks you to choose the key once.
+  const devKeyHint = $('dev-setup-key-hint');
+  window.pvh.hasDeveloperKey().then((keyExists) => {
+    if (devKeyHint) {
+      devKeyHint.textContent = keyExists
+        ? 'Enter the developer key provisioned for this machine to claim the developer account.'
+        : 'Choose a developer key to lock down the developer account on this machine. Keep it safe — it cannot be changed later and cannot be issued by an access code.';
+    }
+  }).catch(() => {});
+
   // ---- Access-code redemption (one-time code issued by an admin) ----
   function openRedeem() {
     show('redeem');
     focus('redeem');
   }
-  $('setup-redeem-link').addEventListener('click', openRedeem);
   $('login-redeem-link').addEventListener('click', openRedeem);
   $('redeem-back').addEventListener('click', () => {
     window.pvh.setupCheck().then((configured) => { show(configured ? 'login' : 'setup'); focus(configured ? 'login' : 'setup'); });
   });
 
-  // ---- First-run: import a Location Run Pack (fresh machine) ----
-  $('setup-import-run').addEventListener('click', async () => {
-    const err = $('setup-import-error');
-    err.textContent = '';
-    const overlay = document.createElement('div');
-    overlay.className = 'pvh-modal-overlay';
-    overlay.innerHTML = `
+  // ---- First-run join toggle: Import a Location Run Pack <-> Redeem ------
+  // A compact segmented switch replaces two stacked full-width buttons so
+  // both first-run options fit in one row.
+  const importPanels = {
+    open() {
+      const err = $('setup-import-error'); if (err) err.textContent = '';
+      const overlay = document.createElement('div');
+      overlay.className = 'pvh-modal-overlay';
+      overlay.innerHTML = `
       <div class="pvh-modal" role="dialog" aria-modal="true" style="width:min(520px,92vw)">
         <header class="pvh-modal-head">
           <h2 class="pvh-modal-title">Import a Location Run Pack</h2>
@@ -139,36 +216,52 @@
           <button class="btn btn-primary btn-block" id="fi-go">Choose file &amp; import</button>
         </div>
       </div>`;
-    document.body.appendChild(overlay);
-    const close = () => overlay.remove();
-    overlay.querySelector('.pvh-modal-close').addEventListener('click', close);
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('#fi-go').addEventListener('click', async () => {
-      const pass = overlay.querySelector('#fi-pass').value.trim();
-      const setup = overlay.querySelector('#fi-setup').value.trim();
-      const b = overlay.querySelector('#fi-go');
-      b.disabled = true; b.textContent = 'Importing…';
-      const res = await window.pvh.importRunPack({ passphrase: pass, setupCode: setup });
-      if (res && res.canceled) { b.disabled = false; b.textContent = 'Choose file & import'; return; }
-      if (!res || !res.ok) {
-        overlay.querySelector('#first-import-err').textContent = (res && res.error) || 'Import failed';
-        b.disabled = false; b.textContent = 'Choose file & import';
-        return;
-      }
-      // After import, log into the freshly-created location coordinator account.
-      const login = await window.pvh.login({ officerId: res.coordinator.officer_id, password: setup });
-      if (login.ok) {
-        const officer = login.officer;
-        const session = Object.assign({}, officer, login.session && login.session.token ? { token: login.session.token } : {});
-        window.localStorage.setItem('pvh_session', JSON.stringify(session));
-        window.location.assign('location-runs.html');
-      } else {
-        overlay.querySelector('#first-import-err').textContent = 'Imported. Sign in with the setup code to continue.';
-        show('login'); focus('login');
-        $('login-id').value = res.coordinator.officer_id;
-        $('login-pass').value = setup;
-      }
-      close();
+      document.body.appendChild(overlay);
+      const close = () => overlay.remove();
+      overlay.querySelector('.pvh-modal-close').addEventListener('click', close);
+      overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+      overlay.querySelector('#fi-go').addEventListener('click', async () => {
+        const pass = overlay.querySelector('#fi-pass').value.trim();
+        const setup = overlay.querySelector('#fi-setup').value.trim();
+        const b = overlay.querySelector('#fi-go');
+        b.disabled = true; b.textContent = 'Importing…';
+        const res = await window.pvh.importRunPack({ passphrase: pass, setupCode: setup });
+        if (res && res.canceled) { b.disabled = false; b.textContent = 'Choose file & import'; return; }
+        if (!res || !res.ok) {
+          overlay.querySelector('#first-import-err').textContent = (res && res.error) || 'Import failed';
+          b.disabled = false; b.textContent = 'Choose file & import';
+          return;
+        }
+        // After import, log into the freshly-created location coordinator account.
+        const login = await window.pvh.login({ officerId: res.coordinator.officer_id, password: setup });
+        if (login.ok) {
+          const officer = login.officer;
+          const session = Object.assign({}, officer, login.session && login.session.token ? { token: login.session.token } : {});
+          window.localStorage.setItem('pvh_session', JSON.stringify(session));
+          window.location.assign('location-runs.html');
+        } else {
+          overlay.querySelector('#first-import-err').textContent = 'Imported. Sign in with the setup code to continue.';
+          show('login'); focus('login');
+          $('login-id').value = res.coordinator.officer_id;
+          $('login-pass').value = setup;
+        }
+        close();
+      });
+    },
+  };
+
+  function setFirstRunTab(pane) {
+    document.querySelectorAll('.first-run-tab').forEach((t) => {
+      const active = t.dataset.pane === pane;
+      t.classList.toggle('is-active', active);
+      t.setAttribute('aria-selected', String(active));
+    });
+  }
+  document.querySelectorAll('.first-run-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      setFirstRunTab(tab.dataset.pane);
+      if (tab.dataset.pane === 'redeem') openRedeem();
+      else importPanels.open();
     });
   });
 
@@ -213,8 +306,10 @@
 
     form.querySelectorAll('.step-next').forEach((btn, idx) => {
       btn.addEventListener('click', () => {
+        const optional = opts.optionalIdx && opts.optionalIdx.includes(idx);
         const inp = vals[idx];
-        if (!inp || !inp.value.trim()) { if (inp) inp.focus(); return; }
+        if (!optional && (!inp || !inp.value.trim())) { if (inp) inp.focus(); return; }
+        if (opts.onStepNext) opts.onStepNext(idx);
         move(idx + 1);
       });
     });
@@ -232,7 +327,9 @@
       inp.addEventListener('keydown', (e) => {
         if (e.key !== 'Enter') return;
         e.preventDefault();
-        if (!inp.value.trim()) return;
+        const optional = opts.optionalIdx && opts.optionalIdx.includes(idx);
+        if (!optional && !inp.value.trim()) return;
+        if (opts.onStepNext) opts.onStepNext(idx);
         move(idx + 1);
       });
     }
@@ -242,6 +339,8 @@
 
   initSetupSteps({ formId: 'setup-form', dotsId: '#setup-dots', fieldIds: ['setup-name', 'setup-id', 'setup-pass'] });
   initSetupSteps({ formId: 'admin-setup-form', dotsId: '#admin-setup-dots', fieldIds: ['admin-setup-name', 'admin-setup-id', 'admin-setup-code', 'admin-setup-pass'] });
+  initSetupSteps({ formId: 'developer-setup-form', dotsId: '#developer-setup-dots', fieldIds: ['dev-setup-name', 'dev-setup-id', 'dev-setup-pass', 'dev-setup-key'] });
+  initSetupSteps({ formId: 'redeem-form', dotsId: '#redeem-dots', fieldIds: ['redeem-code', 'redeem-name', 'redeem-id', 'redeem-pass'] });
 
   // Explain the setup code step depending on whether this machine has already
   // been provisioned with a setup code.
@@ -309,6 +408,91 @@
       errors.adminSetup.textContent = res.error || 'Setup failed';
       btn.disabled = false;
       btn.textContent = 'Create Administrator';
+    }
+  });
+
+  // ---- Developer bootstrap submit ----
+  $('developer-setup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errors.developerSetup.textContent = '';
+
+    const res = await window.pvh.setupDeveloper({
+      name: $('dev-setup-name').value,
+      officerId: $('dev-setup-id').value,
+      password: $('dev-setup-pass').value,
+      devKey: $('dev-setup-key').value,
+      confirmDevKey: $('dev-setup-key-confirm').value,
+    });
+
+    if (res.ok) {
+      show('login');
+      $('login-id').value = res.officer.officer_id;
+      $('login-pass').focus();
+    } else {
+      errors.developerSetup.textContent = res.error || 'Setup failed';
+    }
+  });
+
+  // ---- Developer sign-in (stepped: short code → ID → password) ----
+  // The short code step is optional: existing developers skip it. The confirm
+  // field only appears when a first-time developer enters a short code.
+  const devLoginCode = $('dev-login-code');
+  const devLoginConfirmField = $('dev-login-confirm-field');
+  const devLoginConfirm = $('dev-login-pass-confirm');
+  const syncDevLoginMode = () => {
+    const withCode = (devLoginCode.value || '').trim().length > 0;
+    if (devLoginConfirmField) devLoginConfirmField.hidden = !withCode;
+    if (devLoginConfirm) devLoginConfirm.required = withCode;
+    $('dev-login-btn').textContent = withCode ? 'Create developer account' : 'Sign in';
+  };
+  initSetupSteps({
+    formId: 'developer-login-form',
+    dotsId: '#developer-login-dots',
+    fieldIds: ['dev-login-code', 'dev-login-id', 'dev-login-pass'],
+    optionalIdx: [0],
+    onStepNext: syncDevLoginMode,
+  });
+
+  $('developer-login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errEl = errors.developerLogin;
+    errEl.textContent = '';
+    syncDevLoginMode();
+    const btn = $('dev-login-btn');
+    btn.disabled = true;
+    btn.textContent = 'Working…';
+
+    const code = (devLoginCode.value || '').trim();
+    const officerId = $('dev-login-id').value;
+    const password = $('dev-login-pass').value;
+
+    try {
+      if (code) {
+        // First-time developer: redeem the short code and create the account,
+        // then hand over to the normal login to sign in.
+        const res = await window.pvh.redeemDeveloperCode({
+          code,
+          officerId,
+          password,
+          confirmPassword: (devLoginConfirm || {}).value || '',
+        });
+        if (!res.ok) { errEl.textContent = res.error || 'Could not create your developer account.'; return; }
+        show('login');
+        $('login-id').value = res.officer.officer_id;
+        $('login-pass').focus();
+      } else {
+        const res = await window.pvh.login({ officerId, password });
+        if (res.ok) {
+          completeLogin(res.officer, res.session && res.session.token);
+        } else {
+          applyAuthResult(res, errEl, $('dev-login-btn'), 'Sign in');
+          $('dev-login-pass').value = '';
+          $('dev-login-pass').focus();
+        }
+      }
+    } finally {
+      btn.disabled = false;
+      syncDevLoginMode();
     }
   });
 

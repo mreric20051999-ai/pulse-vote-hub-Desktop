@@ -85,8 +85,18 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   setupCoordinator: (payload) => ipcRenderer.invoke('auth:setup', payload),
   login: (payload) => ipcRenderer.invoke('auth:login', payload),
 
+  // Developer bootstrap (separate from the admin setup code)
+  setupDeveloper: (payload) => ipcRenderer.invoke('auth:setup-developer', payload),
+  developmentKeyStatus: () => ipcRenderer.invoke('dev:development-key-status', oid()),
+
+  // Login audit log (developer-only)
+  listLoginAudit: () => ipcRenderer.invoke('dev:list-login-audit', oid()),
+  clearLoginAudit: () => ipcRenderer.invoke('dev:clear-login-audit', oid()),
+
   // Admin / superuser
   hasAdmin: () => ipcRenderer.invoke('auth:has-admin'),
+  hasDeveloper: () => ipcRenderer.invoke('auth:has-developer'),
+  hasDeveloperKey: () => ipcRenderer.invoke('auth:has-dev-key'),
   hasSetupCode: () => ipcRenderer.invoke('auth:has-setup-code'),
   setupAdmin: (payload) => ipcRenderer.invoke('auth:setup-admin', payload),
   listOfficers: () => ipcRenderer.invoke('admin:officers', oid()),
@@ -98,6 +108,10 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   listSetupCodes: () => ipcRenderer.invoke('admin:list-codes', oid()),
   issueSetupCode: (privilege) => ipcRenderer.invoke('admin:issue-code', privilege, oid()),
   redeemSetupCode: (payload) => ipcRenderer.invoke('auth:redeem-code', payload),
+  issueDeveloperCode: (name) => ipcRenderer.invoke('dev:issue-developer-code', name, oid()),
+  listDeveloperCodes: () => ipcRenderer.invoke('dev:list-developer-codes', oid()),
+  revokeDeveloperCode: (id) => ipcRenderer.invoke('dev:revoke-developer-code', id, oid()),
+  redeemDeveloperCode: (payload) => ipcRenderer.invoke('auth:redeem-developer-code', payload),
   listDeployments: () => ipcRenderer.invoke('dist:list', oid()),
   addDeployment: (fields) => ipcRenderer.invoke('dist:add', fields, oid()),
   removeDeployment: (id) => ipcRenderer.invoke('dist:remove', id, oid()),
@@ -107,8 +121,8 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   setGithubToken: (token) => ipcRenderer.invoke('dist:set-token', token, oid()),
   exportDeployments: () => ipcRenderer.invoke('dist:export-csv', oid()),
 
-  // Backup / export
-  backupDatabase: () => ipcRenderer.invoke('backup:database'),
+  // Backup / export (developer-only data operations)
+  backupDatabase: () => ipcRenderer.invoke('backup:database', oid()),
   exportElection: (electionId) => ipcRenderer.invoke('backup:election', electionId, oid()),
 
   // Automatic backup & restore

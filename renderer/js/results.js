@@ -6,7 +6,7 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const ic = (name, size = 20) =>
     (window.pvhIcons && window.pvhIcons.icon) ? window.pvhIcons.icon(name, size) : '';
-  const isAdmin = session.role === 'admin';
+  const isAdmin = session.role === 'admin' || session.role === 'developer';
   if (isAdmin) document.body.classList.add('is-admin');
 
   const pickerRoot = $('election-picker');

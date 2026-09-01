@@ -6,7 +6,7 @@
   const session = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
   if (!session) return;
 
-  const isAdmin = session.role === 'admin';
+  const isAdmin = session.role === 'admin' || session.role === 'developer';
 
   $('status-pill').innerHTML = `<span class="status-dot ${isAdmin ? 'success' : 'info'}"></span>${isAdmin ? 'Administrator' : 'Signed in'}`;
   if (isAdmin) document.body.classList.add('is-admin');

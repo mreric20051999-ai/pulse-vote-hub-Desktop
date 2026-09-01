@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, nativeTheme, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 
 // Fix the user-data path so dev runs (`npx electron .`) resolve to the same
 // directory as the packaged app; otherwise dev defaults to the "Electron" dir
@@ -330,6 +331,8 @@ ipcMain.handle('db:active-elections', (_e, officerId) => {
 
 ipcMain.handle('auth:setup-check', () => auth.isConfigured());
 ipcMain.handle('auth:has-admin', () => auth.hasAdmin());
+ipcMain.handle('auth:has-developer', () => auth.hasDeveloper());
+ipcMain.handle('auth:has-dev-key', () => auth.hasDevelopmentKey());
 
 ipcMain.handle('auth:setup', (_e, { name, officerId, password }) => {
   try {
@@ -347,16 +350,34 @@ ipcMain.handle('auth:setup-admin', (_e, { name, officerId, password, setupCode, 
   }
 });
 
+ipcMain.handle('auth:setup-developer', (_e, { name, officerId, password, devKey, confirmDevKey }) => {
+  try {
+    return auth.setupDeveloper(name, officerId, password, devKey, confirmDevKey);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('auth:has-setup-code', () => auth.hasSetupCode());
 
+// Login — on every attempt, record an audit entry tied to this machine so a
+// developer can review who signed in from which device.
 ipcMain.handle('auth:login', (_e, { officerId, password }) => {
   try {
     const res = auth.attemptLogin(officerId, password);
-    if (!res.ok) return res;
-    if (res.officer.suspended) return { ok: false, error: 'This account has been suspended. Contact the administrator.', code: 'suspended' };
+    const device = os.hostname() || 'This computer';
+    if (!res.ok) {
+      auth.logLoginAttempt({ officerId, role: null, device, success: false });
+      return res;
+    }
+    if (res.officer.suspended) {
+      auth.logLoginAttempt({ officerId: res.officer.officer_id, officerName: res.officer.name, role: res.officer.role, device, success: false });
+      return { ok: false, error: 'This account has been suspended. Contact the administrator.', code: 'suspended' };
+    }
     // Mint an opaque session token bound to this webContents. The renderer must
     // present this token (instead of an officer id) on every privileged call.
     const token = auth.createSession(res.officer, senderIsApp(_e) ? _e.sender.id : null);
+    auth.logLoginAttempt({ officerId: res.officer.officer_id, officerName: res.officer.name, role: res.officer.role, device, success: true });
     return { ok: true, officer: stripSecret(res.officer), session: { token } };
   } catch (err) {
     return { ok: false, error: err.message };
@@ -394,12 +415,23 @@ ipcMain.handle('kiosk:exit', () => {
 // Every admin operation requires a valid session token whose owner has the
 // admin role AND must originate from the app window. Without this a non-admin
 // (or a malicious script) can never create admins or change passwords.
+// The developer role outranks admin, so requireAdmin admits both.
 
 function requireAdmin(token, event) {
   if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
   const actor = resolveActor(token);
   if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
-  if (actor.role !== 'admin') return { ok: false, error: 'Requires admin access', code: 'forbidden' };
+  if (actor.role !== 'admin' && actor.role !== 'developer') return { ok: false, error: 'Requires admin access', code: 'forbidden' };
+  return { ok: true, actor };
+}
+
+// Strict guard for features reserved to the top-level developer role (deep
+// system operations and the developer section that admins no longer see).
+function requireDeveloper(token, event) {
+  if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
+  const actor = resolveActor(token);
+  if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
+  if (actor.role !== 'developer') return { ok: false, error: 'Requires developer access', code: 'forbidden' };
   return { ok: true, actor };
 }
 
@@ -441,22 +473,65 @@ ipcMain.handle('auth:redeem-code', (_e, payload) => {
   try { return auth.redeemSetupCode(payload); } catch (err) { return { ok: false, error: err.message }; }
 });
 
-// Listing and issuing codes require an admin session.
+// Listing and issuing codes are developer-only (moved out of the admin UI;
+// admins no longer see or can mint access codes).
 ipcMain.handle('admin:list-codes', (e, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   try { return auth.listSetupCodes(); } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('admin:issue-code', (e, privilege, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   try { return auth.issueSetupCode(r.actor.id, privilege); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---- Login audit (developer-only) ----
+ipcMain.handle('dev:list-login-audit', (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.listLoginAudit(); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('dev:clear-login-audit', (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.clearLoginAudit(); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('dev:development-key-status', (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  return { ok: true, provisioned: auth.hasDevelopmentKey() };
+});
+
+// ---- Developer short codes (main developer invites other developers) ----
+ipcMain.handle('dev:issue-developer-code', (e, name, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.issueDeveloperCode(r.actor.id, name); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('dev:list-developer-codes', (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.listDeveloperCodes(); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('dev:revoke-developer-code', (e, id, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.revokeDeveloperCode(r.actor.id, id); } catch (err) { return { ok: false, error: err.message }; }
+});
+// Redeeming a developer short code is public (no session required): the code
+// itself is the credential that creates the developer account.
+ipcMain.handle('auth:redeem-developer-code', (_e, payload) => {
+  try { return auth.redeemDeveloperCode(payload || {}); } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // ---- Backup / export IPC ----
 
 // Backup the entire database (a synchronized copy of the SQLite file).
-ipcMain.handle('backup:database', async () => {
+// Full-database backup is a deep/system operation → developer-only.
+ipcMain.handle('backup:database', async (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
   const src = db.getDbPath();
   const defaultName = `pulse-vote-hub-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.db`;
   const res = await dialog.showSaveDialog(mainWindow, {
@@ -503,14 +578,15 @@ function buildElectionSnapshot(electionId) {
 }
 
 // Export a single election (its config + all data) as a JSON snapshot.
-ipcMain.handle('backup:election', async (_e, electionId, officerId) => {
-  const actor = resolveActor(officerId);
-  const acc = election.getElectionOrError(electionId, actor);
-  if (!acc.ok) return acc;
-  const e = election.getElection(electionId);
-  if (!e) return { ok: false, error: 'Election not found' };
-  const snapshot = buildElectionSnapshot(electionId);
-  const defaultName = `election-${(e.title || 'export').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.json`;
+ipcMain.handle('backup:election', async (e, electionId, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  const eid = electionId;
+  if (!eid) return { ok: false, error: 'Election not found' };
+  const electionRec = election.getElection(eid);
+  if (!electionRec) return { ok: false, error: 'Election not found' };
+  const snapshot = buildElectionSnapshot(eid);
+  const defaultName = `election-${(electionRec.title || 'export').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.json`;
   const res = await dialog.showSaveDialog(mainWindow, {
     title: 'Export Election',
     defaultPath: defaultName,
@@ -528,23 +604,23 @@ ipcMain.handle('backup:election', async (_e, electionId, officerId) => {
 // ---- Automatic backup & restore ----
 
 // Read the current automatic-backup state (schedule settings + list of
-// existing snapshots). Admin-only.
+// existing snapshots). Developer-only (deep system feature).
 ipcMain.handle('backup:auto-get', (e, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   try { return { ok: true, settings: backup.getSettings() }; } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Persist schedule + retention settings (and switch the backup folder).
 ipcMain.handle('backup:auto-save', (e, settings, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   try { return { ok: true, settings: backup.saveSettings(settings) }; } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Force a backup right now (ignores the schedule).
 ipcMain.handle('backup:auto-now', async (e, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   try { return await backup.runNow(); } catch (err) { return { ok: false, error: err.message }; }
 });
@@ -552,7 +628,7 @@ ipcMain.handle('backup:auto-now', async (e, token) => {
 // Restore a previously-saved automatic backup. Verifies it, pauses LAN, swaps
 // the DB, re-verifies, and rolls back on any failure.
 ipcMain.handle('backup:auto-restore', async (e, filePath, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   if (!filePath || typeof filePath !== 'string') return { ok: false, error: 'No backup selected.' };
   try { return await backup.restore(filePath.replace(/^file:\/\//, '')); } catch (err) { return { ok: false, error: err.message }; }
@@ -560,7 +636,7 @@ ipcMain.handle('backup:auto-restore', async (e, filePath, token) => {
 
 // Pick a folder for automatic backups (e.g. a USB drive).
 ipcMain.handle('backup:auto-pick-dir', async (e, token) => {
-  const r = requireAdmin(token, e);
+  const r = requireDeveloper(token, e);
   if (!r.ok) return r;
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose backup folder',
@@ -651,7 +727,11 @@ ipcMain.handle('election:update', (_e, id, payload, officerId) => election.updat
 ipcMain.handle('election:status', (_e, id, status, officerId) => election.setStatus(id, status, resolveActor(officerId)));
 ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publishElection(id, opts, resolveActor(officerId)));
 ipcMain.handle('election:apply-schedule', () => election.applySchedule());
-ipcMain.handle('election:delete', (_e, id, officerId) => election.deleteElection(id, resolveActor(officerId)));
+ipcMain.handle('election:delete', (e, id, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  return election.deleteElection(id, r.actor);
+});
 
 ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listPositions(electionId, actor)));
 ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => election.addPosition(electionId, title, maxVotes, resolveActor(officerId)));

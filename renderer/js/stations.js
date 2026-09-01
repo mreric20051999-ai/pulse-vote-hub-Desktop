@@ -176,7 +176,7 @@
       window.pvh.listOfficers(),
     ]);
     stations = st;
-    officers = off.filter((o) => o.role !== 'admin');
+    officers = off.filter((o) => o.role !== 'admin' && o.role !== 'developer');
     if (!stations.length) {
       body.innerHTML = '<div class="empty" style="text-align:center;padding:24px;">No stations configured yet. Use “Add station” to create one.</div>';
       return;

@@ -64,10 +64,11 @@
       <p class="auth-error" id="setup-error"></p>
       <button class="btn btn-ghost btn-block admin-toggle" id="setup-admin-link">Set up as an Administrator</button>
       <div class="or-divider"><span>or</span></div>
-      <button class="btn btn-ghost btn-block" id="setup-import-run"><span class="icon btn-icon" data-icon="download"></span>Import a Location Run Pack</button>
+      <div class="first-run-switch" role="tablist" aria-label="Join options">
+        <button type="button" class="first-run-tab is-active" id="setup-tab-import" aria-selected="true" data-pane="import"><span class="icon btn-icon" data-icon="download"></span>Import a Location Run Pack</button>
+        <button type="button" class="first-run-tab" id="setup-tab-redeem" aria-selected="false" data-pane="redeem"><span class="icon btn-icon" data-icon="key"></span>Redeem an access code</button>
+      </div>
       <p class="auth-error" id="setup-import-error"></p>
-      <div class="or-divider"><span>or</span></div>
-      <button class="btn btn-ghost btn-block" id="setup-redeem-link"><span class="icon btn-icon" data-icon="key"></span>Redeem an access code</button>
     </div>
 
     <!-- Login -->
@@ -154,6 +155,113 @@
       <button class="btn btn-ghost btn-block admin-toggle" id="admin-setup-back">Back to sign in</button>
     </div>
 
+    <!-- Developer bootstrap (root role, dedicated key — never via access codes) -->
+    <div id="developer-setup-view" class="auth-view" hidden>
+      <div class="auth-context">
+        <span class="auth-context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5z"/><polyline points="9 11.5 11 13.5 15 9.5"/></svg>
+        </span>
+        <span class="auth-context-label">Developer bootstrap</span>
+      </div>
+      <h2 class="auth-heading">Create the developer account</h2>
+      <p class="auth-hint">The developer is the top-level system role. It owns backups, officer lifecycles, election deletion and access-code issuance — and it is never grantable through access codes. It is gated by a dedicated developer key for this machine.</p>
+      <div class="step-dots" id="developer-setup-dots" aria-hidden="true">
+        <span class="step-dot is-active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+      </div>
+      <form id="developer-setup-form">
+        <div class="setup-step is-active" data-step="1">
+          <div class="field">
+            <label class="label" for="dev-setup-name">Full name</label>
+            <input class="input" id="dev-setup-name" type="text" autocomplete="name" placeholder="e.g. Dev Root">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
+        </div>
+        <div class="setup-step" data-step="2" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="dev-setup-id">Developer ID</label>
+            <input class="input" id="dev-setup-id" type="text" autocomplete="username" placeholder="e.g. DEV1">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
+        </div>
+        <div class="setup-step" data-step="3" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="dev-setup-pass">Password</label>
+            <input class="input" id="dev-setup-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
+        </div>
+        <div class="setup-step" data-step="4" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="dev-setup-key">Developer key</label>
+            <input class="input" id="dev-setup-key" type="password" autocomplete="new-password" placeholder="This machine's developer key">
+          </div>
+          <div class="field">
+            <label class="label" for="dev-setup-key-confirm">Confirm developer key</label>
+            <input class="input" id="dev-setup-key-confirm" type="password" autocomplete="new-password" placeholder="Re-enter the developer key">
+          </div>
+          <p class="auth-hint" id="dev-setup-key-hint"></p>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="dev-setup-btn">Create Developer</button>
+        </div>
+      </form>
+      <p class="auth-error" id="dev-setup-error"></p>
+      <button class="btn btn-ghost btn-block" id="developer-setup-back">Back to sign in</button>
+    </div>
+
+    <!-- Developer sign-in (short code + ID + password) -->
+    <div id="developer-login-view" class="auth-view" hidden>
+      <div class="auth-context">
+        <span class="auth-context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5z"/><polyline points="9 11.5 11 13.5 15 9.5"/></svg>
+        </span>
+        <span class="auth-context-label">Developer</span>
+      </div>
+      <h2 class="auth-heading">Developer sign-in</h2>
+      <p class="auth-hint">Sign in with the account ID and password you were issued. New developers enter the one-time short code from the main developer.</p>
+      <div class="step-dots" id="developer-login-dots" aria-hidden="true">
+        <span class="step-dot is-active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+      </div>
+      <form id="developer-login-form">
+        <div class="setup-step is-active" data-step="1">
+          <div class="field">
+            <label class="label" for="dev-login-code">Developer short code <span class="text-muted">(new developers only)</span></label>
+            <input class="input" id="dev-login-code" type="text" autocomplete="off" placeholder="e.g. AB23CD">
+            <p class="auth-hint">Leave blank if you already have an account.</p>
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
+        </div>
+        <div class="setup-step" data-step="2" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="dev-login-id">Account ID</label>
+            <input class="input" id="dev-login-id" type="text" autocomplete="username" placeholder="e.g. DEV2">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
+        </div>
+        <div class="setup-step" data-step="3" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="dev-login-pass">Password</label>
+            <input class="input" id="dev-login-pass" type="password" autocomplete="current-password" placeholder="Min. 6 characters">
+          </div>
+          <div class="field" id="dev-login-confirm-field" hidden>
+            <label class="label" for="dev-login-pass-confirm">Confirm password</label>
+            <input class="input" id="dev-login-pass-confirm" type="password" autocomplete="new-password" placeholder="Re-enter to create the account">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="dev-login-btn">Sign in</button>
+        </div>
+      </form>
+      <p class="auth-error" id="dev-login-error"></p>
+      <button class="btn btn-ghost btn-block" id="developer-login-back">Back to sign in</button>
+    </div>
+
     <!-- Access code redemption (one-time code issued by an admin) -->
     <div id="redeem-view" class="auth-view" hidden>
       <div class="auth-context">
@@ -164,28 +272,48 @@
       </div>
       <h2 class="auth-heading">Create your account</h2>
       <p class="auth-hint">Enter the one-time access code you received from the administrator, then set your own details. The code is single-use and grants the privilege tied to it.</p>
+      <div class="step-dots" id="redeem-dots" aria-hidden="true">
+        <span class="step-dot is-active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+      </div>
       <form id="redeem-form">
-        <div class="field">
-          <label class="label" for="redeem-code">Access code</label>
-          <input class="input" id="redeem-code" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. AB12-CD34-EF56" autocapitalize="characters">
+        <div class="setup-step is-active" data-step="1">
+          <div class="field">
+            <label class="label" for="redeem-code">Access code</label>
+            <input class="input" id="redeem-code" type="text" autocomplete="off" spellcheck="false" placeholder="e.g. AB12-CD34-EF56" autocapitalize="characters">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="redeem-name">Full name</label>
-          <input class="input" id="redeem-name" type="text" autocomplete="name" placeholder="e.g. Jane Doe">
+        <div class="setup-step" data-step="2" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="redeem-name">Full name</label>
+            <input class="input" id="redeem-name" type="text" autocomplete="name" placeholder="e.g. Jane Doe">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="redeem-id">Account ID</label>
-          <input class="input" id="redeem-id" type="text" autocomplete="username" placeholder="e.g. AS1">
+        <div class="setup-step" data-step="3" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="redeem-id">Account ID</label>
+            <input class="input" id="redeem-id" type="text" autocomplete="username" placeholder="e.g. AS1">
+          </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="redeem-pass">Password</label>
-          <input class="input" id="redeem-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        <div class="setup-step" data-step="4" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="redeem-pass">Password</label>
+            <input class="input" id="redeem-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+          <div class="field">
+            <label class="label" for="redeem-pass-confirm">Confirm password</label>
+            <input class="input" id="redeem-pass-confirm" type="password" autocomplete="new-password" placeholder="Re-enter the password">
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="redeem-btn">Create account</button>
         </div>
-        <div class="field">
-          <label class="label" for="redeem-pass-confirm">Confirm password</label>
-          <input class="input" id="redeem-pass-confirm" type="password" autocomplete="new-password" placeholder="Re-enter the password">
-        </div>
-        <button type="submit" class="btn btn-primary btn-lg btn-block" id="redeem-btn">Create account</button>
       </form>
       <p class="auth-error" id="redeem-error"></p>
       <button class="btn btn-ghost btn-block" id="redeem-back">Back to sign in</button>

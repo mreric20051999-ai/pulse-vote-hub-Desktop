@@ -316,6 +316,41 @@
   justify-content: center;
   gap: 8px;
 }
+/* First-run join toggle: import a run pack <-> redeem an access code */
+.first-run-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 4px;
+  margin-top: 8px;
+  background: var(--surface-2, #0f172a);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+}
+.first-run-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim, #94a3b8);
+  font-size: var(--fs-sm, 13px);
+  font-weight: 600;
+  line-height: 1.25;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.first-run-tab:hover { color: var(--text, #f1f5f9); }
+.first-run-tab.is-active {
+  background: var(--surface-3, #1e293b);
+  color: var(--text, #f1f5f9);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.first-run-tab .btn-icon { display: inline-flex; vertical-align: middle; }
+.first-run-tab .btn-icon svg { display: block; width: 15px; height: 15px; }
 /* Keep the empty import-error from pushing the footer down unnecessarily */
 #setup-import-error,
 #login-error {

@@ -2,7 +2,7 @@
   const session = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const isAdmin = session && session.role === 'admin';
+  const isAdmin = session && (session.role === 'admin' || session.role === 'developer');
   const isLocCoord = session && session.role === 'location_coordinator';
   const pvh = window.pvh;
   const ui = window.pvhUI;

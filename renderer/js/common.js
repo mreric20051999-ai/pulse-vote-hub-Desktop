@@ -10,7 +10,8 @@
     return;
   }
 
-  if (session.role === 'admin') document.body.classList.add('is-admin');
+  if (session.role === 'admin' || session.role === 'developer') document.body.classList.add('is-admin');
+  if (session.role === 'developer') document.body.classList.add('is-developer');
 
   applyTheme();
 
@@ -18,7 +19,13 @@
   const WEB_BLOG_URL = 'https://pulse-vote-hub-app.web.app/blog.html';
 
   const ic = (name, size) => (window.pvhIcons && window.pvhIcons.icon(name, size || 18)) || '';
-  const roleLabel = (r) => (r === 'admin' ? 'Administrator' : 'Coordinator');
+  const roleLabel = (r) => {
+    if (r === 'developer') return 'Developer';
+    if (r === 'admin') return 'Administrator';
+    if (r === 'location_coordinator') return 'Location coordinator';
+    if (r === 'assistant') return 'Station officer';
+    return 'Coordinator';
+  };
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function timeAgo(ts) {
     const sec = Math.max(1, Math.floor((Date.now() - ts) / 1000));
@@ -66,7 +73,8 @@
   // ---------- Sidebar profile (avatar + menu) ----------
 
   function buildProfile(footer) {
-    const isAdmin = session.role === 'admin';
+    const isAdmin = session.role === 'admin' || session.role === 'developer';
+    const isDeveloper = session.role === 'developer';
     footer.innerHTML = `
       <div class="profile" id="profile">
         <button type="button" class="profile-trigger" id="profile-trigger" aria-haspopup="true" aria-expanded="false">
@@ -92,6 +100,9 @@
           ${isAdmin
             ? '<button type="button" class="profile-item" role="menuitem" data-action="inbox">' + ic('mail') + ' Admin inbox <span class="profile-badge" id="inbox-badge" hidden></span></button>'
             : '<button type="button" class="profile-item" role="menuitem" data-action="speak">' + ic('message') + ' Speak to admin <span class="profile-badge" id="speak-badge" hidden></span></button>'}
+          ${isDeveloper
+            ? '<button type="button" class="profile-item" role="menuitem" data-action="devtools">' + ic('shieldCheck') + ' Developer section</button>'
+            : ''}
           <button type="button" class="profile-item" role="menuitem" data-action="website">${ic('globe')} Visit website</button>
           <button type="button" class="profile-item" role="menuitem" data-action="blog">${ic('newspaper')} Blog</button>
           <button type="button" class="profile-item" role="menuitem" data-action="about">${ic('globe')} About Pulse Trend</button>
@@ -162,6 +173,10 @@
         }
         return;
       }
+      if (action === 'devtools') {
+        window.location.assign('developer.html');
+        return;
+      }
       if (action === 'guide') {
         window.location.assign('guide.html');
         return;
@@ -175,7 +190,7 @@
   }
 
   function refreshInboxBadge() {
-    if (session.role !== 'admin' || !window.pvh || !window.pvh.unreadMessages) return;
+    if ((session.role !== 'admin' && session.role !== 'developer') || !window.pvh || !window.pvh.unreadMessages) return;
     window.pvh.unreadMessages().then((res) => {
       const n = (res && res.ok) ? res.count : 0;
       if (window.pvhUI.inboxBadge) {
@@ -191,7 +206,7 @@
   }
 
   function refreshSpeakBadge() {
-    if (session.role === 'admin' || !window.pvh || !window.pvh.unreadMine) return;
+    if (session.role === 'admin' || session.role === 'developer' || !window.pvh || !window.pvh.unreadMine) return;
     window.pvh.unreadMine().then((res) => {
       const n = (res && res.ok) ? res.count : 0;
       if (window.pvhUI.speakBadge) {
@@ -554,7 +569,7 @@
 
   const nav = document.getElementById('nav');
   if (nav) {
-    if (session.role === 'admin') {
+    if (session.role === 'admin' || session.role === 'developer') {
       const adminNav = nav.querySelector('.nav-item[data-nav="admin"]');
       if (adminNav) {
         const b = document.createElement('span');
@@ -580,7 +595,7 @@
         e.preventDefault();
         const navName = a.getAttribute('data-nav');
         // Navigate to the matching page if it exists
-        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', results: 'results.html', admin: 'administration.html', officers: 'officers.html', 'location-runs': 'location-runs.html' };
+        const map = { dashboard: 'dashboard.html', elections: 'elections.html', voters: 'voters.html', stations: 'stations.html', results: 'results.html', admin: 'administration.html', officers: 'officers.html', 'location-runs': 'location-runs.html', developer: 'developer.html' };
         const target = map[navName];
         if (!target) return;
         // If we're already on the target page, don't reload — scroll to the
@@ -597,7 +612,7 @@
     });
   }
 
-  if (session.role === 'admin') {
+  if (session.role === 'admin' || session.role === 'developer') {
     refreshInboxBadge();
     setInterval(refreshInboxBadge, 20000);
   } else {

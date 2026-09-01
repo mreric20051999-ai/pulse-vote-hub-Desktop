@@ -6,7 +6,7 @@
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const initials = (name) => String(name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
-  const isAdmin = session.role === 'admin';
+  const isAdmin = session.role === 'admin' || session.role === 'developer';
   if (isAdmin) document.body.classList.add('is-admin');
   // Coordinators manage station (assistant) officers only; admins manage everyone.
   const canManageRole = (o) => (isAdmin ? true : o.role === 'assistant');
@@ -106,13 +106,13 @@
         <td>${o.suspended ? '<span class="pill pill-danger">Suspended</span>' : '<span class="pill pill-success">Active</span>'}</td>
         <td>
           <div class="td-actions">
-            ${o.id !== session.id && o.role !== 'admin' ? `
+            ${o.id !== session.id && o.role !== 'admin' && o.role !== 'developer' ? `
               ${o.suspended
                 ? `<button class="btn btn-secondary btn-sm activate" data-id="${o.id}">Activate</button>`
                 : `<button class="btn btn-danger btn-sm suspend" data-id="${o.id}">Suspend</button>`}
               <button class="btn btn-secondary btn-sm setpass" data-id="${o.id}">Password</button>
               <button class="btn btn-danger btn-sm remove" data-id="${o.id}">Remove</button>
-            ` : (o.role === 'admin' ? '<span class="pill pill-info">Superuser</span>' : '<span class="text-muted">—</span>')}
+            ` : (o.role === 'admin' || o.role === 'developer' ? '<span class="pill pill-info">Superuser</span>' : '<span class="text-muted">—</span>')}
           </div>
         </td>
       </tr>`).join('');

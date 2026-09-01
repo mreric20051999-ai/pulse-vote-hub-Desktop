@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Developer &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="js/theme.js"></script>
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/officers.css">
+  <link rel="stylesheet" href="css/lan.css">
+  <link rel="stylesheet" href="css/distribution.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <img src="assets/images/logo.png" alt="Pulse Vote Hub">
+      <span>Pulse Vote Hub</span>
+    </div>
+    <nav class="sidebar-nav" id="nav">
+      <a class="nav-item" href="dashboard.html" data-nav="dashboard"><span class="icon nav-ic" data-icon="dashboard"></span>Dashboard</a>
+      <a class="nav-item" href="elections.html" data-nav="elections"><span class="icon nav-ic" data-icon="elections"></span>Elections</a>
+      <a class="nav-item" href="voters.html" data-nav="voters"><span class="icon nav-ic" data-icon="voters"></span>Voters</a>
+      <a class="nav-item" href="stations.html" data-nav="stations"><span class="icon nav-ic" data-icon="officers"></span>Stations</a>
+      <a class="nav-item" href="vote.html" data-nav="vote"><span class="icon nav-ic" data-icon="vote"></span>Vote</a>
+      <a class="nav-item" href="officers.html" data-nav="officers"><span class="icon nav-ic" data-icon="officers"></span>Officers</a>
+      <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
+      <a class="nav-item" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
+      <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
+      <a class="nav-item developer-only active" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="shieldCheck"></span>Developer</a>
+
+    </nav>
+    <div class="sidebar-footer" id="sidebar-footer"></div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <div>
+        <h1>Developer</h1>
+        <p id="page-subtitle">System control: backups, accounts, access codes and login activity.</p>
+      </div>
+    </div>
+
+    <!-- Section sub-menu -->
+    <nav class="section-links" id="section-links">
+      <a href="#backup" class="sub-link active" data-target="backup"><span class="icon" data-icon="download"></span>Backup &amp; restore</a>
+      <a href="#elect-data" class="sub-link" data-target="elect-data"><span class="icon" data-icon="upload"></span>Export / delete election</a>
+      <a href="#accounts" class="sub-link" data-target="accounts"><span class="icon" data-icon="admin"></span>Officer accounts</a>
+      <a href="#access-codes" class="sub-link" data-target="access-codes"><span class="icon" data-icon="key"></span>Access codes</a>
+      <a href="#dev-codes" class="sub-link" data-target="dev-codes"><span class="icon" data-icon="shieldCheck"></span>Developer codes</a>
+      <a href="#login-audit" class="sub-link" data-target="login-audit"><span class="icon" data-icon="calendar"></span>Login activity</a>
+    </nav>
+
+    <!-- Backup & restore -->
+    <section class="card panel ofc-section" id="backup">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Backup &amp; restore</div>
+          <p class="text-muted panel-sub">Take a full database snapshot, restore from a previous snapshot, or schedule automatic backups.</p>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="backup-db-btn"><span class="icon btn-icon" data-icon="download"></span>Back up database</button>
+      </div>
+      <p class="auth-error" id="backup-msg"></p>
+
+      <div style="margin-top: var(--space-4);">
+        <div class="card-title panel-title" style="font-size: 1rem;">Automatic backup</div>
+        <div class="auto-backup-grid">
+          <div class="field auto-backup-toggle">
+            <label class="label">Automatic backups</label>
+            <label class="ab-switch"><input type="checkbox" id="auto-backup-enabled"><span class="ab-slider"></span></label>
+          </div>
+          <div class="field">
+            <label class="label" for="auto-backup-interval">Every</label>
+            <div class="ab-inline">
+              <input class="input" id="auto-backup-interval" type="number" min="1" max="1440" value="30">
+              <span class="ab-unit">min</span>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" for="auto-backup-keep">Keep</label>
+            <div class="ab-inline">
+              <input class="input" id="auto-backup-keep" type="number" min="1" max="100" value="10">
+              <span class="ab-unit">backups</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="inline-form">
+          <div class="field ab-folder">
+            <label class="label" for="auto-backup-dir">Backup folder</label>
+            <input class="input" id="auto-backup-dir" type="text" placeholder="Default: app data /backups">
+          </div>
+          <button type="button" class="btn btn-ghost" id="auto-backup-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
+          <button type="button" class="btn btn-primary" id="auto-backup-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
+          <button type="button" class="btn btn-secondary" id="auto-backup-now-btn"><span class="icon btn-icon" data-icon="download"></span>Back up now</button>
+        </div>
+        <p class="auth-error" id="auto-backup-msg"></p>
+
+        <div class="ab-backups">
+          <div class="ab-backups-head">
+            <span class="label">Saved backups</span>
+            <span class="text-muted ab-count" id="auto-backup-count"></span>
+          </div>
+          <div id="auto-backup-list">
+            <p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Export / delete election -->
+    <section class="card panel ofc-section" id="elect-data">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Export / delete election</div>
+          <p class="text-muted panel-sub">Export an election as a portable JSON snapshot, or permanently delete an election.</p>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field">
+          <label class="label">Election</label>
+          <select class="select" id="dev-election">
+            <option value="">— Select an election —</option>
+          </select>
+        </div>
+        <button class="btn btn-secondary" id="export-election-btn"><span class="icon btn-icon" data-icon="upload"></span>Export JSON</button>
+        <button type="button" class="btn btn-danger" id="delete-election-btn"><span class="icon btn-icon" data-icon="trash"></span>Delete election</button>
+      </div>
+      <p class="auth-error" id="dev-data-msg"></p>
+    </section>
+
+    <!-- Officer accounts -->
+    <section class="card panel ofc-section" id="accounts">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Officer accounts</div>
+          <p class="text-muted panel-sub">Create coordinator and station officer accounts, suspend or remove them.</p>
+        </div>
+      </div>
+
+      <form class="inline-form" id="add-officer-form">
+        <div class="field">
+          <label class="label" for="ao-name">Name</label>
+          <input class="input" id="ao-name" type="text" placeholder="Officer name" required>
+        </div>
+        <div class="field">
+          <label class="label" for="ao-id">Officer ID</label>
+          <input class="input" id="ao-id" type="text" placeholder="e.g. COORD1" required>
+        </div>
+        <div class="field">
+          <label class="label" for="ao-pass">Password</label>
+          <input class="input" id="ao-pass" type="password" placeholder="Min 6 characters" required>
+        </div>
+        <div class="field" id="dev-role-field">
+          <label class="label" for="ao-role">Role</label>
+          <select class="select" id="ao-role">
+            <option value="coordinator" selected>Coordinator</option>
+            <option value="assistant">Station officer</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" type="submit" id="ao-submit"><span class="icon btn-icon" data-icon="plus"></span>Add officer</button>
+      </form>
+      <p class="auth-error" id="ao-error"></p>
+
+      <div class="dev-search">
+        <input class="input" id="officer-search" type="text" placeholder="Search officers…">
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Officer</th><th>ID</th><th>Role</th><th>Status</th><th></th></tr>
+          </thead>
+          <tbody id="officers-body"></tbody>
+        </table>
+      </div>
+
+      <div class="dev-password" style="margin-top: var(--space-5);">
+        <div class="card-title panel-title" style="font-size: 1rem;">Reset password</div>
+        <form class="inline-form" id="password-form">
+          <div class="field">
+            <label class="label">Officer</label>
+            <select class="select" id="pw-target"><option value="">— Select an officer —</option></select>
+          </div>
+          <div class="field">
+            <label class="label" for="pw-new">New password</label>
+            <input class="input" id="pw-new" type="password" placeholder="Min 6 characters">
+          </div>
+          <button class="btn btn-primary" type="submit" id="pw-submit"><span class="icon btn-icon" data-icon="check"></span>Update password</button>
+        </form>
+        <p class="auth-error" id="pw-error"></p>
+      </div>
+    </section>
+
+    <!-- Access codes -->
+    <section class="card panel ofc-section" id="access-codes">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Access codes</div>
+          <p class="text-muted panel-sub">Issue a one-time code bound to a privilege. The invitee redeems it on a fresh install; the code is used the moment an account is created.</p>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field">
+          <label class="label">Privilege</label>
+          <select class="select" id="issue-code-privilege">
+            <option value="coordinator" selected>Coordinator</option>
+            <option value="assistant">Station officer</option>
+            <option value="admin">Administrator</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="issue-code-btn"><span class="icon btn-icon" data-icon="key"></span>Generate code</button>
+      </div>
+      <p class="auth-error" id="access-codes-msg"></p>
+
+      <div class="code-output" id="issued-code-output" hidden>
+        <span class="code-display mono" id="issued-code-text"></span>
+        <button class="btn btn-ghost btn-sm" id="copy-code-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button>
+      </div>
+
+      <div class="ab-backups">
+        <div class="ab-backups-head">
+          <span class="label">Issued codes</span>
+          <span class="text-muted ab-count" id="access-codes-count"></span>
+        </div>
+        <div id="access-codes-list">
+          <p class="text-muted hint">No codes issued yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Developer codes -->
+    <section class="card panel ofc-section" id="dev-codes">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Developer codes</div>
+          <p class="text-muted panel-sub">Only the main developer can invite another developer. Issue a one-time short code for a named person — they redeem it on this computer's hidden Developer sign-in to create their own developer account. Codes stop working the moment they are used, and can be revoked at any time.</p>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field">
+          <label class="label" for="dev-code-name">Developer name</label>
+          <input class="input" id="dev-code-name" type="text" placeholder="e.g. Senior engineer">
+        </div>
+        <button class="btn btn-primary" id="issue-dev-code-btn"><span class="icon btn-icon" data-icon="key"></span>Issue short code</button>
+      </div>
+      <p class="auth-error" id="dev-codes-msg"></p>
+
+      <div class="code-output" id="issued-dev-code-output" hidden>
+        <span class="code-display mono" id="issued-dev-code-text"></span>
+        <button class="btn btn-ghost btn-sm" id="copy-dev-code-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button>
+      </div>
+
+      <div class="ab-backups">
+        <div class="ab-backups-head">
+          <span class="label">Issued developer codes</span>
+          <span class="text-muted ab-count" id="dev-codes-count"></span>
+        </div>
+        <div id="dev-codes-list">
+          <p class="text-muted hint">No developer codes issued yet.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Login activity -->
+    <section class="card panel ofc-section" id="login-audit">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Login activity</div>
+          <p class="text-muted panel-sub">Every sign-in attempt on this machine, including the device it came from.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="audit-refresh-btn"><span class="icon btn-icon" data-icon="refresh"></span>Refresh</button>
+          <button class="btn btn-danger" id="audit-clear-btn"><span class="icon btn-icon" data-icon="trash"></span>Clear log</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>When</th><th>Officer</th><th>Role</th><th>Device</th><th>Result</th></tr>
+          </thead>
+          <tbody id="audit-body"></tbody>
+        </table>
+      </div>
+      <p class="auth-error" id="audit-msg"></p>
+    </section>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/developer.js"></script>
+</body>
+</html>

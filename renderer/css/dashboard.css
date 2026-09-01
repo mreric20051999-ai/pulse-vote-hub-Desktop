@@ -17,6 +17,10 @@
 body.is-admin .admin-only { display: block; }
 body.is-admin .admin-only.inline { display: inline-block; }
 
+.developer-only { display: none; }
+body.is-developer .developer-only { display: block; }
+body.is-developer .developer-only.inline { display: inline-block; }
+
 /* ---------- Stat cards ---------- */
 
 .stat-grid {
