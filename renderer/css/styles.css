@@ -1004,6 +1004,21 @@ tbody tr {
 }
 .profile-menu[hidden] { display: none; }
 
+/* In collapsed mode the sidebar narrows to ~76px, which would squash this menu
+   to almost nothing. Turn it into a fixed flyout that opens rightward at its
+   natural width, anchored near the footer instead. */
+body.sidebar-collapsed .profile-menu,
+html.sidebar-collapsed-bp .profile-menu {
+  position: fixed;
+  left: calc(var(--sidebar-width-collapsed) + 16px);
+  right: auto;
+  width: 260px;
+  bottom: 20px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .profile-menu-head {
   display: flex;
   align-items: center;
