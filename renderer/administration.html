@@ -53,6 +53,7 @@
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
       <a href="#distribution" class="sub-link" data-target="distribution"><span class="icon" data-icon="download"></span>Distribution</a>
+      <a href="#access-codes" class="sub-link" data-target="access-codes"><span class="icon" data-icon="key"></span>Access codes</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -378,6 +379,44 @@
 
         <div id="dist-rows">
           <p class="text-muted hint">Nothing recorded yet. Add an entry above, or use “Register this computer”.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Access codes -->
+    <section class="card panel ofc-section" id="access-codes">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Access codes</div>
+          <p class="text-muted panel-sub">Issue one-time codes to grant someone a privilege. Hand the code to the invitee — they redeem it on a fresh install to create their account at that role. Codes are single-use and tied to the privilege you choose here.</p>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field">
+          <label class="label" for="issue-code-privilege">Privilege</label>
+          <select class="select" id="issue-code-privilege">
+            <option value="admin">Administrator (full control)</option>
+            <option value="coordinator" selected>Coordinator</option>
+            <option value="assistant">Station officer</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-primary" id="issue-code-btn"><span class="icon btn-icon" data-icon="key"></span>Generate code</button>
+      </div>
+      <p class="auth-error" id="access-codes-msg"></p>
+
+      <div class="code-output" id="issued-code-output" hidden>
+        <div class="code-display"><code id="issued-code-text"></code><button type="button" class="btn btn-ghost" id="copy-code-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button></div>
+        <p class="text-muted ab-hint">Share this code privately with the invitee. It appears here once and is stored only as a hash — after they redeem it, you can verify it was used below.</p>
+      </div>
+
+      <div class="ab-backups">
+        <div class="ab-backups-head">
+          <span class="label">Issued codes</span>
+          <span class="text-muted ab-count" id="access-codes-count"></span>
+        </div>
+        <div id="access-codes-list">
+          <p class="text-muted hint">No codes issued yet.</p>
         </div>
       </div>
     </section>

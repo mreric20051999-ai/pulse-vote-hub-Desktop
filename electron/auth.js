@@ -146,15 +146,67 @@ function insertOfficer(name, officerId, password, role, extra = {}) {
   return officer;
 }
 
+// The first superuser is gated by a setup code so the admin role cannot be
+// silently claimed by whoever opens a fresh install first. On a machine that
+// has never been provisioned the operator sets the code once (with a
+// confirmation); from then on the stored code must be supplied to claim the
+// first admin. Once an admin exists the setup is closed and the code cannot be
+// changed, so it cannot be used to escalate or re-claim privileges.
+const SETUP_CODE_MIN = 6;
+const SETUP_CODE_KEY = 'setup_code';
+
+function setupCodeHash(code) {
+  const salt = generateSalt();
+  return encodeHash(salt, hashPassword(String(code).trim(), salt));
+}
+
+// Whether a setup code has already been provisioned on this machine.
+function hasSetupCode() {
+  return !!db.getConfig(SETUP_CODE_KEY);
+}
+
+// Verify a submitted setup code against the provisioned one.
+function verifySetupCode(code) {
+  const stored = db.getConfig(SETUP_CODE_KEY);
+  if (!stored) return false;
+  const decoded = decodeHash(stored);
+  if (!decoded) return false;
+  const expected = Buffer.from(decoded.hash, 'hex');
+  const actual = Buffer.from(hashPassword(String(code).trim(), decoded.salt), 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+// Provision the setup code on a never-set-up machine (owner claim step).
+function provisionSetupCode(code, confirm) {
+  if (hasSetupCode()) return { ok: false, error: 'A setup code has already been set for this machine' };
+  if (!code || String(code).trim().length < SETUP_CODE_MIN) {
+    return { ok: false, error: `Setup code must be at least ${SETUP_CODE_MIN} characters` };
+  }
+  if (code !== confirm) return { ok: false, error: 'Setup code confirmation does not match' };
+  db.setConfig(SETUP_CODE_KEY, setupCodeHash(code));
+  return { ok: true };
+}
+
 // Set up the initial superuser (admin) — first-run wizard
-function setupAdmin(name, officerId, password) {
+function setupAdmin(name, officerId, password, setupCode, confirmSetupCode) {
   if (hasAdmin()) return { ok: false, error: 'An admin account already exists' };
+  if (!setupCode) return { ok: false, error: 'The setup code is required to create the administrator' };
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
   if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
+  // First-time provision: the operator sets and confirms the code (owner claim).
+  // Subsequent claims must match the provisioned code.
+  if (!hasSetupCode()) {
+    const prov = provisionSetupCode(setupCode, confirmSetupCode);
+    if (!prov.ok) return prov;
+  } else if (!verifySetupCode(setupCode)) {
+    return { ok: false, error: 'Incorrect setup code for this machine' };
+  }
+
   const officer = insertOfficer(name, officerId, password, 'admin');
   db.setConfig('initialized_at', String(Date.now()));
+  db.setConfig('admin_claimed_at', String(Date.now()));
   return { ok: true, officer: publicOfficer(officer) };
 }
 
@@ -166,6 +218,93 @@ function setupCoordinator(name, officerId, password) {
   const officer = insertOfficer(name, officerId, password, 'coordinator');
   db.setConfig('initialized_at', String(Date.now()));
   return { ok: true, officer: publicOfficer(officer) };
+}
+
+// ---- One-time privilege codes (operator issues codes to grant access) ----
+
+const ROLE_ORDER = { admin: 0, location_coordinator: 1, coordinator: 2, assistant: 3 };
+function privilegeAllows(actor, priv) {
+  const a = ROLE_ORDER[actor] == null ? 99 : ROLE_ORDER[actor];
+  const p = ROLE_ORDER[priv];
+  if (p == null) return false;
+  // An actor can only issue a privilege equal to or below their own standing,
+  // so a coordinator cannot mint an admin (prevents privilege escalation).
+  return a <= p;
+}
+
+// Generate a human-friendly, single-use code bound to a privilege.
+function issueSetupCode(actingOfficerId, privilege) {
+  const actor = findById(actingOfficerId);
+  if (!actor) return { ok: false, error: 'Not authorized' };
+  if (!['admin', 'coordinator', 'assistant'].includes(privilege)) {
+    return { ok: false, error: 'Invalid privilege' };
+  }
+  if (!privilegeAllows(actor.role, privilege)) {
+    return { ok: false, error: 'You cannot issue this privilege level' };
+  }
+  // 3 groups of 4 = 12 chars, unambiguous (no 0/O/1/I/L).
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const gen = () => {
+    let s = '';
+    for (let i = 0; i < 12; i++) s += alphabet[Math.floor(crypto.randomInt(alphabet.length))];
+    return s.match(/.{4}/g).join('-');
+  };
+  const code = gen();
+  const salt = generateSalt();
+  const record = {
+    id: uuidv4(),
+    code_hash: encodeHash(salt, hashPassword(code, salt)),
+    privilege,
+    created_by: actor.id,
+    created_at: Date.now(),
+    redeemed_at: null,
+    redeemed_by: null,
+  };
+  db.get().prepare(`
+    INSERT INTO setup_codes (id, code_hash, privilege, created_by, created_at, redeemed_at, redeemed_by)
+    VALUES (@id, @code_hash, @privilege, @created_by, @created_at, @redeemed_at, @redeemed_by)
+  `).run(record);
+  return { ok: true, code, privilege };
+}
+
+// Redeem a code to create the invitee's account at the code's privilege.
+function redeemSetupCode({ code, name, officerId, password, confirmPassword }) {
+  const raw = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!raw) return { ok: false, error: 'An access code is required' };
+  if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
+  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (password !== confirmPassword) return { ok: false, error: 'Password confirmation does not match' };
+  if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
+
+  // Scan unscoped: compare each unused code hash. (Codes are short-lived and
+  // few in number; a bounded scan with a timing-safe compare is acceptable.)
+  const candidates = db.get().prepare(
+    "SELECT * FROM setup_codes WHERE redeemed_at IS NULL"
+  ).all();
+  let match = null;
+  for (const row of candidates) {
+    const decoded = decodeHash(row.code_hash);
+    if (!decoded) continue;
+    const expected = Buffer.from(decoded.hash, 'hex');
+    const actual = Buffer.from(hashPassword(raw, decoded.salt), 'hex');
+    if (actual.length === expected.length && crypto.timingSafeEqual(actual, expected)) {
+      match = row;
+      break;
+    }
+  }
+  if (!match) return { ok: false, error: 'Invalid or expired access code' };
+
+  const officer = insertOfficer(name, officerId, password, match.privilege);
+  db.get().prepare('UPDATE setup_codes SET redeemed_at = ?, redeemed_by = ? WHERE id = ?')
+    .run(Date.now(), officer.id, match.id);
+  return { ok: true, officer: publicOfficer(officer), privilege: match.privilege };
+}
+
+// List issued codes with redemption status (admin only).
+function listSetupCodes() {
+  return db.get().prepare(
+    "SELECT id, privilege, created_at, redeemed_at FROM setup_codes ORDER BY created_at DESC"
+  ).all();
 }
 
 // Login an officer (admin, coordinator or assistant)
@@ -303,6 +442,7 @@ module.exports = {
   generateSalt,
   isConfigured,
   hasAdmin,
+  hasSetupCode,
   setupAdmin,
   setupCoordinator,
   login,
@@ -316,6 +456,9 @@ module.exports = {
   changePassword,
   assignStationOfficer,
   insertOfficer,
+  issueSetupCode,
+  redeemSetupCode,
+  listSetupCodes,
   createSession,
   validateSession,
   revokeSession,

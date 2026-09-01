@@ -339,13 +339,15 @@ ipcMain.handle('auth:setup', (_e, { name, officerId, password }) => {
   }
 });
 
-ipcMain.handle('auth:setup-admin', (_e, { name, officerId, password }) => {
+ipcMain.handle('auth:setup-admin', (_e, { name, officerId, password, setupCode, confirmSetupCode }) => {
   try {
-    return auth.setupAdmin(name, officerId, password);
+    return auth.setupAdmin(name, officerId, password, setupCode, confirmSetupCode);
   } catch (err) {
     return { ok: false, error: err.message };
   }
 });
+
+ipcMain.handle('auth:has-setup-code', () => auth.hasSetupCode());
 
 ipcMain.handle('auth:login', (_e, { officerId, password }) => {
   try {
@@ -430,6 +432,25 @@ ipcMain.handle('admin:assign-station', (e, payload, token) => {
   const r = requireAdmin(token, e);
   if (!r.ok) return r;
   try { return auth.assignStationOfficer(payload.officerId, payload.stationId, payload.electionId); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---- One-time privilege codes ----
+
+// Redeeming a code needs no session (the invitee is not signed in yet).
+ipcMain.handle('auth:redeem-code', (_e, payload) => {
+  try { return auth.redeemSetupCode(payload); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Listing and issuing codes require an admin session.
+ipcMain.handle('admin:list-codes', (e, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return auth.listSetupCodes(); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('admin:issue-code', (e, privilege, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  try { return auth.issueSetupCode(r.actor.id, privilege); } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // ---- Backup / export IPC ----

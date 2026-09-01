@@ -247,6 +247,16 @@ CREATE TABLE IF NOT EXISTS result_packs (
   imported_by TEXT,
   summary TEXT
 );
+
+CREATE TABLE IF NOT EXISTS setup_codes (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL,
+  privilege TEXT NOT NULL CHECK(privilege IN ('admin', 'coordinator', 'assistant')),
+  created_by TEXT,
+  created_at INTEGER,
+  redeemed_at INTEGER,
+  redeemed_by TEXT
+);
 `;
 
 function init() {

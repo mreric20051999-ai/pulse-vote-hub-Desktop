@@ -556,8 +556,84 @@
     refresh();
   }
 
+  // ---------- Access codes (issue one-time privilege codes) ----------
+  function bindAccessCodes() {
+    const msg = $('access-codes-msg');
+    const listEl = $('access-codes-list');
+    const countEl = $('access-codes-count');
+    const out = $('issued-code-output');
+    const outText = $('issued-code-text');
+    const privEl = $('issue-code-privilege');
+    const roleLabel = (r) => r === 'admin' ? 'Administrator' : r === 'coordinator' ? 'Coordinator' : 'Station officer';
+
+    function render(codes) {
+      if (!codes || !codes.length) {
+        listEl.innerHTML = '<p class="text-muted hint">No codes issued yet.</p>';
+        countEl.textContent = '';
+        return;
+      }
+      countEl.textContent = codes.length + (codes.length === 1 ? ' code' : ' codes') + ' total';
+      listEl.innerHTML = codes.map((c) => {
+        const done = !!c.redeemed_at;
+        const date = new Date(c.created_at).toLocaleString();
+        return `
+          <div class="ab-row">
+            <div class="ab-row-info">
+              <span class="ab-row-name">${roleLabel(c.privilege)}</span>
+              <span class="text-muted ab-row-meta">Issued ${date} · ${done ? 'Redeemed — used' : 'Not yet used'}</span>
+            </div>
+            <span class="lan-pill"><span class="lan-dot ${done ? '' : 'lan-dot-active'}"></span>${done ? 'Used' : 'Active'}</span>
+          </div>`;
+      }).join('');
+    }
+
+    async function refresh() {
+      const res = await window.pvh.listSetupCodes();
+      if (!res || res instanceof Error || res.error) {
+        msg.textContent = (res && res.error) || 'Could not load access codes.';
+        msg.className = 'auth-error';
+        return;
+      }
+      render(Array.isArray(res) ? res : []);
+    }
+
+    $('issue-code-btn').addEventListener('click', async () => {
+      msg.textContent = '';
+      out.hidden = true;
+      const priv = privEl.value;
+      await window.pvhUI.busy($('issue-code-btn'), 'Generating…', async () => {
+        const res = await window.pvh.issueSetupCode(priv);
+        if (!res || !res.ok) {
+          msg.textContent = (res && res.error) || 'Could not generate a code.';
+          msg.className = 'auth-error';
+          return;
+        }
+        outText.textContent = res.code;
+        out.hidden = false;
+        msg.textContent = '';
+        refresh();
+        window.pvhUI.toast('Access code generated.', 'success');
+      });
+    });
+
+    $('copy-code-btn').addEventListener('click', async () => {
+      const code = outText.textContent.trim();
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        window.pvhUI.toast('Code copied.', 'success');
+      } catch (e) {
+        msg.textContent = code;
+        msg.className = 'notice-ok';
+      }
+    });
+
+    refresh();
+  }
+
   bindBackup();
   bindMyPassword();
   bindInbox();
   bindAutoBackup();
+  bindAccessCodes();
 })();

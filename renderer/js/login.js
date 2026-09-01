@@ -5,13 +5,17 @@
     setup: $('setup-view'),
     login: $('login-view'),
     adminSetup: $('admin-setup-view'),
+    redeem: $('redeem-view'),
   };
 
   const errors = {
     setup: $('setup-error'),
     login: $('login-error'),
     adminSetup: $('admin-setup-error'),
+    redeem: $('redeem-error'),
   };
+
+  if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
   function show(name) {
     Object.entries(views).forEach(([k, el]) => { el.hidden = (k !== name); });
@@ -30,7 +34,7 @@
   }
 
   function focus(name) {
-    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name' };
+    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name', redeem: 'redeem-code' };
     const el = $(map[name]);
     if (el) el.focus();
   }
@@ -97,6 +101,17 @@
 
   $('setup-admin-link').addEventListener('click', openAdminSetupOrLogin);
   $('admin-setup-back').addEventListener('click', () => { show('setup'); focus('setup'); });
+
+  // ---- Access-code redemption (one-time code issued by an admin) ----
+  function openRedeem() {
+    show('redeem');
+    focus('redeem');
+  }
+  $('setup-redeem-link').addEventListener('click', openRedeem);
+  $('login-redeem-link').addEventListener('click', openRedeem);
+  $('redeem-back').addEventListener('click', () => {
+    window.pvh.setupCheck().then((configured) => { show(configured ? 'login' : 'setup'); focus(configured ? 'login' : 'setup'); });
+  });
 
   // ---- First-run: import a Location Run Pack (fresh machine) ----
   $('setup-import-run').addEventListener('click', async () => {
@@ -226,7 +241,18 @@
   }
 
   initSetupSteps({ formId: 'setup-form', dotsId: '#setup-dots', fieldIds: ['setup-name', 'setup-id', 'setup-pass'] });
-  initSetupSteps({ formId: 'admin-setup-form', dotsId: '#admin-setup-dots', fieldIds: ['admin-setup-name', 'admin-setup-id', 'admin-setup-pass'] });
+  initSetupSteps({ formId: 'admin-setup-form', dotsId: '#admin-setup-dots', fieldIds: ['admin-setup-name', 'admin-setup-id', 'admin-setup-code', 'admin-setup-pass'] });
+
+  // Explain the setup code step depending on whether this machine has already
+  // been provisioned with a setup code.
+  const setupHint = $('admin-setup-code-hint');
+  window.pvh.hasSetupCode().then((codeExists) => {
+    if (setupHint) {
+      setupHint.textContent = codeExists
+        ? 'Enter the setup code provisioned for this machine to claim the administrator account.'
+        : 'Choose a setup code to lock down the administrator account on this machine. Keep it safe — it cannot be changed later.';
+    }
+  });
 
   // ---- Coordinator setup ----
   $('setup-form').addEventListener('submit', async (e) => {
@@ -257,14 +283,22 @@
   $('admin-setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     errors.adminSetup.textContent = '';
+    const name = $('admin-setup-name').value;
+    const officerId = $('admin-setup-id').value;
+    const password = $('admin-setup-pass').value;
+    const setupCode = $('admin-setup-code').value;
+    const confirmSetupCode = $('admin-setup-code-confirm').value;
+
     const btn = $('admin-setup-btn');
     btn.disabled = true;
     btn.textContent = 'Creating...';
 
     const res = await window.pvh.setupAdmin({
-      name: $('admin-setup-name').value,
-      officerId: $('admin-setup-id').value,
-      password: $('admin-setup-pass').value,
+      name,
+      officerId,
+      password,
+      setupCode,
+      confirmSetupCode,
     });
 
     if (res.ok) {
@@ -306,6 +340,31 @@
       applyAuthResult(res, errors.login, $('login-btn'), 'Sign in');
       $('login-pass').value = '';
       $('login-pass').focus();
+    }
+  });
+
+  // ---- Access code redemption submit ----
+  $('redeem-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errors.redeem.textContent = '';
+    const btn = $('redeem-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    const res = await window.pvh.redeemSetupCode({
+      code: $('redeem-code').value,
+      name: $('redeem-name').value,
+      officerId: $('redeem-id').value,
+      password: $('redeem-pass').value,
+      confirmPassword: $('redeem-pass-confirm').value,
+    });
+
+    if (res.ok) {
+      completeLogin(res.officer, null);
+    } else {
+      errors.redeem.textContent = res.error || 'Could not create your account';
+      btn.disabled = false;
+      btn.textContent = 'Create account';
     }
   });
 })();

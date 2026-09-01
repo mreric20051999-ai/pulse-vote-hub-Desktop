@@ -87,6 +87,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
 
   // Admin / superuser
   hasAdmin: () => ipcRenderer.invoke('auth:has-admin'),
+  hasSetupCode: () => ipcRenderer.invoke('auth:has-setup-code'),
   setupAdmin: (payload) => ipcRenderer.invoke('auth:setup-admin', payload),
   listOfficers: () => ipcRenderer.invoke('admin:officers', oid()),
   addOfficer: (payload) => ipcRenderer.invoke('admin:add-officer', payload, oid()),
@@ -94,6 +95,9 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   setOfficerSuspended: (id, suspended) => ipcRenderer.invoke('admin:set-suspended', { id, suspended }, oid()),
   changePassword: (id, newPassword) => ipcRenderer.invoke('admin:change-password', { id, newPassword }, oid()),
   assignStationOfficer: (officerId, stationId, electionId) => ipcRenderer.invoke('admin:assign-station', { officerId, stationId, electionId }, oid()),
+  listSetupCodes: () => ipcRenderer.invoke('admin:list-codes', oid()),
+  issueSetupCode: (privilege) => ipcRenderer.invoke('admin:issue-code', privilege, oid()),
+  redeemSetupCode: (payload) => ipcRenderer.invoke('auth:redeem-code', payload),
   listDeployments: () => ipcRenderer.invoke('dist:list', oid()),
   addDeployment: (fields) => ipcRenderer.invoke('dist:add', fields, oid()),
   removeDeployment: (id) => ipcRenderer.invoke('dist:remove', id, oid()),
