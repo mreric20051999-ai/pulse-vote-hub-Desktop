@@ -505,9 +505,9 @@ tbody tr:hover {
 .sidebar-toggle {
   position: absolute;
   top: 22px;
-  right: -13px;
-  width: 26px;
-  height: 26px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -517,20 +517,24 @@ tbody tr:hover {
   justify-content: center;
   cursor: pointer;
   z-index: 101;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
-  transition: background var(--transition), color var(--transition), transform var(--transition);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18), 0 0 0 3px var(--surface);
+  transition: background var(--transition), color var(--transition), transform var(--transition), box-shadow var(--transition);
   padding: 0;
 }
 .sidebar-toggle:hover {
   background: var(--accent-soft);
   color: var(--accent);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.25), 0 0 0 3px var(--surface);
+}
+.sidebar-toggle:active {
+  transform: scale(0.92);
 }
 .sidebar-toggle svg {
   width: 15px;
   height: 15px;
-  transition: transform var(--transition);
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-body.sidebar-collapsed .sidebar-toggle svg {
+body.sidebar-collapsed .sidebar-toggle svg, html.sidebar-collapsed-bp .sidebar-toggle svg {
   transform: rotate(180deg);
 }
 .sidebar-logo {
@@ -617,36 +621,36 @@ body.is-admin .nav-item.admin-only {
 }
 
 /* ---------- Collapsed sidebar (icon rail) ---------- */
-body.sidebar-collapsed .sidebar {
+body.sidebar-collapsed .sidebar, html.sidebar-collapsed-bp .sidebar {
   width: var(--sidebar-width-collapsed);
 }
-body.sidebar-collapsed .sidebar-logo {
+body.sidebar-collapsed .sidebar-logo, html.sidebar-collapsed-bp .sidebar-logo {
   justify-content: center;
   gap: 0;
   padding-right: var(--space-4);
   padding-left: var(--space-4);
 }
-body.sidebar-collapsed .sidebar-logo span {
+body.sidebar-collapsed .sidebar-logo span, html.sidebar-collapsed-bp .sidebar-logo span {
   font-size: 0;
   opacity: 0;
 }
-body.sidebar-collapsed .nav-item {
+body.sidebar-collapsed .nav-item, html.sidebar-collapsed-bp .nav-item {
   justify-content: center;
   font-size: 0; /* hide the raw text-node label (animated, no vertical jump) */
   padding-left: var(--space-3);
   padding-right: var(--space-3);
 }
-body.sidebar-collapsed .sidebar-footer {
+body.sidebar-collapsed .sidebar-footer, html.sidebar-collapsed-bp .sidebar-footer {
   padding-right: var(--space-4);
   padding-left: var(--space-4);
 }
-body.sidebar-collapsed .profile-trigger {
+body.sidebar-collapsed .profile-trigger, html.sidebar-collapsed-bp .profile-trigger {
   justify-content: center;
   gap: 0;
   padding-right: 8px;
   padding-left: 8px;
 }
-body.sidebar-collapsed .profile-meta {
+body.sidebar-collapsed .profile-meta, html.sidebar-collapsed-bp .profile-meta {
   flex: 0 0 0;
   width: 0;
   min-width: 0;
@@ -655,7 +659,7 @@ body.sidebar-collapsed .profile-meta {
   opacity: 0;
   pointer-events: none;
 }
-body.sidebar-collapsed .profile-caret {
+body.sidebar-collapsed .profile-caret, html.sidebar-collapsed-bp .profile-caret {
   flex: 0 0 0;
   width: 0;
   margin: 0;
@@ -664,15 +668,20 @@ body.sidebar-collapsed .profile-caret {
 }
 body.sidebar-collapsed .profile-trigger:hover,
 body.sidebar-collapsed .profile-trigger:focus-visible,
-body.sidebar-collapsed .profile-trigger[aria-expanded="true"] {
+body.sidebar-collapsed .profile-trigger[aria-expanded="true"],
+html.sidebar-collapsed-bp .profile-trigger:hover,
+html.sidebar-collapsed-bp .profile-trigger:focus-visible,
+html.sidebar-collapsed-bp .profile-trigger[aria-expanded="true"] {
   background: transparent;
   border-color: transparent;
 }
 body.sidebar-collapsed .profile-trigger:hover .profile-avatar,
-body.sidebar-collapsed .profile-trigger:focus-visible .profile-avatar {
+body.sidebar-collapsed .profile-trigger:focus-visible .profile-avatar,
+html.sidebar-collapsed-bp .profile-trigger:hover .profile-avatar,
+html.sidebar-collapsed-bp .profile-trigger:focus-visible .profile-avatar {
   filter: brightness(1.1);
 }
-body.sidebar-collapsed .main {
+body.sidebar-collapsed .main, html.sidebar-collapsed-bp .main {
   margin-left: var(--sidebar-width-collapsed);
 }
 .page-header {

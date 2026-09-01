@@ -40,7 +40,16 @@
     btn.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
       '<polyline points="15 18 9 12 15 6"></polyline></svg>';
-    btn.addEventListener('click', () => {
+    let lastToggle = 0;
+    btn.addEventListener('click', (e) => {
+      // Rapid clicks/double-clicks must collapse to a single toggle, otherwise the
+      // sidebar toggles twice in quick succession and "shoots" around mid-animation.
+      // Ignore any activation that lands within the double-click window of the last,
+      // regardless of whether the browser reports it with event.detail > 1.
+      if (e && e.detail > 1) return;
+      const now = Date.now();
+      if (now - lastToggle < 350) return;
+      lastToggle = now;
       const collapsed = !document.body.classList.contains('sidebar-collapsed');
       setCollapsed(collapsed);
     });

@@ -565,7 +565,16 @@
     }
     // Highlight current page based on data-nav matching active class already set
     nav.querySelectorAll('.nav-item').forEach((a) => {
+      let lastNav = 0;
       a.addEventListener('click', (e) => {
+        // A double-click on a nav button would normally fire two clicks and
+        // navigate/reload the page twice (collapsing the sidebar transition and
+        // making the whole page "bump in"). Treat a rapid second activation as a
+        // single click so the sidebar never double-navigates.
+        if (e && e.detail > 1) { e.preventDefault(); return; }
+        const now = Date.now();
+        if (now - lastNav < 350) { e.preventDefault(); return; }
+        lastNav = now;
         const href = a.getAttribute('href');
         if (href && href !== '#' && !href.startsWith('javascript')) return; // real navigations proceed
         e.preventDefault();
