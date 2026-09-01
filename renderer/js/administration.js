@@ -8,6 +8,53 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  // Shared custom dropdown (replaces a native <select> with a .pdd widget).
+  function buildSelectDropdown(select, onChange) {
+    const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
+    let value = select.value;
+    const root = document.createElement('div');
+    root.className = 'pdd';
+    root.innerHTML = `
+      <button type="button" class="pdd-trigger">
+        <span class="pdd-label"></span>
+        <span class="pdd-arrow"></span>
+      </button>
+      <div class="pdd-menu" hidden></div>
+    `;
+    const labelEl = root.querySelector('.pdd-label');
+    const menu = root.querySelector('.pdd-menu');
+    const trigger = root.querySelector('.pdd-trigger');
+    function render() {
+      menu.innerHTML = opts.map((o) =>
+        `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
+      ).join('');
+      const cur = opts.find((o) => o.value === value);
+      labelEl.textContent = cur ? cur.label : '— Select —';
+      labelEl.classList.toggle('placeholder', value === '');
+    }
+    function close() { root.classList.remove('open'); menu.hidden = true; }
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (root.classList.contains('open')) { close(); return; }
+      render(); menu.hidden = false; root.classList.add('open');
+    });
+    menu.addEventListener('click', (e) => {
+      const o = e.target.closest('.pdd-option');
+      if (!o) return;
+      value = o.dataset.value; render(); close();
+      if (onChange) onChange(value);
+    });
+    document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
+    select.replaceWith(root);
+    render();
+    return {
+      get: () => value,
+      set: (v) => { value = v; render(); },
+      setOptions: (l) => { opts.length = 0; opts.push(...l); value = ''; render(); },
+      root,
+    };
+  }
+
   // ---------- Section sub-menu ----------
   const links = [...document.querySelectorAll('.section-links .sub-link')];
   function setActive(name) {
@@ -63,51 +110,6 @@
     });
 
     // ---------- Delete election ----------
-    function buildSelectDropdown(select, onChange) {
-      const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
-      let value = select.value;
-      const root = document.createElement('div');
-      root.className = 'pdd';
-      root.innerHTML = `
-        <button type="button" class="pdd-trigger">
-          <span class="pdd-label"></span>
-          <span class="pdd-arrow"></span>
-        </button>
-        <div class="pdd-menu" hidden></div>
-      `;
-      const labelEl = root.querySelector('.pdd-label');
-      const menu = root.querySelector('.pdd-menu');
-      const trigger = root.querySelector('.pdd-trigger');
-      function render() {
-        menu.innerHTML = opts.map((o) =>
-          `<div class="pdd-option${o.value === value ? ' selected' : ''}" data-value="${esc(o.value)}">${esc(o.label)}</div>`
-        ).join('');
-        const cur = opts.find((o) => o.value === value);
-        labelEl.textContent = cur ? cur.label : '— Select —';
-        labelEl.classList.toggle('placeholder', value === '');
-      }
-      function close() { root.classList.remove('open'); menu.hidden = true; }
-      trigger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (root.classList.contains('open')) { close(); return; }
-        render(); menu.hidden = false; root.classList.add('open');
-      });
-      menu.addEventListener('click', (e) => {
-        const o = e.target.closest('.pdd-option');
-        if (!o) return;
-        value = o.dataset.value; render(); close();
-        if (onChange) onChange(value);
-      });
-      document.addEventListener('click', (e) => { if (!root.contains(e.target)) close(); });
-      select.replaceWith(root);
-      return {
-        get: () => value,
-        set: (v) => { value = v; render(); },
-        setOptions: (l) => { opts.length = 0; opts.push(...l); value = ''; render(); },
-        root,
-      };
-    }
-
     const delBtn = $('delete-election-btn');
     const delMsg = $('delete-msg');
     const statusLabel = (s) => s === 'active' ? 'Active' : s === 'closed' ? 'Closed' : 'Draft';
@@ -563,7 +565,7 @@
     const countEl = $('access-codes-count');
     const out = $('issued-code-output');
     const outText = $('issued-code-text');
-    const privEl = $('issue-code-privilege');
+    const privDD = buildSelectDropdown($('issue-code-privilege'));
     const roleLabel = (r) => r === 'admin' ? 'Administrator' : r === 'coordinator' ? 'Coordinator' : 'Station officer';
 
     function render(codes) {
@@ -601,7 +603,7 @@
     $('issue-code-btn').addEventListener('click', async () => {
       msg.textContent = '';
       out.hidden = true;
-      const priv = privEl.value;
+      const priv = privDD.get();
       await window.pvhUI.busy($('issue-code-btn'), 'Generating…', async () => {
         const res = await window.pvh.issueSetupCode(priv);
         if (!res || !res.ok) {
