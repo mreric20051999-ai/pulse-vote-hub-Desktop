@@ -13,6 +13,7 @@ const db = require('../db');
 const voter = require('../voter');
 const station = require('../station');
 const checkInLink = require('../checkin-link');
+const results = require('../results');
 
 // Sliding-window rate limiter: at most `limit` requests per `windowMs` per key
 // (keyed by client IP and/or voter id). Exceeding the window rejects further
@@ -111,6 +112,10 @@ Hub.prototype.start = function (port) {
   // voter module the desktop ballot uses, so integrity hashing and LAN sync
   // behave identically to a ballot cast on the machine itself.
   if (self.kioskEnabled) self._mountKiosk(app);
+
+  // Public browser view (live results + official declaration). Served to any
+  // device on the LAN while the hub runs, independent of the ballot-kiosk flag.
+  self._mountPublic(app);
 
   this.server = http.createServer(app);
   this.wss = new WebSocketServer({ server: this.server });
@@ -211,23 +216,7 @@ Hub.prototype._mountKiosk = function (app) {
   // Candidate photos, resolved the same way the desktop does. Restricted to
   // files under the app's own candidate-photos directory and to image file
   // extensions only, so this endpoint can't be used to read arbitrary files.
-  app.get('/api/kiosk/photo', (req, res) => {
-    const stored = req.query.p;
-    if (!stored) { res.status(400).json({ ok: false, error: 'Missing photo path' }); return; }
-    const raw = String(stored);
-    const photosDir = path.resolve(path.join(db.getDataDir(), 'candidate-photos'));
-    const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(path.join(photosDir, raw));
-    const rel = path.relative(photosDir, abs);
-    if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') {
-      res.status(403).json({ ok: false, error: 'Forbidden' });
-      return;
-    }
-    if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { res.status(404).json({ ok: false, error: 'Photo not found' }); return; }
-    const ct = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(abs).toLowerCase()];
-    if (!ct) { res.status(403).json({ ok: false, error: 'Forbidden' }); return; }
-    res.type(ct);
-    fs.createReadStream(abs).on('error', () => res.status(404).end()).pipe(res);
-  });
+  app.get('/api/kiosk/photo', (req, res) => self._servePhoto(req, res));
 
   // Identity gate — identical to the desktop kiosk flow.
   app.post('/api/kiosk/verify', express.json(), (req, res) => {
@@ -542,6 +531,71 @@ Hub.prototype._kioskElections = function () {
     }
     return out;
   });
+};
+
+// Serve a candidate photo, resolving it strictly inside the app's own
+// candidate-photos directory and only for known image extensions.
+Hub.prototype._servePhoto = function (req, res) {
+  const stored = req.query.p;
+  if (!stored) { res.status(400).json({ ok: false, error: 'Missing photo path' }); return; }
+  const raw = String(stored);
+  const photosDir = path.resolve(path.join(db.getDataDir(), 'candidate-photos'));
+  const abs = path.isAbsolute(raw) ? path.normalize(raw) : path.resolve(path.join(photosDir, raw));
+  const rel = path.relative(photosDir, abs);
+  if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') {
+    res.status(403).json({ ok: false, error: 'Forbidden' });
+    return;
+  }
+  if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) { res.status(404).json({ ok: false, error: 'Photo not found' }); return; }
+  const ct = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' }[path.extname(abs).toLowerCase()];
+  if (!ct) { res.status(403).json({ ok: false, error: 'Forbidden' }); return; }
+  res.type(ct);
+  fs.createReadStream(abs).on('error', () => res.status(404).end()).pipe(res);
+};
+
+// Public browser view: live results + official declaration, open to anyone on
+// the LAN while the hub runs. Read-only — it never accepts writes. Serves the
+// same structured report the desktop uses so numbers are always identical.
+Hub.prototype._mountPublic = function (app) {
+  const self = this;
+  const rd = this.rendererDir;
+
+  // Shared statics the public page references with absolute paths. Mounted here
+  // so the view works even when the ballot kiosk flag is turned off.
+  app.use('/js', express.static(path.join(rd, 'js'), { index: false, maxAge: 0 }));
+  app.use('/css', express.static(path.join(rd, 'css'), { index: false, maxAge: 0 }));
+  app.use('/assets', express.static(path.join(rd, 'assets'), { index: false, maxAge: 0 }));
+
+  app.get('/public', (_req, res) => {
+    const p = path.join(rd, 'public.html');
+    if (!fs.existsSync(p)) { res.status(404).json({ ok: false, error: 'Public view unavailable' }); return; }
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.type('html').send(fs.readFileSync(p, 'utf8'));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: 'Public view unavailable' });
+    }
+  });
+
+  app.get('/api/public/elections', (_req, res) => {
+    try {
+      res.json({ ok: true, elections: self._kioskElections() });
+    } catch (err) {
+      res.json({ ok: false, error: err.message });
+    }
+  });
+
+  app.get('/api/public/result/:electionId', (req, res) => {
+    try {
+      const row = self.d.prepare('SELECT * FROM elections WHERE id = ?').get(String(req.params.electionId || ''));
+      if (!row) { res.status(404).json({ ok: false, error: 'Election not found' }); return; }
+      res.json(results.buildReport(row, {}));
+    } catch (err) {
+      res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+
+  app.get('/api/public/photo', (req, res) => self._servePhoto(req, res));
 };
 
 Hub.prototype._onConnection = function (ws) {

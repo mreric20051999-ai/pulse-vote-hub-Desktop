@@ -79,6 +79,7 @@
   const kb = {
     start: $('kb-start'), stop: $('kb-stop'), msg: $('kb-msg'), links: $('kb-links'),
     agentLinks: $('kb-agent-links'),
+    publicLinks: $('kb-public-links'),
     stopped: $('kb-stopped'), running: $('kb-running'), port: $('kb-port'), votes: $('kb-votes'),
   };
   const hasLan = kb.start && window.pvh && typeof window.pvh.lanSetMode === 'function';
@@ -109,6 +110,7 @@
     kb.running.style.display = '';
     linkList(kb.links, s.kioskUrls || []);
     linkList(kb.agentLinks, s.agentUrls || []);
+    linkList(kb.publicLinks, s.publicUrls || []);
     kb.votes.textContent = (s.stats && s.stats.votes) || 0;
     kb.msg.textContent = '';
   }

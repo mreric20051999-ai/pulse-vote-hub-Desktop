@@ -16,20 +16,19 @@
     },
   };
 
-  // Browser ballot links (host mode): list each LAN address the hub is on,
-  // with a copy button that flips to "Copied" briefly.
-  function renderKioskLinks(urls) {
-    const box = $('lan-kiosk-box');
-    const list = $('lan-kiosk-links');
-    if (!box || !list) return;
-    if (!urls.length) { box.style.display = 'none'; return; }
-    box.style.display = '';
-    list.innerHTML = urls.map((u) => `
+  // LAN link lists (host mode): show each address the hub is on, with a copy
+  // button that flips to "Copied" briefly. Reused for the browser ballot links
+  // and the public results view links.
+  function renderLinks(listEl, boxEl, urls) {
+    if (!boxEl || !listEl) return;
+    if (!urls.length) { boxEl.style.display = 'none'; return; }
+    boxEl.style.display = '';
+    listEl.innerHTML = urls.map((u) => `
       <li>
         <a href="${esc(u)}" target="_blank" rel="noopener">${esc(u)}</a>
         <button type="button" class="btn btn-sm btn-ghost lan-copy" data-u="${esc(u)}">Copy</button>
       </li>`).join('');
-    list.querySelectorAll('.lan-copy').forEach((b) => {
+    listEl.querySelectorAll('.lan-copy').forEach((b) => {
       b.addEventListener('click', () => {
         const done = () => { b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); };
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -37,6 +36,14 @@
         } else { window.prompt('Copy the link', b.dataset.u); done(); }
       });
     });
+  }
+
+  function renderKioskLinks(urls) {
+    renderLinks($('lan-kiosk-links'), $('lan-kiosk-box'), urls);
+  }
+
+  function renderPublicLinks(urls) {
+    renderLinks($('lan-public-links'), $('lan-public-box'), urls);
   }
 
   // ---------- status rendering ----------
@@ -73,6 +80,7 @@
       peerEl.textContent = peers || 'none yet';
       peerEl.className = 'lan-peer-list' + (peers ? '' : ' idle');
       renderKioskLinks(s.kioskUrls || []);
+      renderPublicLinks(s.publicUrls || []);
       pill.set(peers ? 'ok' : 'warn', peers ? 'Hosting (' + s.peers.length + ' connected)' : 'Hosting');
     } else if (mode === 'client') {
       const c = s.client || {};

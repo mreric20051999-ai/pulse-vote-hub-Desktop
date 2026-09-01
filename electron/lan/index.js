@@ -93,6 +93,9 @@ LanManager.prototype.status = function () {
     agentUrls: this.mode === 'host' && this.hub
       ? discovery.localAddresses().map((addr) => addr ? `http://${addr}:${this.hub.port}/kiosk/agent` : null).filter(Boolean)
       : [],
+    publicUrls: this.mode === 'host' && this.hub
+      ? discovery.localAddresses().map((addr) => addr ? `http://${addr}:${this.hub.port}/public` : null).filter(Boolean)
+      : [],
     peers: this._lastPeers,
     client: this._lastClient,
     stats,

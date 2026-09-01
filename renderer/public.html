@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Public Results &middot; Pulse Vote Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/announcement.css">
+  <link rel="stylesheet" href="/css/public.css">
+</head>
+<body class="public-body">
+  <header class="pub-head">
+    <div class="pub-brand">
+      <img src="/assets/images/logo.png" alt="Pulse Vote Hub">
+      <div class="pub-brand-txt">
+        <span class="pub-brand-name">Pulse Vote Hub</span>
+        <span class="pub-brand-sub">Public Results &amp; Official Declaration</span>
+      </div>
+    </div>
+    <div class="pub-sel" id="pub-sel"></div>
+  </header>
+
+  <main class="pub-main">
+    <div class="pub-tabs" id="pub-tabs" hidden>
+      <button type="button" class="pub-tab active" data-tab="results">Live Results</button>
+      <button type="button" class="pub-tab" data-tab="declaration">Official Declaration</button>
+    </div>
+
+    <section class="pub-panel" id="pub-results" hidden>
+      <div class="pub-hint" id="pub-results-empty">Select an election to see live results.</div>
+    </section>
+
+    <section class="pub-panel" id="pub-declaration" hidden>
+      <div class="pub-hint" id="pub-declaration-empty">The official declaration appears once polling has closed and results are certified.</div>
+    </section>
+  </main>
+
+  <footer class="pub-foot">
+    <span>Live results reflect ballots recorded by the Electoral Administration.</span>
+    <span id="pub-updated"></span>
+  </footer>
+
+  <script src="/js/public.js"></script>
+</body>
+</html>

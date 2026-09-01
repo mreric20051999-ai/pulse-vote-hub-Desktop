@@ -84,6 +84,7 @@
 
   /* Layout */
   --sidebar-width: 240px;
+  --sidebar-width-collapsed: 76px;
   --topbar-height: 64px;
 
   /* Motion */
@@ -498,6 +499,39 @@ tbody tr:hover {
   flex-direction: column;
   padding: var(--space-5) 0;
   z-index: 100;
+  transition: width var(--transition);
+}
+/* Sidebar collapse toggle button — straddles the sidebar's outer edge. */
+.sidebar-toggle {
+  position: absolute;
+  top: 22px;
+  right: -13px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 101;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+  padding: 0;
+}
+.sidebar-toggle:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.sidebar-toggle svg {
+  width: 15px;
+  height: 15px;
+  transition: transform var(--transition);
+}
+body.sidebar-collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
 }
 .sidebar-logo {
   padding: 0 var(--space-5) var(--space-6);
@@ -563,6 +597,44 @@ body.is-admin .nav-item.admin-only {
   padding: var(--space-8);
   min-height: 100vh;
   overflow-x: hidden;
+  transition: margin-left var(--transition);
+}
+
+/* ---------- Collapsed sidebar (icon rail) ---------- */
+body.sidebar-collapsed .sidebar {
+  width: var(--sidebar-width-collapsed);
+}
+body.sidebar-collapsed .sidebar-logo {
+  justify-content: center;
+  padding-right: var(--space-4);
+  padding-left: var(--space-4);
+}
+body.sidebar-collapsed .sidebar-logo span {
+  display: none;
+}
+body.sidebar-collapsed .nav-item {
+  justify-content: center;
+  font-size: 0; /* hide the raw text-node label */
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+}
+body.sidebar-collapsed .nav-item i,
+body.sidebar-collapsed .nav-item .nav-ic {
+  font-size: 16px;
+}
+body.sidebar-collapsed .sidebar-footer {
+  padding-right: var(--space-2);
+  padding-left: var(--space-2);
+}
+body.sidebar-collapsed .profile-meta,
+body.sidebar-collapsed .profile-caret {
+  display: none;
+}
+body.sidebar-collapsed .profile-trigger {
+  justify-content: center;
+}
+body.sidebar-collapsed .main {
+  margin-left: var(--sidebar-width-collapsed);
 }
 .page-header {
   display: flex;
