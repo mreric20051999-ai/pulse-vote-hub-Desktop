@@ -445,3 +445,55 @@ button.is-locked,
   padding-bottom: var(--space-2);
   margin-bottom: var(--space-2);
 }
+
+/* ---------- Backup & recovery panel ---------- */
+#backup-panel .auto-backup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  align-items: end;
+}
+.auto-backup-toggle { display: flex; flex-direction: row; align-items: center; gap: var(--space-3); }
+.auto-backup-toggle .label { margin: 0; }
+.ab-inline { display: flex; align-items: center; gap: var(--space-2); }
+.ab-inline .input { max-width: 96px; }
+.ab-unit { font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; }
+
+.ab-switch { position: relative; display: inline-flex; width: 46px; height: 26px; flex: none; }
+.ab-switch input { opacity: 0; width: 0; height: 0; }
+.ab-slider {
+  position: absolute; inset: 0; border-radius: 26px; background: var(--border, #cbd5e1);
+  transition: background 0.2s ease; cursor: pointer;
+}
+.ab-slider::before {
+  content: ''; position: absolute; height: 20px; width: 20px; left: 3px; top: 3px;
+  background: #fff; border-radius: 50%; transition: transform 0.2s ease; box-shadow: 0 1px 2px rgba(0,0,0,.2);
+}
+.ab-switch input:checked + .ab-slider { background: var(--accent, #2563eb); }
+.ab-switch input:checked + .ab-slider::before { transform: translateX(20px); }
+
+.inline-form { align-items: flex-end; flex-wrap: wrap; }
+.inline-form .ab-folder { flex: 1 1 280px; }
+.inline-form .ab-folder .input { width: 100%; }
+
+.ab-hint { font-size: var(--fs-xs); margin-top: var(--space-3); max-width: 720px; line-height: 1.6; }
+
+.ab-backups { margin-top: var(--space-5); }
+.ab-backups-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3); }
+.ab-backups-head .label { margin: 0; }
+.ab-count { font-size: var(--fs-xs); }
+.ab-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  border: 1px solid var(--border); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2); background: var(--surface);
+}
+.ab-row-info { display: flex; flex-direction: column; min-width: 0; }
+.ab-row-name { font-weight: var(--fw-semibold); font-size: var(--fs-sm); word-break: break-all; }
+.ab-row-meta { font-size: var(--fs-xs); }
+.ab-restore { flex: none; }
+
+@media (max-width: 760px) {
+  #backup-panel .auto-backup-grid { grid-template-columns: 1fr; }
+  #backup-panel .inline-form .ab-folder { flex-basis: 100%; }
+}

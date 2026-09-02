@@ -130,6 +130,152 @@
     if (window.pvh.lanStatus) window.pvh.lanStatus().then(renderKiosk);
   }
 
+  // ---------- Backup & recovery (admin/developer) ----------
+  const backupPanel = $('backup-panel');
+  if (backupPanel && isAdmin && window.pvh && typeof window.pvh.backupAutoGet === 'function') {
+    backupPanel.hidden = false;
+
+    const bk = {
+      msg: $('dbk-msg'), enabled: $('dbk-auto-enabled'), interval: $('dbk-interval'),
+      keep: $('dbk-keep'), dir: $('dbk-dir'), count: $('dbk-count'), list: $('dbk-list'),
+      saveBtn: $('dbk-save-btn'), nowBtn: $('dbk-now-btn'), pickBtn: $('dbk-pick-btn'),
+    };
+
+    function fmtSize(n) {
+      if (!n && n !== 0) return '';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let i = 0;
+      let v = Number(n);
+      while (v >= 1024 && i < units.length - 1) { v /= 1024; i += 1; }
+      return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+    function timeAgo(ts) {
+      if (!ts) return '';
+      const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+      if (s < 60) return 'just now';
+      const m = Math.floor(s / 60);
+      if (m < 60) return `${m} min ago`;
+      const h = Math.floor(m / 60);
+      if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+      const d = Math.floor(h / 24);
+      return `${d} day${d === 1 ? '' : 's'} ago`;
+    }
+
+    function renderList(backupsList) {
+      if (!backupsList || !backupsList.length) {
+        bk.list.innerHTML = '<p class="text-muted hint">Nothing saved yet — enable automatic backups or click "Back up now".</p>';
+        bk.count.textContent = '';
+        return;
+      }
+      bk.count.textContent = backupsList.length + (backupsList.length === 1 ? ' backup' : ' backups');
+      bk.list.innerHTML = backupsList.map((b) => `
+        <div class="ab-row" data-path="${esc(b.path)}">
+          <div class="ab-row-info">
+            <span class="ab-row-name">${esc(b.name)}</span>
+            <span class="text-muted ab-row-meta">${fmtSize(b.size)} · ${timeAgo(b.mtime)}</span>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm ab-restore" title="Verify and restore this backup">Restore</button>
+        </div>`).join('');
+    }
+
+    async function refreshBackups() {
+      const res = await window.pvh.backupAutoGet();
+      if (!res || !res.ok) {
+        bk.msg.textContent = (res && res.error) || 'Could not load backup settings.';
+        bk.msg.className = 'auth-error';
+        return;
+      }
+      const s = res.settings;
+      bk.enabled.checked = !!s.enabled;
+      bk.interval.value = s.intervalMin;
+      bk.keep.value = s.keep;
+      bk.dir.value = s.dir || '';
+      renderList(s.backups);
+    }
+
+    const saveBackups = async () => {
+      bk.msg.textContent = '';
+      const settings = {
+        enabled: bk.enabled.checked,
+        intervalMin: Number(bk.interval.value) || 30,
+        keep: Number(bk.keep.value) || 10,
+        dir: bk.dir.value.trim(),
+      };
+      await window.pvhUI.busy(bk.saveBtn, 'Saving…', async () => {
+        const res = await window.pvh.backupAutoSave(settings);
+        if (!res || !res.ok) {
+          bk.msg.textContent = (res && res.error) || 'Could not save backup settings.';
+          bk.msg.className = 'auth-error';
+          return;
+        }
+        const s = res.settings;
+        renderList(s.backups);
+        bk.msg.textContent = s.enabled ? 'Automatic backups enabled.' : 'Automatic backups disabled.';
+        bk.msg.className = 'notice-ok';
+        window.pvhUI.toast('Backup settings saved.', 'success');
+      });
+    };
+
+    async function backupNow() {
+      bk.msg.textContent = '';
+      await window.pvhUI.busy(bk.nowBtn, 'Backing up…', async () => {
+        const res = await window.pvh.backupAutoNow();
+        if (!res || !res.ok) {
+          bk.msg.textContent = (res && res.error) || 'Backup failed.';
+          bk.msg.className = 'auth-error';
+          window.pvhUI.toast((res && res.error) || 'Backup failed.', 'error');
+          return;
+        }
+        if (res.settings) renderList(res.settings.backups);
+        bk.msg.textContent = 'Backup saved to ' + res.path;
+        bk.msg.className = 'notice-ok';
+        window.pvhUI.toast('Backup created.', 'success');
+      });
+    }
+
+    bk.saveBtn.addEventListener('click', saveBackups);
+    bk.nowBtn.addEventListener('click', backupNow);
+    bk.pickBtn.addEventListener('click', async () => {
+      const res = await window.pvh.backupAutoPickDir();
+      if (!res || !res.ok) {
+        if (res && res.error && res.error !== 'Pick cancelled') {
+          bk.msg.textContent = res.error;
+          bk.msg.className = 'auth-error';
+        }
+        return;
+      }
+      bk.dir.value = res.path;
+    });
+
+    bk.list.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.ab-restore');
+      if (!btn) return;
+      const row = btn.closest('.ab-row');
+      if (!row) return;
+      const p = row.dataset.path;
+      const nameEl = row.querySelector('.ab-row-name');
+      const name = nameEl ? nameEl.textContent : 'this backup';
+      if (!confirm(`Restore the database from "${name}"?\n\nThis replaces the current database and signs you out. The backup is fully verified first, and nothing changes if it fails the check. Continue?`)) return;
+      bk.msg.textContent = 'Restoring…';
+      bk.msg.className = '';
+      await window.pvhUI.busy(btn, 'Restoring…', async () => {
+        const res = await window.pvh.backupAutoRestore(p);
+        if (!res || !res.ok) {
+          bk.msg.textContent = (res && res.error) || 'Restore failed.';
+          bk.msg.className = 'auth-error';
+          window.pvhUI.toast((res && res.error) || 'Restore failed.', 'error');
+          return;
+        }
+        bk.msg.textContent = 'Database restored successfully.';
+        bk.msg.className = 'notice-ok';
+        window.pvhUI.toast('Database restored. Signing you back in…', 'success');
+        setTimeout(() => { window.location.assign('index.html'); }, 1200);
+      });
+    });
+
+    refreshBackups();
+  }
+
   // ---------- Init ----------
   loadStats();
   renderActive();

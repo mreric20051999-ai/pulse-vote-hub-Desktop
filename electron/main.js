@@ -623,9 +623,11 @@ ipcMain.handle('dev:terminate-app', (e, token) => {
 // ---- Backup / export IPC ----
 
 // Backup the entire database (a synchronized copy of the SQLite file).
-// Full-database backup is a deep/system operation → developer-only.
+// Full-database backup + restore safeguard election data; open to any
+// administrator or developer (not coordinators), so an election supervisor can
+// protect/recover data mid-election without a developer present.
 ipcMain.handle('backup:database', async (e, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   const src = db.getDbPath();
   const defaultName = `pulse-vote-hub-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.db`;
@@ -697,25 +699,27 @@ ipcMain.handle('backup:election', async (e, electionId, token) => {
 });
 
 // ---- Automatic backup & restore ----
+// Available to any admin or developer so an election supervisor can back up
+// and restore election data mid-election (a developer is NOT required).
 
 // Read the current automatic-backup state (schedule settings + list of
-// existing snapshots). Developer-only (deep system feature).
+// existing snapshots).
 ipcMain.handle('backup:auto-get', (e, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   try { return { ok: true, settings: backup.getSettings() }; } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Persist schedule + retention settings (and switch the backup folder).
 ipcMain.handle('backup:auto-save', (e, settings, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   try { return { ok: true, settings: backup.saveSettings(settings) }; } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Force a backup right now (ignores the schedule).
 ipcMain.handle('backup:auto-now', async (e, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   try { return await backup.runNow(); } catch (err) { return { ok: false, error: err.message }; }
 });
@@ -723,7 +727,7 @@ ipcMain.handle('backup:auto-now', async (e, token) => {
 // Restore a previously-saved automatic backup. Verifies it, pauses LAN, swaps
 // the DB, re-verifies, and rolls back on any failure.
 ipcMain.handle('backup:auto-restore', async (e, filePath, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   if (!filePath || typeof filePath !== 'string') return { ok: false, error: 'No backup selected.' };
   try { return await backup.restore(filePath.replace(/^file:\/\//, '')); } catch (err) { return { ok: false, error: err.message }; }
@@ -731,7 +735,7 @@ ipcMain.handle('backup:auto-restore', async (e, filePath, token) => {
 
 // Pick a folder for automatic backups (e.g. a USB drive).
 ipcMain.handle('backup:auto-pick-dir', async (e, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose backup folder',

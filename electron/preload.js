@@ -132,7 +132,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   setGithubToken: (token) => ipcRenderer.invoke('dist:set-token', token, oid()),
   exportDeployments: () => ipcRenderer.invoke('dist:export-csv', oid()),
 
-  // Backup / export (developer-only data operations)
+  // Backup / export (admin + developer data operations)
   backupDatabase: () => ipcRenderer.invoke('backup:database', oid()),
   exportElection: (electionId) => ipcRenderer.invoke('backup:election', electionId, oid()),
 

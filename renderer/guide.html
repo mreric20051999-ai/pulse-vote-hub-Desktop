@@ -42,12 +42,13 @@
       <a href="#officers"><span class="toc-num">7</span>Officers</a>
       <a href="#results"><span class="toc-num">8</span>Results &amp; declaration</a>
       <a href="#admin"><span class="toc-num">9</span>Administration</a>
-      <a href="#merge"><span class="toc-num">10</span>Merge results</a>
-      <a href="#lan"><span class="toc-num">11</span>LAN sync</a>
-      <a href="#agent"><span class="toc-num">12</span>Agent live display</a>
-      <a href="#integrity"><span class="toc-num">13</span>Integrity &amp; security</a>
-      <a href="#profile"><span class="toc-num">14</span>Profile &amp; preferences</a>
-      <a href="#troubleshoot"><span class="toc-num">15</span>Troubleshooting</a>
+      <a href="#backup"><span class="toc-num">10</span>Backups &amp; recovery</a>
+      <a href="#merge"><span class="toc-num">11</span>Merge results</a>
+      <a href="#lan"><span class="toc-num">12</span>LAN sync</a>
+      <a href="#agent"><span class="toc-num">13</span>Agent live display</a>
+      <a href="#integrity"><span class="toc-num">14</span>Integrity &amp; security</a>
+      <a href="#profile"><span class="toc-num">15</span>Profile &amp; preferences</a>
+      <a href="#troubleshoot"><span class="toc-num">16</span>Troubleshooting</a>
     </nav>
 
     <!-- 1 -->
@@ -290,12 +291,38 @@
       <h3>My account</h3>
       <p>Change your own password here (min 6 characters).</p>
 
-      <div class="guide-tip">The next three sections — Merge results, LAN sync and Integrity check — have their own manual chapters (10, 11, 12).</div>
+      <div class="guide-tip">The following sections — Backups &amp; recovery, Merge results, LAN sync and Integrity check — have their own chapters (10, 11, 12, 13).</div>
+    </section>
+
+    <!-- 10 -->
+    <section class="guide-section" id="backup">
+      <div class="guide-section-head"><span class="gs-num">10</span><h2>Backups &amp; recovery</h2></div>
+      <p class="guide-section-intro">Your election database is the single most important piece of system data. Pulse Vote Hub takes snapshot copies of it and can verify and restore them with one click. Available to any administrator <em>or</em> developer from the <strong>Dashboard → Backup &amp; recovery</strong> panel.</p>
+
+      <h3>Automatic backups</h3>
+      <ol class="guide-steps">
+        <li>Turn the <strong>Automatic backups</strong> switch on.</li>
+        <li>Set <strong>Every</strong> to how often a snapshot is taken (minimum 1 minute; 1–2 minutes recommended on election day), and <strong>Keep</strong> to how many old snapshots to retain (the rest are pruned automatically).</li>
+        <li>Optionally pick a <strong>backup folder</strong> — a separate disk or USB drive is ideal, so an outage on the main machine cannot take the backups with it.</li>
+        <li>Press <strong>Save settings</strong>. The panel then lists every saved snapshot with its size and age.</li>
+      </ol>
+      <div class="guide-tip"><strong>Election-day cadence.</strong> At 1–2 minutes, a restore can only ever lose the votes cast within the last minute or two — that is the smallest practical data-loss window a local app can offer, with no network required.</div>
+
+      <h3>Back up now</h3>
+      <p>Press <strong>Back up now</strong> to capture an immediate snapshot, ignoring the schedule. Do this before any major change — adding a voter, editing a ballot, or clearing results — and at every milestone (opening, close, certification).</p>
+
+      <h3>Restoring after a problem</h3>
+      <ol class="guide-steps">
+        <li>Open <strong>Dashboard → Backup &amp; recovery</strong> and find the snapshot from just before the incident.</li>
+        <li>Press <strong>Restore</strong> on that snapshot.</li>
+        <li>The app verifies the backup fully first (vote hash chain, audit hash chain, signatures, page integrity), pauses the LAN, swaps the database, re-verifies, and rolls back automatically if anything fails. You are signed out and sign back in — your data is back to how it was when that snapshot was taken.</li>
+      </ol>
+      <div class="guide-warn"><strong>Restore replaces the current database.</strong> Votes cast after the snapshot was taken are not in the restored copy. Keep external copies (Dashboard → <em>Back up now</em> to a USB drive, or Administration → Back up database) as a final backstop.</div>
     </section>
 
     <!-- 10 -->
     <section class="guide-section" id="merge">
-      <div class="guide-section-head"><span class="gs-num">10</span><h2>Merging results across locations</h2></div>
+      <div class="guide-section-head"><span class="gs-num">11</span><h2>Merging results across locations</h2></div>
       <p class="guide-section-intro">When several stations or locations run independently, you combine their exported files into one certified result — with duplicate voters detected and resolved so no ballot counts twice.</p>
 
       <h3>The workflow</h3>
@@ -313,7 +340,7 @@
 
     <!-- 11 -->
     <section class="guide-section" id="lan">
-      <div class="guide-section-head"><span class="gs-num">11</span><h2>LAN sync (one live database)</h2></div>
+      <div class="guide-section-head"><span class="gs-num">12</span><h2>LAN sync (one live database)</h2></div>
       <p class="guide-section-intro">Connect polling devices on the same network so they share one authoritative database in real time — even when the network drops.</p>
 
       <h3>Setup</h3>
@@ -335,7 +362,7 @@
 
     <!-- 12 -->
     <section class="guide-section" id="agent">
-      <div class="guide-section-head"><span class="gs-num">12</span><h2>Agent live display</h2></div>
+      <div class="guide-section-head"><span class="gs-num">13</span><h2>Agent live display</h2></div>
       <p class="guide-section-intro">Give every polling agent and observer a <strong>live counting-card wall</strong> that shows per-candidate totals updating in real time as ballots land — the digital “pink sheet”. It opens in any browser over the LAN, with no login or install.</p>
 
       <h3>Opening the display</h3>
@@ -357,7 +384,7 @@
 
     <!-- 13 -->
     <section class="guide-section" id="integrity">
-      <div class="guide-section-head"><span class="gs-num">13</span><h2>Integrity &amp; the security model</h2></div>
+      <div class="guide-section-head"><span class="gs-num">14</span><h2>Integrity &amp; the security model</h2></div>
       <p class="guide-section-intro">Pulse Vote Hub is designed so that tampering with your data is not just hard — it is detectable.</p>
       <ul>
         <li><strong>Offline-first.</strong> Every vote, voter and setting lives only on your computers. Nothing is uploaded anywhere; the app works fully offline.</li>
@@ -381,7 +408,7 @@
 
     <!-- 14 -->
     <section class="guide-section" id="profile">
-      <div class="guide-section-head"><span class="gs-num">14</span><h2>Profile &amp; preferences</h2></div>
+      <div class="guide-section-head"><span class="gs-num">15</span><h2>Profile &amp; preferences</h2></div>
       <p class="guide-section-intro">Your Profile lives at the bottom of the sidebar — your name, role and one menu for everything personal.</p>
       <ul>
         <li><strong>Preferences</strong> — SOUND effects on/off (with a test button), APPEARANCE (System / Light / Dark theme, applied instantly and remembered), and a shortcut to open the web version.</li>
@@ -396,7 +423,7 @@
 
     <!-- 15 -->
     <section class="guide-section" id="troubleshoot">
-      <div class="guide-section-head"><span class="gs-num">15</span><h2>Troubleshooting</h2></div>
+      <div class="guide-section-head"><span class="gs-num">16</span><h2>Troubleshooting</h2></div>
 
       <h3>Sign-in problems</h3>
       <ul>

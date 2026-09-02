@@ -145,6 +145,56 @@
 
       <p class="auth-error" id="kb-msg"></p>
     </section>
+
+    <!-- Backup & recovery (admin/developer only) -->
+    <section class="card panel" id="backup-panel" hidden>
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Backup &amp; recovery</div>
+          <p class="text-muted panel-sub">Protect the election database against data loss. Schema and votes backed up at a cadence you choose, and one-click restore if anything happens mid-election.</p>
+        </div>
+      </div>
+
+      <div class="auto-backup-grid">
+        <div class="field auto-backup-toggle">
+          <label class="label">Automatic backups</label>
+          <label class="ab-switch"><input type="checkbox" id="dbk-auto-enabled"><span class="ab-slider"></span></label>
+        </div>
+        <div class="field ab-inline">
+          <label class="label" for="dbk-interval">Every</label>
+          <input class="input" id="dbk-interval" type="number" min="1" max="1440" value="30">
+          <span class="ab-unit">min</span>
+        </div>
+        <div class="field ab-inline">
+          <label class="label" for="dbk-keep">Keep</label>
+          <input class="input" id="dbk-keep" type="number" min="1" max="100" value="10">
+          <span class="ab-unit">backups</span>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field ab-folder">
+          <label class="label" for="dbk-dir">Backup folder</label>
+          <input class="input" id="dbk-dir" type="text" placeholder="Default: app data /backups">
+        </div>
+        <button type="button" class="btn btn-ghost" id="dbk-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
+        <button type="button" class="btn btn-secondary" id="dbk-now-btn"><span class="icon btn-icon" data-icon="download"></span>Back up now</button>
+        <button type="button" class="btn btn-primary" id="dbk-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
+      </div>
+      <p class="ab-hint">Tip for election day: set the interval to <strong>1–2 minutes</strong> so a snapshot is never more than a minute behind, and point the folder at a separate disk or USB drive so an outage can’t wipe the backups with the main one. Restores are fully verified and roll back automatically if anything fails.</p>
+
+      <p class="auth-error" id="dbk-msg"></p>
+
+      <div class="ab-backups">
+        <div class="ab-backups-head">
+          <span class="label">Saved backups</span>
+          <span class="text-muted ab-count" id="dbk-count"></span>
+        </div>
+        <div id="dbk-list">
+          <p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>
+        </div>
+      </div>
+    </section>
   </main>
 
   <script src="js/icons.js"></script>
