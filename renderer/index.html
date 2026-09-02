@@ -117,6 +117,60 @@
       <p class="auth-error" id="login-error"></p>
       <div class="or-divider"><span>or</span></div>
       <button class="btn btn-ghost btn-block" id="login-redeem-link"><span class="icon btn-icon" data-icon="key"></span>Have an access code?</button>
+      <button class="btn btn-ghost btn-block" id="login-forgot-link" hidden><span class="icon btn-icon" data-icon="key"></span>Forgot your password?</button>
+    </div>
+
+    <!-- Password recovery (break-glass) -->
+    <div id="recovery-view" class="auth-view" hidden>
+      <div class="auth-context">
+        <span class="auth-context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <span class="auth-context-label">Password recovery</span>
+      </div>
+      <h2 class="auth-heading">Recover access</h2>
+      <p class="auth-hint">Use the recovery code issued at setup to reset a forgotten administrator or developer password.</p>
+      <form id="recovery-form">
+        <div class="field">
+          <label class="label" for="recovery-id">Account ID</label>
+          <input class="input" id="recovery-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
+        </div>
+        <div class="field">
+          <label class="label" for="recovery-code">Recovery code</label>
+          <input class="input" id="recovery-code" type="password" autocomplete="off" placeholder="REC-XXXX-XXXX-XXXX">
+        </div>
+        <div class="field">
+          <label class="label" for="recovery-pass">New password</label>
+          <div class="password-wrap">
+            <input class="input" id="recovery-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="recovery-pass-confirm">Confirm new password</label>
+          <div class="password-wrap">
+            <input class="input" id="recovery-pass-confirm" type="password" autocomplete="new-password" placeholder="Re-enter the new password">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="recovery-btn">Reset password</button>
+      </form>
+      <p class="auth-error" id="recovery-error"></p>
+      <button class="btn btn-ghost btn-block" id="recovery-back">← Back to sign in</button>
+    </div>
+
+    <!-- Recovery code — shown once at admin setup -->
+    <div id="recovery-save-view" class="auth-view" hidden>
+      <div class="auth-context">
+        <span class="auth-context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 3v6c0 5-3.5 9.5-8 11-4.5-1.5-8-6-8-11V5z"/><path d="M9 12l2 2 4-4"/></svg>
+        </span>
+        <span class="auth-context-label">Save your recovery code</span>
+      </div>
+      <h2 class="auth-heading">Save this code somewhere safe</h2>
+      <p class="auth-hint">If you ever forget your administrator password and no other admin can reset it, this code is the only way back in. It is shown <strong>once</strong> — store it offline (paper note, password manager).</p>
+      <div class="recovery-code-box" id="recovery-save-code"></div>
+      <button type="button" class="btn btn-secondary btn-lg btn-block" id="recovery-save-copy">Copy recovery code</button>
+      <p class="auth-error" id="recovery-save-error"></p>
+      <button type="button" class="btn btn-primary btn-lg btn-block" id="recovery-save-done">I&#39;ve saved it — go to sign in</button>
     </div>
 
     <!-- Administrator setup (superuser) -->

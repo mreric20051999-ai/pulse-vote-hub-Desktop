@@ -60,9 +60,10 @@
         <li>Install the app. On macOS, open the downloaded DMG and drag <strong>Pulse Vote Hub</strong> into your Applications folder; on Windows, run the installer and follow the prompts.</li>
         <li>Launch the app. On a fresh install you land on the <strong>“Set up your coordinator”</strong> screen.</li>
         <li>To run an entire election yourself, choose the <strong>“Set up as an Administrator”</strong> button at the bottom of that screen (instead of creating a coordinator), and create the superuser account — full name, admin ID and a password of at least 6 characters.</li>
+        <li>After the admin is created the app shows a <strong>recovery code</strong> (e.g. <code>REC-XXXX-XXXX-XXXX</code>) <em>once</em>. <strong>Save it somewhere safe offline.</strong> If you ever forget the administrator password and no other admin can sign in, this code is the only way back in — from the sign-in screen tap <strong>Forgot your password?</strong>.</li>
         <li>Alternatively, create a <strong>coordinator</strong> first and add an administrator later from Administration.</li>
       </ol>
-      <div class="guide-note"><strong>Remember your ID and password.</strong> They are the keys to your election database. If you lose the password, the administrator can reset it; if you lose the administrator password and no other admin exists, a manual database backup is the only recovery path.</div>
+      <div class="guide-note"><strong>Remember your ID and password.</strong> They are the keys to your election database. If you lose the password, another administrator can reset it. If you lose the administrator (or developer) password and no other admin can sign in, use the <strong>recovery code issued at setup</strong> — tap <em>Forgot your password?</em> on the sign-in screen and enter your account ID, the recovery code and a new password. A manual database backup is a last resort.</div>
 
       <h3>Signing in</h3>
       <p>Every person who uses the app is an <strong>officer</strong> with an officer ID and password, and everyone signs in through the same single form on the welcome screen — administrators, coordinators and station officers alike. After signing in, station officers assigned to a station open the station portal; everyone else sees the Dashboard.</p>
@@ -401,7 +402,7 @@
       <ul>
         <li><strong>“Incorrect credentials” / locked out</strong> — repeated failures trigger a timed lockout; the screen shows how long to wait for retry.</li>
         <li><strong>Suspended?</strong> — a suspended officer cannot sign in until an admin activates them.</li>
-        <li><strong>Forgotten passwords</strong> — officers: reset from Officers → Change/assign password. Voters: recover at the kiosk, or you can Reset their vote/password from the roll.</li>
+        <li><strong>Forgotten passwords</strong> — officers: reset from Officers → Change/assign password. If the last admin/developer is locked out, use <em>Forgot your password?</em> on the sign-in screen with the setup-time recovery code. Voters: recover at the kiosk, or you can Reset their vote/password from the roll.</li>
       </ul>
 
       <h3>Voting day</h3>

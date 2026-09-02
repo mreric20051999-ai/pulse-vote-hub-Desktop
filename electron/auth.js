@@ -216,6 +216,82 @@ function setupAdmin(name, officerId, password, setupCode, confirmSetupCode) {
   const officer = insertOfficer(name, officerId, password, 'admin');
   db.setConfig('initialized_at', String(Date.now()));
   db.setConfig('admin_claimed_at', String(Date.now()));
+
+  // Provision a one-time break-glass recovery code the operator must save
+  // off-device. It is generated exactly once at first admin setup, stored only
+  // as a hash, and can never be changed through the app afterwards (so the
+  // moment the operator saves it, it becomes the trusted recovery path for a
+  // locked-out admin). The plaintext is returned this once for display.
+  const recovery = provisionAdminRecoveryCode();
+  return { ok: true, officer: publicOfficer(officer), recoveryCode: recovery.code || null };
+}
+
+// ---- Recovery code (break-glass for a locked-out admin) ----
+// The recovery code is a high-entropy secret issued at first admin setup. A
+// forgetful/locked-out admin redeems it (with their officer ID) to reset their
+// password directly, without contacting the developer. It is stored only as a
+// hash in config (never in the officers table / plaintext), persists for the
+// life of the install, and is deliberately NOT changeable through the app so it
+// cannot be weaponised to re-claim privilege.
+const RECOVERY_CODE_KEY = 'admin_recovery_code';
+const RECOVERY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+
+function recoveryCodeHash(code) {
+  const salt = generateSalt();
+  return encodeHash(salt, hashPassword(String(code).trim(), salt));
+}
+
+// Whether a recovery code has been provisioned on this machine.
+function hasRecoveryCode() {
+  return !!db.getConfig(RECOVERY_CODE_KEY);
+}
+
+// Generate an unguessable recovery code, store only its hash, and return the
+// plaintext (for the single, explicit save-at-setup display).
+function provisionAdminRecoveryCode() {
+  // Refuse to overwrite / re-issue on a machine that already has one — recovery
+  // is a fixed break-glass secret, not a rotating one.
+  if (hasRecoveryCode()) return { ok: false, error: 'A recovery code is already provisioned for this machine' };
+
+  const bytes = crypto.randomBytes(12);
+  let raw = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    raw += RECOVERY_ALPHABET[bytes[i] % RECOVERY_ALPHABET.length];
+  }
+  const code = `REC-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}`;
+
+  db.setConfig(RECOVERY_CODE_KEY, recoveryCodeHash(code));
+  return { ok: true, code };
+}
+
+// Verify a submitted recovery code against the provisioned one.
+function verifyRecoveryCode(code) {
+  const stored = db.getConfig(RECOVERY_CODE_KEY);
+  if (!stored) return false;
+  const decoded = decodeHash(stored);
+  if (!decoded) return false;
+  const expected = Buffer.from(decoded.hash, 'hex');
+  const actual = Buffer.from(hashPassword(String(code).trim(), decoded.salt), 'hex');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+// Reset a privileged account's password using the break-glass recovery code.
+// Only admin/developer accounts may be recovered this way; a coordinator or
+// assistant (lower privilege) cannot be escalated via recovery.
+function resetPasswordByRecovery(officerId, recoveryCode, newPassword) {
+  if (!officerId || !recoveryCode) return { ok: false, error: 'Officer ID and recovery code are required' };
+  if (String(newPassword).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (!verifyRecoveryCode(recoveryCode)) return { ok: false, error: 'Incorrect recovery code' };
+
+  const officer = findByOfficerId(officerId);
+  if (!officer) return { ok: false, error: 'No account found with that officer ID' };
+  if (officer.role !== 'admin' && officer.role !== 'developer') {
+    return { ok: false, error: 'This account is not privileged enough for recovery. Ask an administrator.' };
+  }
+
+  const r = changePassword(officer.id, newPassword);
+  if (!r.ok) return r;
+  db.setConfig('password_recovered_at', String(Date.now()));
   return { ok: true, officer: publicOfficer(officer) };
 }
 
@@ -804,6 +880,9 @@ module.exports = {
   revokeActivationCode,
   redeemLicense,
   licenseStatus,
+  hasRecoveryCode,
+  provisionAdminRecoveryCode,
+  resetPasswordByRecovery,
   createSession,
   validateSession,
   revokeSession,

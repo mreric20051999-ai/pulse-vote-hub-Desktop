@@ -9,6 +9,8 @@
     developerSetup: $('developer-setup-view'),
     developerLogin: $('developer-login-view'),
     redeem: $('redeem-view'),
+    recovery: $('recovery-view'),
+    recoverySave: $('recovery-save-view'),
   };
 
   const errors = {
@@ -19,6 +21,8 @@
     developerSetup: $('dev-setup-error'),
     developerLogin: $('dev-login-error'),
     redeem: $('redeem-error'),
+    recovery: $('recovery-error'),
+    recoverySave: $('recovery-save-error'),
   };
 
   if (window.pvhIcons) window.pvhIcons.inject('.icon');
@@ -68,11 +72,11 @@
     addPassToggle(input);
   }
 
-  const passFields = ['login-pass', 'setup-pass', 'admin-setup-code', 'admin-setup-code-confirm', 'admin-setup-pass', 'dev-setup-pass', 'dev-setup-key', 'dev-setup-key-confirm', 'dev-login-pass', 'dev-login-pass-confirm', 'redeem-pass', 'redeem-pass-confirm'];
+  const passFields = ['login-pass', 'setup-pass', 'admin-setup-code', 'admin-setup-code-confirm', 'admin-setup-pass', 'dev-setup-pass', 'dev-setup-key', 'dev-setup-key-confirm', 'dev-login-pass', 'dev-login-pass-confirm', 'redeem-pass', 'redeem-pass-confirm', 'recovery-pass', 'recovery-pass-confirm', 'recovery-code'];
   passFields.forEach(attachPassToggle);
 
   function focus(name) {
-    const map = { setup: 'setup-name', login: 'login-id', license: 'license-code', adminSetup: 'admin-setup-name', developerSetup: 'dev-setup-name', developerLogin: 'dev-login-id', redeem: 'redeem-code' };
+    const map = { setup: 'setup-name', login: 'login-id', license: 'license-code', adminSetup: 'admin-setup-name', developerSetup: 'dev-setup-name', developerLogin: 'dev-login-id', redeem: 'redeem-code', recovery: 'recovery-id', recoverySave: 'recovery-save-done' };
     const el = $(map[name]);
     if (el) el.focus();
   }
@@ -213,6 +217,77 @@
   $('login-redeem-link').addEventListener('click', openRedeem);
   $('redeem-back').addEventListener('click', () => {
     window.pvh.setupCheck().then((configured) => { show(configured ? 'login' : 'setup'); focus(configured ? 'login' : 'setup'); });
+  });
+
+  // ---- Break-glass password recovery (admin/developer) ----
+  const forgotLink = $('login-forgot-link');
+  const recoveryBack = $('recovery-back');
+  const recoveryCodeBox = $('recovery-save-code');
+
+  // Only offer recovery when a break-glass code actually exists on this machine.
+  window.pvh.hasRecoveryCode().then((ok) => {
+    if (forgotLink) forgotLink.hidden = !ok;
+  }).catch(() => {});
+
+  if (forgotLink) {
+    forgotLink.addEventListener('click', () => { show('recovery'); focus('recovery'); });
+  }
+  if (recoveryBack) {
+    recoveryBack.addEventListener('click', () => { show('login'); focus('login'); });
+  }
+
+  $('recovery-save-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(recoveryCodeBox.textContent.trim());
+      errors.recoverySave.textContent = 'Recovery code copied.';
+    } catch (err) {
+      errors.recoverySave.textContent = 'Unable to copy — write the code down manually.';
+    }
+  });
+
+  $('recovery-save-done').addEventListener('click', () => { show('login'); focus('login'); });
+
+  // Submit the recovery form.
+  $('recovery-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errors.recovery.textContent = '';
+    const btn = $('recovery-btn');
+    const target = errors.recovery;
+    const officerId = $('recovery-id').value;
+    const recoveryCode = $('recovery-code').value;
+    const newPassword = $('recovery-pass').value;
+    const confirm = $('recovery-pass-confirm').value;
+
+    if (newPassword !== confirm) {
+      target.textContent = 'Passwords do not match.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Resetting…';
+
+    try {
+      const res = await window.pvh.recoverPassword(officerId, recoveryCode, newPassword);
+      if (res.ok) {
+        // Back to sign-in with the reset credentials pre-filled.
+        show('login');
+        $('login-id').value = res.officer.officer_id;
+        $('login-pass').value = '';
+        errors.login.textContent = 'Password reset successfully. Sign in with your new password.';
+        focus('login');
+      } else {
+        if (res.code !== 'locked') {
+          target.textContent = res.error || 'Could not reset the password.';
+        } else {
+          target.textContent = res.error + (res.retryAfterMs ? ` Retry in a minute.` : '');
+        }
+        $('recovery-code').value = '';
+        $('recovery-code').focus();
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Reset password';
+    }
   });
 
   // ---- First-run join toggle: Import a Location Run Pack <-> Redeem ------
@@ -428,9 +503,17 @@
     });
 
     if (res.ok) {
-      show('login');
-      $('login-id').value = res.officer.officer_id;
-      $('login-pass').focus();
+      const code = res.recoveryCode;
+      if (code && recoveryCodeBox) {
+        recoveryCodeBox.textContent = code;
+        errors.recoverySave.textContent = '';
+        show('recoverySave');
+        focus('recoverySave');
+      } else {
+        show('login');
+        $('login-id').value = res.officer.officer_id;
+        $('login-pass').focus();
+      }
     } else {
       errors.adminSetup.textContent = res.error || 'Setup failed';
       btn.disabled = false;
@@ -549,6 +632,15 @@
       completeLogin(res.officer, res.session && res.session.token);
     } else {
       applyAuthResult(res, errors.login, $('login-btn'), 'Sign in');
+      // A failed sign-in must leave the button usable again for a retry.
+      // applyAuthResult re-enables the button itself only for the "locked"
+      // case (after a delay). Any other failure falls through with the button
+      // still disabled from the "Signing in..." state, so reset it here —
+      // otherwise it stays stuck until the app is reloaded.
+      if (res.code !== 'locked' && btn.disabled) {
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
       $('login-pass').value = '';
       $('login-pass').focus();
     }

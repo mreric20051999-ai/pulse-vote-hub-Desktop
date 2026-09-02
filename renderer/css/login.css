@@ -132,6 +132,23 @@
   margin-bottom: var(--space-2);
 }
 
+/* Break-glass recovery code (shown once at admin setup) */
+.recovery-code-box {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: var(--space-4);
+  margin: var(--space-4) 0;
+  border: 1px dashed var(--border, #d0d5dd);
+  border-radius: var(--radius, 8px);
+  background: var(--surface-2, rgba(127, 127, 127, 0.08));
+  color: var(--text, inherit);
+  user-select: all;
+  word-break: break-all;
+}
+
 /* Stepped first-run setup card */
 .step-dots {
   display: flex;

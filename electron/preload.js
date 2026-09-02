@@ -98,6 +98,9 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   hasDeveloper: () => ipcRenderer.invoke('auth:has-developer'),
   hasDeveloperKey: () => ipcRenderer.invoke('auth:has-dev-key'),
   hasSetupCode: () => ipcRenderer.invoke('auth:has-setup-code'),
+  hasRecoveryCode: () => ipcRenderer.invoke('auth:has-recovery-code'),
+  recoverPassword: (officerId, recoveryCode, newPassword) =>
+    ipcRenderer.invoke('auth:recover-password', { officerId, recoveryCode, newPassword }),
   setupAdmin: (payload) => ipcRenderer.invoke('auth:setup-admin', payload),
   listOfficers: () => ipcRenderer.invoke('admin:officers', oid()),
   addOfficer: (payload) => ipcRenderer.invoke('admin:add-officer', payload, oid()),

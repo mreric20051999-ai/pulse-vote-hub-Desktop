@@ -378,6 +378,21 @@ ipcMain.handle('auth:setup-admin', (_e, { name, officerId, password, setupCode, 
   }
 });
 
+// Recover a locked-out admin password via the break-glass recovery code issued
+// at first admin setup. Public (the recovery code is the credential), so it is
+// rate-limited per device to stop brute-forcing.
+ipcMain.handle('auth:recover-password', (_e, { officerId, recoveryCode, newPassword }) => {
+  try {
+    const rl = recoveryResetLimit(_e.sender.id);
+    if (!rl.ok) {
+      return { ok: false, error: `Too many recovery attempts on this device. Try again in a minute.`, code: 'rate-limit', retryAfterMs: rl.retryAfterMs };
+    }
+    return auth.resetPasswordByRecovery(officerId, recoveryCode, newPassword);
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.handle('auth:setup-developer', (_e, { name, officerId, password, devKey, confirmDevKey }) => {
   try {
     return auth.setupDeveloper(name, officerId, password, devKey, confirmDevKey);
@@ -387,6 +402,10 @@ ipcMain.handle('auth:setup-developer', (_e, { name, officerId, password, devKey,
 });
 
 ipcMain.handle('auth:has-setup-code', () => auth.hasSetupCode());
+
+// Whether a break-glass recovery code exists on this machine (drives whether
+// the login screen offers "Forgot password?", and the setup-time save prompt).
+ipcMain.handle('auth:has-recovery-code', () => auth.hasRecoveryCode());
 
 // Login — on every attempt, record an audit entry tied to this machine so a
 // developer can review who signed in from which device.
@@ -798,6 +817,9 @@ function makeRateLimiter(limit, windowMs) {
 }
 const voterVerifyLimit = makeRateLimiter(10, 60 * 1000);
 const voterRecoverLimit = makeRateLimiter(10, 60 * 1000);
+// Break-glass recovery-code attempts are throttled per device to stop offline
+// brute-forcing of the admin recovery secret.
+const recoveryResetLimit = makeRateLimiter(5, 60 * 1000);
 
 // Authorize an election-scoped management operation: admins pass, coordinators
 // must own the election. Runs `fn(actor)` only when access is allowed.
