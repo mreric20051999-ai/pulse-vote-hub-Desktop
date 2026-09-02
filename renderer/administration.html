@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss: http: https:;">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Administration &middot; Pulse Vote Hub</title>
@@ -14,7 +15,6 @@
   <link rel="stylesheet" href="css/results.css">
   <link rel="stylesheet" href="css/merge.css">
   <link rel="stylesheet" href="css/lan.css">
-  <link rel="stylesheet" href="css/distribution.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -32,7 +32,7 @@
       <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
       <a class="nav-item" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
       <a class="nav-item admin-only active" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
-      <a class="nav-item developer-only" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="shieldCheck"></span>Developer</a>
+      <a class="nav-item developer-only" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="code"></span>Developer</a>
 
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
@@ -52,7 +52,7 @@
       <a href="#merge" class="sub-link" data-target="merge"><span class="icon" data-icon="merge"></span>Merge results</a>
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
-      <a href="#distribution" class="sub-link" data-target="distribution"><span class="icon" data-icon="download"></span>Distribution</a>
+      <a href="#contact-dev" class="sub-link" data-target="contact-dev"><span class="icon" data-icon="phone"></span>Contact developer</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -199,107 +199,34 @@
       <div id="integrity-report" class="integrity-report" style="display:none;"></div>
     </section>
 
-    <!-- Distribution: creator console (downloads + installs register) -->
-    <section class="card panel ofc-section" id="distribution">
+    <!-- Contact developer: direct email / WhatsApp escalation from admins -->
+    <section class="card panel ofc-section" id="contact-dev">
       <div class="panel-head">
         <div>
-          <div class="card-title panel-title">Distribution</div>
-          <p class="text-muted panel-sub">Installer downloads and the local install register for the software itself. Admin-only — regular users never see this.</p>
+          <div class="card-title panel-title">Contact developer</div>
+          <p class="text-muted panel-sub">Reach the person who installed and maintains this software when something needs their attention.</p>
         </div>
       </div>
-
-      <!-- Current-state summary -->
-      <div class="dist-kpis">
-        <div class="dist-kpi">
-          <div class="dist-kpi-num" id="dist-stat-installs">0</div>
-          <div class="dist-kpi-label">Installs recorded</div>
-        </div>
-        <div class="dist-kpi">
-          <div class="dist-kpi-num" id="dist-stat-downloads">0</div>
-          <div class="dist-kpi-label">Total downloads</div>
-        </div>
-        <div class="dist-kpi">
-          <div class="dist-kpi-num" id="dist-stat-releases">0</div>
-          <div class="dist-kpi-label">Releases</div>
-        </div>
+      <div class="contact-dev-grid">
+        <a class="contact-dev-item" href="mailto:me_media01@yahoo.com?subject=Pulse%20Vote%20Hub%20%E2%80%94%20support%20request">
+          <span class="contact-dev-icon" aria-hidden="true"><span class="icon" data-icon="mail"></span></span>
+          <span class="contact-dev-body">
+            <span class="contact-dev-label">Email developer</span>
+            <span class="contact-dev-value">me_media01@yahoo.com</span>
+          </span>
+          <span class="contact-dev-arrow" aria-hidden="true">›</span>
+        </a>
+        <a class="contact-dev-item" href="https://wa.me/233547700003?text=Hello%20developer%2C%20I%20need%20help%20with%20Pulse%20Vote%20Hub" target="_blank" rel="noopener">
+          <span class="contact-dev-icon" aria-hidden="true"><span class="icon" data-icon="phone"></span></span>
+          <span class="contact-dev-body">
+            <span class="contact-dev-label">Developer on WhatsApp</span>
+            <span class="contact-dev-value">+233 54 770 0003</span>
+          </span>
+          <span class="contact-dev-arrow" aria-hidden="true">›</span>
+        </a>
       </div>
-
-      <!-- Downloads -->
-      <div class="dist-card">
-        <div class="dist-card-head">
-          <div>
-            <div class="dist-card-title">Installer downloads</div>
-            <div class="dist-card-sub">Download counts from each release on GitHub. <span class="dist-repo">mreric20051999-ai/pulse-vote-hub-Desktop</span></div>
-          </div>
-          <div class="dist-card-actions">
-            <span class="dist-fetched" id="dist-fetched" hidden></span>
-            <button class="btn btn-secondary" id="dist-refresh-btn"><span class="icon btn-icon" data-icon="download"></span>Refresh downloads</button>
-          </div>
-        </div>
-
-        <form id="dist-token-form" class="dist-token">
-          <div class="field dist-token-field">
-            <label class="label" for="dist-token">GitHub token <em>(optional)</em></label>
-            <input class="input" id="dist-token" type="password" placeholder="For private repos only — leave blank for public" autocomplete="off">
-          </div>
-          <button type="submit" class="btn btn-ghost"><span class="icon btn-icon" data-icon="check"></span>Save</button>
-        </form>
-        <p class="dist-token-hint" id="dist-token-msg">Used only to read release counts. Stored on this device.</p>
-
-        <p class="auth-error" id="dist-github-msg"></p>
-        <div id="dist-releases">
-          <p class="text-muted hint">Click “Refresh downloads” to fetch download counts. This needs an internet connection.</p>
-        </div>
-      </div>
-
-      <!-- Install register -->
-      <div class="dist-card">
-        <div class="dist-card-head">
-          <div>
-            <div class="dist-card-title">Install register</div>
-            <div class="dist-card-sub">A local record of who has the software, so installs are tracked without any telemetry.</div>
-          </div>
-          <div class="dist-card-actions">
-            <button class="btn btn-secondary" id="dist-register-this-btn"><span class="icon btn-icon" data-icon="plus"></span>Register this computer</button>
-            <button class="btn btn-secondary" id="dist-export-btn"><span class="icon btn-icon" data-icon="download"></span>Export CSV</button>
-          </div>
-        </div>
-
-        <form id="dist-add-form" class="dist-form">
-          <div class="dist-form-grid">
-            <div class="field dist-f-machine">
-              <label class="label" for="dist-mach">Machine / user <b>*</b></label>
-              <input class="input" id="dist-mach" type="text" placeholder="e.g. School office PC 1" maxlength="80" required>
-            </div>
-            <div class="field">
-              <label class="label" for="dist-loc">Location</label>
-              <input class="input" id="dist-loc" type="text" placeholder="e.g. Accra campus" maxlength="80">
-            </div>
-            <div class="field">
-              <label class="label" for="dist-ver">App version</label>
-              <input class="input" id="dist-ver" type="text" placeholder="auto if blank" maxlength="30">
-            </div>
-            <div class="field">
-              <label class="label" for="dist-inst">Installed</label>
-              <input class="input" id="dist-inst" type="date" title="Defaults to today when blank">
-            </div>
-            <div class="field dist-f-notes">
-              <label class="label" for="dist-notes">Notes</label>
-              <input class="input" id="dist-notes" type="text" maxlength="160" placeholder="Optional">
-            </div>
-          </div>
-          <div class="dist-form-foot">
-            <span class="dist-form-hint">Fully local — these records never leave the device.</span>
-            <button type="submit" class="btn btn-primary" id="dist-add-btn"><span class="icon btn-icon" data-icon="plus"></span>Add install</button>
-          </div>
-        </form>
-
-        <div id="dist-rows">
-          <p class="text-muted hint">Nothing recorded yet. Add an entry above, or use “Register this computer”.</p>
-        </div>
-      </div>
+      <p class="text-muted hint" id="contact-dev-note">Use email to share files or logs; WhatsApp is fastest for urgent issues.</p>
     </section>
-
 
     <!-- My account -->
     <section class="card panel ofc-section" id="my-account">
@@ -327,6 +254,5 @@
   <script src="js/merge.js"></script>
   <script src="js/lan.js"></script>
   <script src="js/integrity.js"></script>
-  <script src="js/distribution.js"></script>
 </body>
 </html>

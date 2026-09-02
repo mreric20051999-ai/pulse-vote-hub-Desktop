@@ -169,10 +169,14 @@ app.whenReady().then(() => {
   }
 
   // LAN networking: restore the persisted mode (host/client) from last run and
-  // forward live sync status to whichever window is focused.
+  // forward live sync status to whichever window is focused. The broadcast is
+  // sanitized: the network secret is only disclosed on demand through the
+  // admin-gated `lan:status` IPC, never pushed to every (splash) window.
   getLan().onStatus((status) => {
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('lan:status', status);
-    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('lan:status', status);
+    const s = (status && typeof status === 'object') ? Object.assign({}, status) : status;
+    if (s && typeof s === 'object' && 'secret' in s) delete s.secret;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('lan:status', s);
+    if (splashWindow && !splashWindow.isDestroyed()) splashWindow.webContents.send('lan:status', s);
   });
   getLan().resume().catch((err) => console.error('LAN resume failed:', err));
 
@@ -255,8 +259,9 @@ ipcMain.handle('db:init', () => {
 });
 
 ipcMain.handle('db:stats', (_e, officerId) => {
-  const actor = resolveActor(officerId);
-  const isAdmin = actor && actor.role === 'admin';
+  const actor = resolveActor(officerId, _e.sender.id);
+  // Developer supersedes the admin role, so both see the whole-org summary.
+  const isAdmin = actor && (actor.role === 'admin' || actor.role === 'developer');
   const d = db.get();
   const row = isAdmin
     ? d.prepare(`
@@ -278,12 +283,29 @@ ipcMain.handle('db:stats', (_e, officerId) => {
             WHERE owner_id = ?
           `).get(actor.id)
         : { active: 0, upcoming: 0, draft: 0, closed: 0 });
-  const voters = d.prepare('SELECT COUNT(*) AS c FROM voters').get().c || 0;
-  const cast = d.prepare('SELECT COUNT(*) AS c FROM voters WHERE has_voted = 1').get().c || 0;
-  const votes = d.prepare('SELECT COUNT(*) AS c FROM votes').get().c || 0;
+  // Voter / cast / vote totals are scoped to what the actor can actually see:
+  // admins + developers get the whole-org count, coordinators only the voters
+  // inside elections they own (respecting coordinator isolation — a coordinator
+  // must not learn org-wide turnout or register size through this endpoint).
+  const counts = isAdmin
+    ? {
+        voters: d.prepare('SELECT COUNT(*) AS c FROM voters').get().c || 0,
+        cast: d.prepare('SELECT COUNT(*) AS c FROM voters WHERE has_voted = 1').get().c || 0,
+        votes: d.prepare('SELECT COUNT(*) AS c FROM votes').get().c || 0,
+      }
+    : (actor && actor.id
+        ? {
+            voters: d.prepare('SELECT COUNT(*) AS c FROM voters WHERE election_id IN (SELECT id FROM elections WHERE owner_id = ?)').get(actor.id).c || 0,
+            cast: d.prepare('SELECT COUNT(*) AS c FROM voters WHERE has_voted = 1 AND election_id IN (SELECT id FROM elections WHERE owner_id = ?)').get(actor.id).c || 0,
+            votes: d.prepare('SELECT COUNT(*) AS c FROM votes WHERE election_id IN (SELECT id FROM elections WHERE owner_id = ?)').get(actor.id).c || 0,
+          }
+        : { voters: 0, cast: 0, votes: 0 });
+  const voters = counts.voters;
+  const cast = counts.cast;
+  const votes = counts.votes;
   const officers = auth.listOfficers();
-  const admins = officers.filter((o) => o.role === 'admin').length;
-  const coords = officers.filter((o) => o.role !== 'admin').length;
+  const admins = officers.filter((o) => o.role === 'admin' || o.role === 'developer').length;
+  const coords = officers.filter((o) => o.role !== 'admin' && o.role !== 'developer').length;
   const totalElections = (row.active || 0) + (row.upcoming || 0) + (row.draft || 0) + (row.closed || 0);
   return {
     active: row.active || 0,
@@ -303,9 +325,10 @@ ipcMain.handle('db:stats', (_e, officerId) => {
 
 // Active (voting) elections with their live counts, for the dashboard summary.
 ipcMain.handle('db:active-elections', (_e, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   const d = db.get();
-  const rows = actor && actor.role !== 'admin'
+  const isAdmin = actor && (actor.role === 'admin' || actor.role === 'developer');
+  const rows = !isAdmin
     ? d.prepare(`
         SELECT e.id, e.title, e.type, e.status, e.owner_id,
           (SELECT COUNT(*) FROM positions p WHERE p.election_id = e.id) AS positions,
@@ -374,9 +397,10 @@ ipcMain.handle('auth:login', (_e, { officerId, password }) => {
       auth.logLoginAttempt({ officerId: res.officer.officer_id, officerName: res.officer.name, role: res.officer.role, device, success: false });
       return { ok: false, error: 'This account has been suspended. Contact the administrator.', code: 'suspended' };
     }
-    // Mint an opaque session token bound to this webContents. The renderer must
-    // present this token (instead of an officer id) on every privileged call.
-    const token = auth.createSession(res.officer, senderIsApp(_e) ? _e.sender.id : null);
+    // Mint an opaque session token bound to THIS webContents. The renderer must
+    // present this token (instead of an officer id) on every privileged call,
+    // and the binding means it can never be replayed from a different window.
+    const token = auth.createSession(res.officer, _e.sender.id);
     auth.logLoginAttempt({ officerId: res.officer.officer_id, officerName: res.officer.name, role: res.officer.role, device, success: true });
     return { ok: true, officer: stripSecret(res.officer), session: { token } };
   } catch (err) {
@@ -419,7 +443,7 @@ ipcMain.handle('kiosk:exit', () => {
 
 function requireAdmin(token, event) {
   if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
-  const actor = resolveActor(token);
+  const actor = resolveActor(token, event.sender.id);
   if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
   if (actor.role !== 'admin' && actor.role !== 'developer') return { ok: false, error: 'Requires admin access', code: 'forbidden' };
   return { ok: true, actor };
@@ -429,7 +453,7 @@ function requireAdmin(token, event) {
 // system operations and the developer section that admins no longer see).
 function requireDeveloper(token, event) {
   if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
-  const actor = resolveActor(token);
+  const actor = resolveActor(token, event.sender.id);
   if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
   if (actor.role !== 'developer') return { ok: false, error: 'Requires developer access', code: 'forbidden' };
   return { ok: true, actor };
@@ -523,6 +547,53 @@ ipcMain.handle('dev:revoke-developer-code', (e, id, token) => {
 // itself is the credential that creates the developer account.
 ipcMain.handle('auth:redeem-developer-code', (_e, payload) => {
   try { return auth.redeemDeveloperCode(payload || {}); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---- Software licensing (per-site activation codes) ----
+// License state is public (any window can ask). Issuing/listing/revoking are
+// developer-only. Redemption is public — the code is the credential.
+ipcMain.handle('lic:status', () => {
+  try { return auth.licenseStatus(); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('lic:issue', (e, siteName, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.issueActivationCode(r.actor.id, siteName); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('lic:list', (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return { ok: true, codes: auth.listActivationCodes() }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('lic:revoke', (e, id, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return auth.revokeActivationCode(r.actor.id, id); } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('lic:redeem', (_e, payload) => {
+  try { return auth.redeemLicense(payload || {}); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ---- Safety kill-switch (developer only) ----
+// The developer can terminate the application immediately when suspicious
+// activity is suspected. The action is recorded in the login audit trail
+// before the app quits so there is a trace of who ordered the shutdown.
+ipcMain.handle('dev:terminate-app', (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try {
+    auth.logLoginAttempt({
+      officerId: r.actor.officer_id,
+      officerName: r.actor.name,
+      role: 'developer',
+      device: os.hostname(),
+      ip: null,
+      success: true,
+    });
+  } catch (err) { /* never block a kill-switch on audit failure */ }
+  // Let the IPC response reach the renderer, then quit promptly.
+  setTimeout(() => app.quit(), 350);
+  return { ok: true, message: 'Application is shutting down.' };
 });
 
 // ---- Backup / export IPC ----
@@ -695,16 +766,38 @@ function stripSecret(o) {
 // officer id). Tokens are minted at login, are unguessable, expire, and are
 // bound to the originating webContents — so a malicious script in the renderer
 // cannot fabricate an admin identity by inventing an officerId.
-function resolveActor(token) {
-  const sess = auth.validateSession(token);
+function resolveActor(token, senderId) {
+  const sess = auth.validateSession(token, senderId);
   if (!sess) return null;
   return { id: sess.officer.id, role: sess.officer.role };
 }
 
+// Sliding-window rate limiter for the public voter endpoints. Mirrors the LAN
+// hub limiter so credential guessing on the desktop is throttled the same way
+// it already is over the network. Bounded; old buckets are swept lazily.
+function makeRateLimiter(limit, windowMs) {
+  const hits = new Map();
+  return function check(key) {
+    if (!key) return { ok: true };
+    const now = Date.now();
+    const arr = hits.get(key) || [];
+    const kept = arr.filter((t) => now - t < windowMs);
+    kept.push(now);
+    hits.set(key, kept);
+    if (hits.size > 10000) {
+      for (const [k, v] of hits) if (!v.length || now - v[v.length - 1] >= windowMs) hits.delete(k);
+    }
+    const remaining = Math.max(0, limit - kept.length);
+    return { ok: kept.length <= limit, remaining, retryAfterMs: kept.length ? windowMs - (now - kept[0]) : 0 };
+  };
+}
+const voterVerifyLimit = makeRateLimiter(10, 60 * 1000);
+const voterRecoverLimit = makeRateLimiter(10, 60 * 1000);
+
 // Authorize an election-scoped management operation: admins pass, coordinators
 // must own the election. Runs `fn(actor)` only when access is allowed.
-function guardElection(electionId, token, fn) {
-  const actor = resolveActor(token);
+function guardElection(electionId, token, fn, senderId) {
+  const actor = resolveActor(token, senderId);
   const acc = election.getElectionOrError(electionId, actor);
   if (!acc.ok) return acc;
   return fn(actor);
@@ -720,12 +813,12 @@ function senderIsApp(event) {
 
 // ---------- Election IPC ----------
 
-ipcMain.handle('election:list', (_e, officerId) => election.listElections(resolveActor(officerId)));
-ipcMain.handle('election:get', (_e, id, officerId) => guardElection(id, officerId, (actor) => election.getElection(id, actor)));
-ipcMain.handle('election:create', (_e, payload, officerId) => election.createElection(payload, resolveActor(officerId)));
-ipcMain.handle('election:update', (_e, id, payload, officerId) => election.updateElection(id, payload, resolveActor(officerId)));
-ipcMain.handle('election:status', (_e, id, status, officerId) => election.setStatus(id, status, resolveActor(officerId)));
-ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publishElection(id, opts, resolveActor(officerId)));
+ipcMain.handle('election:list', (_e, officerId) => election.listElections(resolveActor(officerId, _e.sender.id)));
+ipcMain.handle('election:get', (_e, id, officerId) => guardElection(id, officerId, (actor) => election.getElection(id, actor), _e.sender.id));
+ipcMain.handle('election:create', (_e, payload, officerId) => election.createElection(payload, resolveActor(officerId, _e.sender.id)));
+ipcMain.handle('election:update', (_e, id, payload, officerId) => election.updateElection(id, payload, resolveActor(officerId, _e.sender.id)));
+ipcMain.handle('election:status', (_e, id, status, officerId) => election.setStatus(id, status, resolveActor(officerId, _e.sender.id)));
+ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publishElection(id, opts, resolveActor(officerId, _e.sender.id)));
 ipcMain.handle('election:apply-schedule', () => election.applySchedule());
 ipcMain.handle('election:delete', (e, id, token) => {
   const r = requireDeveloper(token, e);
@@ -733,30 +826,30 @@ ipcMain.handle('election:delete', (e, id, token) => {
   return election.deleteElection(id, r.actor);
 });
 
-ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listPositions(electionId, actor)));
-ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => election.addPosition(electionId, title, maxVotes, resolveActor(officerId)));
+ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listPositions(electionId, actor), _e.sender.id));
+ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => election.addPosition(electionId, title, maxVotes, resolveActor(officerId, _e.sender.id)));
 ipcMain.handle('election:position-remove', (_e, id, officerId) => {
   const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
   if (!pos) return { ok: false, error: 'Position not found' };
-  return guardElection(pos.election_id, officerId, (actor) => election.removePosition(id, actor));
+  return guardElection(pos.election_id, officerId, (actor) => election.removePosition(id, actor), _e.sender.id);
 });
 ipcMain.handle('election:position-update-max', (_e, id, maxVotes, officerId) => {
   const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
   if (!pos) return { ok: false, error: 'Position not found' };
-  return guardElection(pos.election_id, officerId, (actor) => election.setPositionMax(id, maxVotes, actor));
+  return guardElection(pos.election_id, officerId, (actor) => election.setPositionMax(id, maxVotes, actor), _e.sender.id);
 });
 
-ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listCandidates(electionId, actor)));
+ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listCandidates(electionId, actor), _e.sender.id));
 ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) => {
   const cand = db.get().prepare('SELECT election_id FROM candidates WHERE position_id = ? LIMIT 1').get(positionId);
   if (!cand) return election.listCandidatesByPosition(positionId);
-  return guardElection(cand.election_id, officerId, () => election.listCandidatesByPosition(positionId));
+  return guardElection(cand.election_id, officerId, () => election.listCandidatesByPosition(positionId), _e.sender.id);
 });
-ipcMain.handle('election:candidate-add', (_e, payload, officerId) => election.addCandidate(payload, resolveActor(officerId)));
+ipcMain.handle('election:candidate-add', (_e, payload, officerId) => election.addCandidate(payload, resolveActor(officerId, _e.sender.id)));
 ipcMain.handle('election:candidate-remove', (_e, id, officerId) => {
   const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
   if (!cand) return { ok: false, error: 'Candidate not found' };
-  return guardElection(cand.election_id, officerId, (actor) => election.removeCandidate(id, actor));
+  return guardElection(cand.election_id, officerId, (actor) => election.removeCandidate(id, actor), _e.sender.id);
 });
 
 // Opens a file dialog for a candidate photo, copies the chosen image into the
@@ -790,24 +883,44 @@ ipcMain.handle('candidate:photo-url', (_e, storedPath) => {
 
 // ---------- Voter IPC ----------
 
-ipcMain.handle('voter:list', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.listVoters(electionId, opts || {})));
-ipcMain.handle('voter:get', (_e, electionId, voterId) => voter.getVoter(electionId, voterId));
-ipcMain.handle('voter:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => voter.addVoter(payload)));
-ipcMain.handle('voter:import', (_e, electionId, csvText, officerId) => guardElection(electionId, officerId, () => voter.importCsv(electionId, csvText)));
-ipcMain.handle('voter:autogen', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.autoGenerate(electionId, opts || {})));
-ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.deleteVoter(electionId, voterId)));
-ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId)));
+ipcMain.handle('voter:list', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.listVoters(electionId, opts || {}), _e.sender.id));
+ipcMain.handle('voter:get', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => {
+  // Never expose credential material (plaintext password, password hash/salt,
+  // phone) through this unauthenticated-by-design surface. Only an officer
+  // with access to the election may even reach the row.
+  const row = voter.getVoter(electionId, voterId);
+  if (!row) return null;
+  const { password_hash, password_salt, plain_password, ...safe } = row;
+  return safe;
+}, _e.sender.id));
+ipcMain.handle('voter:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => voter.addVoter(payload), _e.sender.id));
+ipcMain.handle('voter:import', (_e, electionId, csvText, officerId) => guardElection(electionId, officerId, () => voter.importCsv(electionId, csvText), _e.sender.id));
+ipcMain.handle('voter:autogen', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.autoGenerate(electionId, opts || {}), _e.sender.id));
+ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.deleteVoter(electionId, voterId), _e.sender.id));
+ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId), _e.sender.id));
 ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => {
-  const res = guardElection(electionId, officerId, () => voter.unvoteVoter(electionId, voterId));
+  const res = guardElection(electionId, officerId, () => voter.unvoteVoter(electionId, voterId), _e.sender.id);
   if (res && res.ok) {
     try { getLan().onLocalUnvote(electionId, voterId); } catch (err) { console.error('LAN unvote hook failed:', err.message); }
   }
   return res;
 });
-ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => voter.verifyVoter(electionId, voterId, password));
-ipcMain.handle('voter:verify-details', (_e, electionId, details) => voter.verifyVoterDetails(electionId, Object.assign({}, details || {}, { revealPassword: true })));
-ipcMain.handle('voter:cast', (_e, electionId, voterId, selection, stationContext) => {
-  const res = voter.castVote(electionId, voterId, selection, stationContext);
+ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => {
+  const vid = String(voterId || '').trim();
+  const rl = voterVerifyLimit(`${_e.sender.id}|${electionId}|${vid.toUpperCase()}`);
+  if (!rl.ok) return { ok: false, error: 'Too many sign-in attempts for this device. Wait a minute and try again.', code: 'rate-limit', retryAfterMs: rl.retryAfterMs };
+  if (!vid || !password) return { ok: false, error: 'Missing voter ID or password', code: 'missing' };
+  return voter.verifyVoter(electionId, vid, password, `desktop:${_e.sender.id}`);
+});
+ipcMain.handle('voter:verify-details', (_e, electionId, details) => {
+  const d = Object.assign({}, details || {});
+  const base = `${_e.sender.id}|${electionId}|${String(d.voterId || '').toUpperCase()}`;
+  const rl = voterRecoverLimit(base);
+  if (!rl.ok) return { ok: false, error: 'Too many recovery attempts for this device. Wait a minute and try again.', code: 'rate-limit', retryAfterMs: rl.retryAfterMs };
+  return voter.verifyVoterDetails(electionId, Object.assign(d, { revealPassword: true }));
+});
+ipcMain.handle('voter:cast', (_e, electionId, voterId, selection, castTicket, stationContext) => {
+  const res = voter.castVote(electionId, voterId, selection, castTicket, stationContext || undefined, `desktop:${_e.sender.id}`);
   if (res && res.ok) {
     try { getLan().onLocalVote(electionId, voterId, selection, res.timestamp, { station: stationContext || null }); } catch (err) { console.error('LAN vote hook failed:', err.message); }
   }
@@ -898,7 +1011,7 @@ ipcMain.handle('voter:export', async (_e, { electionId, format }, officerId) => 
   if (!['csv', 'html', 'pdf', 'print'].includes(format)) {
     return { ok: false, error: 'Invalid export format' };
   }
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   const acc = election.getElectionOrError(electionId, actor);
   if (!acc.ok) return acc;
   try {
@@ -981,14 +1094,14 @@ const safeStation = (fn) => (_e, ...args) => {
 // an assistant (station officer) passes only when assigned to exactly this
 // (election, station). Station ops are no longer open to any signed-in caller.
 function guardStation(electionId, stationId, officerId, fn) {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   // Resolve the station row by id, code, or name within this election so
   // operators can reference their station however the portal expresses it.
   const st = (electionId ? station.resolveStationRef(electionId, stationId) : null) || station.getStation(stationId);
   const realId = st ? st.id : stationId;
   const electionId2 = st ? st.election_id : electionId;
   let allowed = false;
-  if (actor && actor.role === 'admin') allowed = true;
+  if (actor && (actor.role === 'admin' || actor.role === 'developer')) allowed = true;
   else if (actor && election.getElectionOrError(electionId2, actor).ok) allowed = true;
   else if (actor) {
     const o = auth.findById(actor.id);
@@ -997,17 +1110,17 @@ function guardStation(electionId, stationId, officerId, fn) {
   if (!allowed) return { ok: false, error: 'You do not have access to this station.', code: 'forbidden' };
   return safeStation(fn)();
 }
-ipcMain.handle('station:list', (_e, electionId, officerId) => guardElection(electionId, officerId, () => station.getStationsForElection(electionId)));
-ipcMain.handle('station:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => station.addStation(payload)));
+ipcMain.handle('station:list', (_e, electionId, officerId) => guardElection(electionId, officerId, () => station.getStationsForElection(electionId), _e.sender.id));
+ipcMain.handle('station:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => station.addStation(payload), _e.sender.id));
 ipcMain.handle('station:update', (_e, id, payload, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardElection(row.election_id, officerId, () => station.updateStation(id, payload));
+  return guardElection(row.election_id, officerId, () => station.updateStation(id, payload), _e.sender.id);
 });
 ipcMain.handle('station:remove', (_e, id, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardElection(row.election_id, officerId, () => station.removeStation(id));
+  return guardElection(row.election_id, officerId, () => station.removeStation(id), _e.sender.id);
 });
 ipcMain.handle('station:open', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
@@ -1074,10 +1187,10 @@ ipcMain.handle('station:create-checkin-link', (_e, { electionId, stationId }, of
       officerName: res.officerName,
       expiresAt: res.expiresAt,
     };
-  }));
+  }, _e.sender.id));
 
 ipcMain.handle('station:list-checkin-links', (_e, electionId, officerId) =>
-  guardElection(electionId, officerId, () => ({ ok: true, links: checkInLink.listCheckinLinks(electionId) })));
+  guardElection(electionId, officerId, () => ({ ok: true, links: checkInLink.listCheckinLinks(electionId) }), _e.sender.id));
 
 ipcMain.handle('station:revoke-checkin-link', (_e, { electionId, tokenId }, officerId) =>
   guardElection(electionId, officerId, () => {
@@ -1086,7 +1199,7 @@ ipcMain.handle('station:revoke-checkin-link', (_e, { electionId, tokenId }, offi
       try { const hub = getLan().hub; if (hub) hub.revokeTokenSessions(tokenId); } catch (err) { /* best-effort */ }
     }
     return res;
-  }));
+  }, _e.sender.id));
 
 // ---------- Results IPC ----------
 
@@ -1095,7 +1208,7 @@ ipcMain.handle('result:report', (_e, electionId, officerId, stationId) =>
     const row = db.get().prepare('SELECT * FROM elections WHERE id = ?').get(electionId);
     if (!row) return { ok: false, error: 'Election not found' };
     return results.buildReport(row, { stationId: stationId || null });
-  }));
+  }, _e.sender.id));
 
 // Results export: pass the already-rendered content and let the user pick a
 // destination. Mirrors the voter-roll export flow (save dialog + write / printToPDF).
@@ -1167,7 +1280,7 @@ ipcMain.handle('merge:export-json', async (_e, { content, defaultName }) => {
 // ---------- Multi-location runs ("Location Coordinator") ----------
 
 // List the locations (and their result-pack state) for an election.
-ipcMain.handle('location:list', (_e, electionId) => {
+ipcMain.handle('location:list', (_e, electionId, officerId) => guardElection(electionId, officerId, () => {
   try {
     const d = db.get();
     const rows = d.prepare(
@@ -1178,11 +1291,11 @@ ipcMain.handle('location:list', (_e, electionId) => {
     ).all(electionId);
     return { ok: true, locations: rows };
   } catch (err) { return { ok: false, error: err.message }; }
-});
+}, _e.sender.id));
 
 // Main coordinator: create (and offer to save) a run pack for a location.
 ipcMain.handle('location:create-run', async (_e, { electionId, locationName, locationCode, passphrase }, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   const acc = election.getElectionOrError(electionId, actor);
   if (!acc.ok) return acc;
   const created = locationPack.createRunPackBody({ electionId, locationName, locationCode, passphrase });
@@ -1212,7 +1325,7 @@ ipcMain.handle('location:create-run', async (_e, { electionId, locationName, loc
 // Location coordinator (or admin): import a run pack file. The renderer collects
 // the passphrase + setup code in a modal (this is a desktop app — no console prompts).
 ipcMain.handle('location:import-run', async (_e, { passphrase, setupCode }, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose a Run Pack to import',
     properties: ['openFile'],
@@ -1233,7 +1346,7 @@ ipcMain.handle('location:import-run', async (_e, { passphrase, setupCode }, offi
 
 // Location coordinator: export the result pack after sealing every station.
 ipcMain.handle('location:create-result', async (_e, electionId, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   const acc = election.getElectionOrError(electionId, actor);
   if (!acc.ok) return acc;
   const created = locationPack.createResultPack(electionId);
@@ -1257,8 +1370,8 @@ ipcMain.handle('location:create-result', async (_e, electionId, officerId) => {
 // Main coordinator: pick one or more result packs, verify each, and store them
 // for compilation.
 ipcMain.handle('location:pick-result', async (_e, officerId) => {
-  const actor = resolveActor(officerId);
-  if (!actor || (actor.role !== 'admin')) return { ok: false, error: 'Only the main coordinator can import result packs.' };
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Only the main coordinator can import result packs.' };
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose result pack(s) from locations',
     properties: ['openFile', 'multiSelections'],
@@ -1285,8 +1398,8 @@ ipcMain.handle('location:pick-result', async (_e, officerId) => {
 
 // Main coordinator: compile verified result packs into the aggregate result.
 ipcMain.handle('location:compile', (_e, { packs }, officerId) => {
-  const actor = resolveActor(officerId);
-  if (!actor || (actor.role !== 'admin')) return { ok: false, error: 'Only the main coordinator can compile results.' };
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Only the main coordinator can compile results.' };
   const valid = (Array.isArray(packs) ? packs : [])
     .map((p) => (p && p.pack) || p)
     .filter((p) => p && p.payload);
@@ -1294,38 +1407,72 @@ ipcMain.handle('location:compile', (_e, { packs }, officerId) => {
 });
 
 // ---------- LAN Networking (Phase 2) ----------
+// LAN control is available to any signed-in officer (the Browser-ballot kiosk
+// is a core coordination feature), but every handler requires a VALID session:
+// an unauth/XSS context with no token can no longer start/stop the hub, rotate
+// the secret, or read addresses. The shared network secret is disclosed ONLY
+// to admins/developers through `lan:status` (and never pushed to windows).
 
-ipcMain.handle('lan:status', () => {
-  try { return getLan().status(); } catch (err) { return { ok: false, error: err.message }; }
+function lanSession(req, _e) {
+  const actor = resolveActor(typeof req === 'string' ? req : null, _e.sender.id);
+  return actor ? actor : null;
+}
+
+ipcMain.handle('lan:status', (_e, token) => {
+  try {
+    const actor = resolveActor(token, _e.sender.id);
+    if (!actor) return { ok: false, error: 'Not authorized' };
+    const s = getLan().status();
+    if (s && actor.role !== 'admin' && actor.role !== 'developer' && s.secret) delete s.secret;
+    return s;
+  } catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('lan:set-mode', async (_e, payload) => {
-  try { return await getLan().setMode(payload && payload.mode, payload || {}); }
+ipcMain.handle('lan:set-mode', async (_e, payload, token) => {
+  try {
+    if (!lanSession(token, _e)) return { ok: false, error: 'Not authorized' };
+    return await getLan().setMode(payload && payload.mode, payload || {});
+  }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('lan:stop', async () => {
-  try { await getLan().setMode('off'); return { ok: true }; }
+ipcMain.handle('lan:stop', async (_e, token) => {
+  try {
+    if (!lanSession(token, _e)) return { ok: false, error: 'Not authorized' };
+    await getLan().setMode('off'); return { ok: true };
+  }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('lan:set-name', (_e, name) => {
-  try { return getLan().setName(name); }
+ipcMain.handle('lan:set-name', (_e, name, token) => {
+  try {
+    if (!lanSession(token, _e)) return { ok: false, error: 'Not authorized' };
+    return getLan().setName(name);
+  }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('lan:set-secret', (_e, value) => {
-  try { return getLan().setSecret(value); }
+ipcMain.handle('lan:set-secret', (_e, value, token) => {
+  try {
+    if (!lanSession(token, _e)) return { ok: false, error: 'Not authorized' };
+    return getLan().setSecret(value);
+  }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('lan:discover', async (_e, ms) => {
-  try { return { ok: true, services: await getLan().discovers(ms || 4000) }; }
+ipcMain.handle('lan:discover', async (_e, ms, token) => {
+  try {
+    if (!lanSession(token, _e)) return { ok: false, error: 'Not authorized' };
+    return { ok: true, services: await getLan().discovers(ms || 4000) };
+  }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
-ipcMain.handle('lan:local-addresses', () => {
-  try { return { ok: true, addresses: getLan().status().addresses }; }
+ipcMain.handle('lan:local-addresses', (_e, token) => {
+  try {
+    if (!lanSession(token, _e)) return { ok: false, error: 'Not authorized' };
+    return { ok: true, addresses: getLan().status().addresses };
+  }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
@@ -1333,7 +1480,7 @@ ipcMain.handle('lan:local-addresses', () => {
 
 ipcMain.handle('messages:send', (_e, body, officerId) => {
   try {
-    const actor = resolveActor(officerId);
+    const actor = resolveActor(officerId, _e.sender.id);
     const res = messages.send(actor ? actor.id : null, body);
     if (res.ok) { try { getLan().onLocalMessage(res.message); } catch (err) { console.error('LAN message hook failed:', err.message); } }
     return res;
@@ -1343,8 +1490,8 @@ ipcMain.handle('messages:send', (_e, body, officerId) => {
 // Admin-only: reply to a message (opens/continues a thread).
 ipcMain.handle('messages:reply', (_e, id, body, officerId) => {
   try {
-    const actor = resolveActor(officerId);
-    if (!actor || actor.role !== 'admin') return { ok: false, error: 'Admins only' };
+    const actor = resolveActor(officerId, _e.sender.id);
+    if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Admins only' };
     const res = messages.replyTo(id, actor, body);
     if (res.ok) { try { getLan().onLocalMessage(res.message); } catch (err) { console.error('LAN message hook failed:', err.message); } }
     return res;
@@ -1353,30 +1500,32 @@ ipcMain.handle('messages:reply', (_e, id, body, officerId) => {
 
 // Admin-only: list inbox + unread count. Non-admins get an empty inbox.
 ipcMain.handle('messages:list', (_e, officerId) => {
-  const actor = resolveActor(officerId);
-  if (!actor || actor.role !== 'admin') return { ok: true, messages: [] };
+  const actor = resolveActor(officerId, _e.sender.id);
+  const isAdmin = actor && (actor.role === 'admin' || actor.role === 'developer');
+  if (!actor || !isAdmin) return { ok: true, messages: [] };
   try { return { ok: true, messages: messages.list() }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Any officer: their own conversation (sent notes + replies addressed to them).
 ipcMain.handle('messages:mine', (_e, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   if (!actor) return { ok: true, messages: [] };
   try { return { ok: true, messages: messages.listMine(actor.id) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('messages:unread', (_e, officerId) => {
-  const actor = resolveActor(officerId);
-  if (!actor || actor.role !== 'admin') return { ok: true, count: 0 };
+  const actor = resolveActor(officerId, _e.sender.id);
+  const isAdmin = actor && (actor.role === 'admin' || actor.role === 'developer');
+  if (!actor || !isAdmin) return { ok: true, count: 0 };
   try { return { ok: true, count: messages.unreadCount() }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Any officer: count of replies addressed to them that they haven't read.
 ipcMain.handle('messages:mine-unread', (_e, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   if (!actor) return { ok: true, count: 0 };
   try { return { ok: true, count: messages.unreadMine(actor.id) }; }
   catch (err) { return { ok: false, error: err.message }; }
@@ -1384,21 +1533,21 @@ ipcMain.handle('messages:mine-unread', (_e, officerId) => {
 
 // Any officer: mark replies addressed to them as read (opens the thread view).
 ipcMain.handle('messages:mark-mine-read', (_e, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   if (!actor) return { ok: false, error: 'Not signed in' };
   try { return messages.markMineRead(actor.id); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('messages:mark-read', (_e, id, officerId) => {
-  const actor = resolveActor(officerId);
-  if (!actor || actor.role !== 'admin') return { ok: false, error: 'Admins only' };
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Admins only' };
   try { return messages.markRead(id); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('messages:delete', (_e, id, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   if (!actor) return { ok: false, error: 'Not signed in' };
   try { return messages.del(id, actor); }
   catch (err) { return { ok: false, error: err.message }; }
@@ -1406,57 +1555,63 @@ ipcMain.handle('messages:delete', (_e, id, officerId) => {
 
 // ---- Creator console: product distribution (admin-only) ----
 const adminGuard = (officerId) => {
-  const actor = resolveActor(officerId);
-  if (!actor || actor.role !== 'admin') return null;
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return null;
+  return actor;
+};
+
+const developerGuard = (officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || actor.role !== 'developer') return null;
   return actor;
 };
 
 ipcMain.handle('dist:list', (_e, officerId) => {
-  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
   try { return { ok: true, deployments: distribution.listDeployments() }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:add', (_e, fields, officerId) => {
-  const actor = adminGuard(officerId);
-  if (!actor) return { ok: false, error: 'Admins only' };
+  const actor = developerGuard(officerId);
+  if (!actor) return { ok: false, error: 'Developer only' };
   try { return distribution.addDeployment(fields, actor); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:remove', (_e, id, officerId) => {
-  const actor = adminGuard(officerId);
-  if (!actor) return { ok: false, error: 'Admins only' };
+  const actor = developerGuard(officerId);
+  if (!actor) return { ok: false, error: 'Developer only' };
   try { return distribution.removeDeployment(id, actor); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:this-computer', (_e, fields, officerId) => {
-  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
   try { return { ok: true, computer: distribution.thisComputer(fields) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:github', (_e, officerId) => {
-  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
   return distribution.fetchReleases();
 });
 
 ipcMain.handle('dist:get-token', (_e, officerId) => {
-  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
   const v = db.getConfig('github_token') || '';
   return { ok: true, hasToken: !!v.trim() };
 });
 
 ipcMain.handle('dist:set-token', (_e, token, officerId) => {
-  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
   const t = String(token || '').trim();
   if (t) db.setConfig('github_token', t); else db.setConfig('github_token', '');
   return { ok: true };
 });
 
 ipcMain.handle('dist:export-csv', async (_e, officerId) => {
-  if (!adminGuard(officerId)) return { ok: false, error: 'Admins only' };
+  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
   try {
     const rows = distribution.listDeployments();
     const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -1483,7 +1638,7 @@ ipcMain.handle('dist:export-csv', async (_e, officerId) => {
 });
 
 ipcMain.handle('messages:clear', (_e, officerId) => {
-  const actor = resolveActor(officerId);
+  const actor = resolveActor(officerId, _e.sender.id);
   if (!actor) return { ok: false, error: 'Not signed in' };
   try { return messages.clearAll(actor); }
   catch (err) { return { ok: false, error: err.message }; }

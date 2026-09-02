@@ -320,7 +320,7 @@
                 : `<button class="btn btn-danger btn-sm suspend" data-id="${o.id}">Suspend</button>`}
               <button class="btn btn-secondary btn-sm setpass" data-id="${o.id}">Password</button>
               <button class="btn btn-danger btn-sm remove" data-id="${o.id}">Remove</button>
-            ` : (o.role === 'admin' ? '<span class="pill pill-info">Superuser</span>' : '<span class="text-muted">—</span>')}
+            ` : (o.role === 'admin' || o.role === 'developer' ? '<span class="pill pill-info">Superuser</span>' : '<span class="text-muted">—</span>')}
           </div>
         </td>
       </tr>`).join('');
@@ -594,6 +594,106 @@
     refresh();
   }
 
+  // ---------- License activation (per-site activation codes) ----------
+  function bindLicense() {
+    const msg = $('lic-msg');
+    const listEl = $('lic-list');
+    const countEl = $('lic-count');
+    const out = $('lic-code-output');
+    const outText = $('lic-code-text');
+
+    function render(codes) {
+      if (!codes || !codes.length) {
+        listEl.innerHTML = '<p class="text-muted hint">No activation codes issued yet.</p>';
+        countEl.textContent = '';
+        return;
+      }
+      countEl.textContent = codes.length + (codes.length === 1 ? ' code' : ' codes') + ' total';
+      listEl.innerHTML = codes.map((c) => {
+        const when = new Date(c.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        const status = c.status === 'revoked'
+          ? '<span class="pill pill-danger">Revoked</span>'
+          : c.status === 'used'
+            ? '<span class="pill pill-success">Used</span>'
+            : '<span class="pill">Active</span>';
+        return `
+          <div class="ab-row">
+            <div class="ab-row-info">
+              <span class="ab-row-name">${esc(c.site_name)}</span>
+              <span class="text-muted ab-row-meta">
+                Issued ${when}${c.redeemed_machine ? ` · Redeemed on ${esc(c.redeemed_machine)}` : ''}
+              </span>
+            </div>
+            <div class="td-actions">
+              ${status}
+              ${c.status === 'active' ? `<button class="btn btn-danger btn-sm revoke-lic" data-id="${esc(c.id)}">Revoke</button>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      listEl.querySelectorAll('.revoke-lic').forEach((b) =>
+        b.addEventListener('click', async () => {
+          if (!confirm('Delete this activation code? It is removed permanently and can no longer be redeemed.')) return;
+          const res = await window.pvh.revokeLicense(b.dataset.id);
+          if (!res || !res.ok) {
+            msg.textContent = (res && res.error) || 'Could not revoke the code.';
+            msg.className = 'auth-error';
+            return;
+          }
+          msg.textContent = '';
+          msg.className = 'auth-error';
+          window.pvhUI.toast('Activation code revoked and removed.', 'success');
+          refresh();
+        }));
+    }
+
+    async function refresh() {
+      const res = await window.pvh.listLicenses();
+      if (!res || res instanceof Error || res.error) {
+        msg.textContent = (res && res.error) || 'Could not load activation codes.';
+        msg.className = 'auth-error';
+        return;
+      }
+      msg.textContent = '';
+      render(Array.isArray(res.codes) ? res.codes : []);
+    }
+
+    $('lic-issue-btn').addEventListener('click', async () => {
+      msg.textContent = '';
+      out.hidden = true;
+      const site = $('lic-site').value.trim();
+      if (!site) { msg.textContent = 'Enter the customer / site name.'; msg.className = 'auth-error'; $('lic-site').focus(); return; }
+      await window.pvhUI.busy($('lic-issue-btn'), 'Generating…', async () => {
+        const res = await window.pvh.issueLicense(site);
+        if (!res || !res.ok) {
+          msg.textContent = (res && res.error) || 'Could not issue a code.';
+          msg.className = 'auth-error';
+          return;
+        }
+        outText.textContent = res.code;
+        out.hidden = false;
+        msg.textContent = '';
+        $('lic-site').value = '';
+        refresh();
+        window.pvhUI.toast(`Activation code issued for ${res.site_name}.`, 'success');
+      });
+    });
+
+    $('lic-copy-btn').addEventListener('click', async () => {
+      const code = outText.textContent.trim();
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        window.pvhUI.toast('Code copied.', 'success');
+      } catch (e) {
+        msg.textContent = code;
+        msg.className = 'notice-ok';
+      }
+    });
+
+    refresh();
+  }
+
   // ---------- Login activity (audit log) ----------
   function bindLoginAudit() {
     const body = $('audit-body');
@@ -647,14 +747,41 @@
     refresh();
   }
 
+  // ---------- Safety kill-switch (terminate the app on suspicious activity) ----
+  function bindSafety() {
+    const confirmInput = $('safety-confirm');
+    const btn = $('terminate-app-btn');
+    const msg = $('safety-msg');
+    const sync = () => { btn.disabled = (confirmInput.value || '').trim().toUpperCase() !== 'TERMINATE'; };
+    if (confirmInput) confirmInput.addEventListener('input', sync);
+    sync();
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      if ((confirmInput.value || '').trim().toUpperCase() !== 'TERMINATE') { msg.textContent = 'Type TERMINATE to confirm.'; return; }
+      msg.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Shutting down…';
+      const res = await window.pvh.terminateApp();
+      if (!res || !res.ok) {
+        msg.textContent = (res && res.error) || 'Shutdown failed';
+        btn.disabled = false;
+        btn.textContent = 'Terminate application';
+      } else {
+        msg.textContent = res.message || 'Application is shutting down…';
+      }
+    });
+  }
+
   // ---------- Init ----------
   bindBackup();
   bindElectionData();
   bindAddOfficer();
   bindPassword();
   bindAccessCodes();
+  bindLicense();
   bindDevCodes();
   bindLoginAudit();
+  bindSafety();
   refreshOfficers();
   loadPasswordTargets();
   $('officer-search').addEventListener('input', renderOfficers);

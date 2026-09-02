@@ -4,6 +4,7 @@
   const views = {
     setup: $('setup-view'),
     login: $('login-view'),
+    license: $('license-view'),
     adminSetup: $('admin-setup-view'),
     developerSetup: $('developer-setup-view'),
     developerLogin: $('developer-login-view'),
@@ -13,6 +14,7 @@
   const errors = {
     setup: $('setup-error'),
     login: $('login-error'),
+    license: $('license-error'),
     adminSetup: $('admin-setup-error'),
     developerSetup: $('dev-setup-error'),
     developerLogin: $('dev-login-error'),
@@ -70,7 +72,7 @@
   passFields.forEach(attachPassToggle);
 
   function focus(name) {
-    const map = { setup: 'setup-name', login: 'login-id', adminSetup: 'admin-setup-name', developerSetup: 'dev-setup-name', developerLogin: 'dev-login-id', redeem: 'redeem-code' };
+    const map = { setup: 'setup-name', login: 'login-id', license: 'license-code', adminSetup: 'admin-setup-name', developerSetup: 'dev-setup-name', developerLogin: 'dev-login-id', redeem: 'redeem-code' };
     const el = $(map[name]);
     if (el) el.focus();
   }
@@ -108,14 +110,39 @@
     $('auth-version').textContent = `v${info.version}`;
   });
 
-  // Officer-mode entry
+  // Officer-mode entry. An already-configured machine signs straight in; a
+  // fresh machine must first activate its license before first-run setup.
   window.pvh.setupCheck().then((configured) => {
     if (configured) {
       show('login');
       focus('login');
-    } else {
+      return;
+    }
+    const proceedToSetup = () => { show('setup'); focus('setup'); };
+    window.pvh.licenseStatus().then((lic) => {
+      if (lic && lic.licensed) proceedToSetup();
+      else { show('license'); focus('license'); }
+    }).catch(() => proceedToSetup());
+  });
+
+  // ---- License activation submit (first-run gate) ----
+  $('license-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errors.license.textContent = '';
+    const btn = $('license-btn');
+    btn.disabled = true;
+    btn.textContent = 'Activating…';
+
+    const res = await window.pvh.activateLicense($('license-code').value);
+
+    if (res.ok) {
       show('setup');
       focus('setup');
+    } else {
+      errors.license.textContent = res.error || 'Could not activate this license.';
+      btn.disabled = false;
+      btn.textContent = 'Activate license';
+      $('license-code').focus();
     }
   });
 

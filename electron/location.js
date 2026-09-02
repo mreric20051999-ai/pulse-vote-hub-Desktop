@@ -275,12 +275,16 @@ function importRunPack(parsed, { passphrase = '', setupCode = '', actor = null }
   // officer when present and they are an admin/coordinator.
   let coordinator = null;
   let coordinatorId = (actor && actor.id) || null;
-  if (actor && (actor.role === 'admin' || actor.role === 'coordinator')) {
+  if (actor && (actor.role === 'admin' || actor.role === 'developer' || actor.role === 'coordinator')) {
     coordinator = actor;
   } else {
     // Fresh machine: derive a location coordinator from the pack setup code.
     const expected = (body.setup && body.setup.code_hash) || '';
-    if (!setupCode || sha256(setupCode) !== expected) {
+    const actual = sha256(setupCode || '');
+    const eq = actual.length === expected.length
+      ? crypto.timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'))
+      : false;
+    if (!setupCode || !eq) {
       return { ok: false, error: 'Import succeeded, but the setup code entered does not match the main coordinator\'s — the location coordinator account was not created. Redeem it with the correct setup code.', code: 'setup-mismatch' };
     }
     const offName = `Location Coordinator — ${locationName}`;

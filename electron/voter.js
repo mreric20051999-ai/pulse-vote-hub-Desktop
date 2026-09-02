@@ -244,7 +244,42 @@ function unvoteVoter(electionId, voterId) {
 
 // ---- Kiosk voter verification + ballot casting ----
 
-function verifyVoter(electionId, voterId, password) {
+// One-time ballot tickets. `verifyVoter` mints a short-lived ticket bound to
+// the caller's key (desktop: the webContents id; LAN: the client IP) and to a
+// single (election, voter). `castVote` refuses to record a ballot without a
+// matching, unconsumed ticket, so an attacker who knows a voter ID can no
+// longer cast on that voter's behalf without a successful password check.
+// Tickets are single-use and expire, and the store is bounded.
+const CAST_TICKET_TTL_MS = 5 * 60 * 1000;
+const tickets = new Map(); // `${electionId}|${voterId}` -> { ticket, key, expiresAt }
+
+function createCastTicket(electionId, voterId, key) {
+  const now = Date.now();
+  if (tickets.size > 10000) {
+    for (const [k, t] of tickets) if (t.expiresAt <= now) tickets.delete(k);
+  }
+  const ticket = crypto.randomBytes(24).toString('hex');
+  tickets.set(`${electionId}|${String(voterId).toUpperCase()}`, {
+    ticket,
+    key: key || null,
+    expiresAt: now + CAST_TICKET_TTL_MS,
+  });
+  return ticket;
+}
+
+// Consume the ticket for (election, voter). Returns a reason string on failure
+// ('verify-first' | 'no-ticket' | 'wrong-ticket' | 'expired').
+function consumeCastTicket(electionId, voterId, key, ticket) {
+  const slot = tickets.get(`${electionId}|${String(voterId).toUpperCase()}`);
+  if (!slot || !ticket) return 'verify-first';
+  if (slot.key != null && key != null && slot.key !== key) return 'wrong-ticket';
+  if (slot.ticket !== ticket) return 'wrong-ticket';
+  tickets.delete(`${electionId}|${String(voterId).toUpperCase()}`);
+  if (Date.now() > slot.expiresAt) return 'expired';
+  return null;
+}
+
+function verifyVoter(electionId, voterId, password, key) {
   const row = db.get().prepare(
     'SELECT id, voter_id, name, password_hash, assigned_station, station_id, checked_in, ballot_cast, has_voted, voted_at FROM voters WHERE election_id = ? AND voter_id = ?'
   ).get(electionId, String(voterId || '').trim().toUpperCase());
@@ -265,6 +300,7 @@ function verifyVoter(electionId, voterId, password) {
       station_id: row.station_id || null,
       checked_in: !!row.checked_in,
     },
+    castTicket: createCastTicket(electionId, row.voter_id, key),
   };
 }
 
@@ -305,6 +341,12 @@ function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword =
 
   if (!voter) return { ok: false, error: 'No voter matches those details. Check them and try again.', code: 'no-match' };
 
+  // Only release the password when the match required a second factor of
+  // identity (name or phone). Schemes that are keyed by voter ID ALONE
+  // (index-only/range) are treated like the network path: no password reveal,
+  // otherwise the endpoint would double as an enumeration oracle.
+  const canReveal = revealPassword && (scheme === 'name-index' || scheme === 'index-phone');
+
   // Station elections: surface the voter's polling station during password
   // recovery, and only release credentials once polls at that station are
   // open (or in the grace window). Mirrors the cast-time gate so voters and
@@ -326,7 +368,7 @@ function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword =
       voter_id: voter.voter_id,
       name: voter.name,
       phone: voter.phone,
-      password: (revealPassword && voter.plain_password) || null,
+      password: (canReveal && voter.plain_password) || null,
       assigned_station: voter.assigned_station,
       has_voted: !!voter.has_voted,
     },
@@ -339,8 +381,18 @@ function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword =
 // For station elections `stationContext` carries the station (id/code/name) the
 // ballot was opened on; casting requires that station, a prior check-in, and an
 // open/queuing poll. Non-station elections ignore it.
-function castVote(electionId, voterId, selection, stationContext) {
+// `castTicket` is the one-time ticket minted by verifyVoter — without a valid,
+// unconsumed ticket the ballot is refused (prevents vote stuffing).
+function castVote(electionId, voterId, selection, castTicket, stationContext, key) {
   const d = db.get();
+
+  // A verified voter's ticket must have been minted for THIS ballot.
+  const ticketErr = consumeCastTicket(electionId, voterId, key, castTicket);
+  if (ticketErr) {
+    return { ok: false, error: ticketErr === 'expired'
+      ? 'Your sign-in has expired. Go back and sign in again.'
+      : 'Please sign in again before casting your ballot.', code: 'verify-first' };
+  }
 
   const election = d.prepare('SELECT id, title, type, status, start_date, end_date FROM elections WHERE id = ?').get(electionId);
   if (!election) return { ok: false, error: 'Election not found', code: 'no-election' };

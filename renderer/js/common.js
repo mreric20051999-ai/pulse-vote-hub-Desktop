@@ -97,11 +97,12 @@
           <button type="button" class="profile-item" role="menuitem" data-action="guide">${ic('help')} User guide</button>
           <button type="button" class="profile-item" role="menuitem" data-action="faq">${ic('help')} FAQ</button>
           <button type="button" class="profile-item" role="menuitem" data-action="privacy">${ic('privacy')} Privacy policy</button>
+          <button type="button" class="profile-item" role="menuitem" data-action="terms">${ic('fileText')} Terms of service</button>
           ${isAdmin
             ? '<button type="button" class="profile-item" role="menuitem" data-action="inbox">' + ic('mail') + ' Admin inbox <span class="profile-badge" id="inbox-badge" hidden></span></button>'
             : '<button type="button" class="profile-item" role="menuitem" data-action="speak">' + ic('message') + ' Speak to admin <span class="profile-badge" id="speak-badge" hidden></span></button>'}
           ${isDeveloper
-            ? '<button type="button" class="profile-item" role="menuitem" data-action="devtools">' + ic('shieldCheck') + ' Developer section</button>'
+            ? '<button type="button" class="profile-item" role="menuitem" data-action="devtools">' + ic('code') + ' Developer section</button>'
             : ''}
           <button type="button" class="profile-item" role="menuitem" data-action="website">${ic('globe')} Visit website</button>
           <button type="button" class="profile-item" role="menuitem" data-action="blog">${ic('newspaper')} Blog</button>
@@ -185,6 +186,7 @@
       if (action === 'faq') faqModal();
       if (action === 'about') aboutModal();
       if (action === 'privacy') privacyModal();
+      if (action === 'terms') termsModal();
       if (action === 'speak') speakModal();
     });
   }
@@ -420,6 +422,48 @@
       .map(([h, p]) => `<section class="pvh-privacy"><h3>${h}</h3><p>${p}</p></section>`)
       .join('');
     openModal({ title: 'Privacy policy', width: '560px', body: `<div class="pvh-privacy-wrap">${html}</div>` });
+  }
+
+  // ---------- Terms of service ----------
+
+  const TERMS_SECTIONS = [
+    ['1. Acceptance of these terms',
+     'This document (the “Terms of Service” or “Terms”) is a legal agreement between you (the customer — an organisation, school, business, or individual that installs and runs the software) and <strong>Pulse Trend</strong> (“Pulse Trend”, “we”, “us”), the developer and provider of <strong>Pulse Vote Hub</strong> (the “software”). By installing, activating, or using the software, you accept these Terms. If you do not agree, do not install or use the software.'],
+    ['2. The service',
+     'Pulse Vote Hub is an offline-first desktop application for conducting and recording elections, polls, and votes. It installs on a computer you control and stores all election data locally on that device. A single installation used by one site or facility is a “site”. We may release updates from time to time as downloadable installers; updates are governed by these same Terms.'],
+    ['3. Licensing & activation',
+     'The software is licensed per site under a one-time, perpetual, non-transferable license. A license is activated by entering a unique activation code, which Pulse Trend issues after payment is received. One activation code unlocks one site or device and may not be shared, resold, or used to activate multiple sites unless you purchase a license for each site. An organisation (such as a school or office) may allow its own members and voters to use the software under its licence; individual licensees may use the software for their own purposes. You may not rent, sublicense, or redistribute the software or its activation codes.'],
+    ['4. Fees & payment',
+     'A one-time license fee applies per site. The fee is quoted to you before purchase and is paid by mobile money, bank transfer, or other channel we arrange, as agreed at the time of purchase. We confirm payment and deliver your activation code over the channel you used to pay (typically WhatsApp or email). Prices may change for future purchases; the price quoted at the time of your purchase applies to your license.'],
+    ['5. Refunds & cancellations',
+     'If your activation code has not been used (unredeemed), you may request a full refund within fourteen (14) days of payment by contacting us using the details in Section 15. Once a code has been activated for a site, the license is non-refundable, except where the software fails to perform a core advertised function and the fault is confirmed by us.'],
+    ['6. Acceptable use',
+     'You agree to use the software only for lawful, legitimate elections, votes, and polls. You will not attempt to manipulate, fabricate, or falsify results, alter or erase the signed audit trail, interfere with the ballot hash chain, bypass or attempt to bypass licensing and activation controls, or use the software to infringe anyone’s rights. You are responsible for ensuring that your elections comply with the laws, regulations, and internal rules that apply to you.'],
+    ['7. Your data & privacy',
+     'Your data stays on your device. The software does not track usage or send your data to us. The optional installer-download check makes a read-only request to a public GitHub Releases page. Our Privacy policy, available from the app’s Profile menu, explains this in full and is part of these Terms.'],
+    ['8. Vote integrity & backups',
+     'Ballots, check-ins, and audit events are cryptographically signed and chained so that any modification is detectable, and integrity reports are available to you at any time. Exporting backups and election snapshots is your responsibility; keep your own secure copies of any data that matters to you.'],
+    ['9. Support & maintenance',
+     'We provide reasonable, best-effort support over WhatsApp and email during normal business hours. We work hard to keep the software reliable, but we do not guarantee a specific response time or availability. Updates and new releases are delivered as installers; installing them is your responsibility.'],
+    ['10. No warranty',
+     'The software is provided “as is” and “as available”, without warranties of any kind, whether express or implied, including implied warranties of merchantability, fitness for a particular purpose, and non-infringement. You are responsible for testing the software before running any real election. To the fullest extent permitted by the laws of Ghana, we disclaim all warranties on the software and any results produced by it.'],
+    ['11. Limitation of liability',
+     'To the fullest extent permitted by law, Pulse Trend will not be liable for any indirect, incidental, special, consequential, or punitive damages — including lost profits, votes, or data — arising out of or related to the software or these Terms. Our total liability for any claim relating to the software shall not exceed the license fee you paid for the affected site. Because some jurisdictions do not allow some exclusions, portions of this section may not apply to you.'],
+    ['12. Termination',
+     'These Terms apply for as long as your license is valid. We may terminate your license and revoke activation codes if you breach these Terms, in which case your access stops and you must stop using the software. You may stop using the software at any time. Sections that by their nature should survive — including data, warranty, liability, refunds, and governing law — survive any termination.'],
+    ['13. Changes to these terms',
+     'We may update these Terms from time to time. Material changes will be shown inside the app (Profile menu → Terms of service) and through our normal announcement channels before taking effect. Continuing to use the software after changes take effect means you accept the updated Terms.'],
+    ['14. Governing law & disputes',
+     'These Terms are governed by and construed in accordance with the laws of the Republic of Ghana. If a dispute arises, both parties will first try to resolve it in good faith through the contact details below. Any dispute not resolved informally will be subject to the exclusive jurisdiction of the courts of Ghana (Accra).'],
+    ['15. Contact',
+     'Questions, refund requests, and support requests may be sent to us at <strong>me_media01@yahoo.com</strong> or on WhatsApp at <strong>+233 54 770 0003</strong>. Please include your site name and, where relevant, your activation code. Effective date of these Terms: <strong>1 September 2026</strong>.'],
+  ];
+
+  function termsModal() {
+    const html = TERMS_SECTIONS
+      .map(([h, p]) => `<section class="pvh-privacy"><h3>${h}</h3><p>${p}</p></section>`)
+      .join('');
+    openModal({ title: 'Terms of service', width: '680px', body: `<div class="pvh-privacy-wrap">${html}</div>` });
   }
 
   // ---------- Preferences ----------

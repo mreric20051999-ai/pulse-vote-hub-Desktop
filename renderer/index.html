@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss: http: https:;">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pulse Vote Hub Desktop</title>
@@ -69,6 +70,27 @@
         <button type="button" class="first-run-tab" id="setup-tab-redeem" aria-selected="false" data-pane="redeem"><span class="icon btn-icon" data-icon="key"></span>Redeem an access code</button>
       </div>
       <p class="auth-error" id="setup-import-error"></p>
+    </div>
+
+    <!-- License activation (blocks first-run setup until a code is redeemed) -->
+    <div id="license-view" class="auth-view" hidden>
+      <div class="auth-context">
+        <span class="auth-context-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </span>
+        <span class="auth-context-label">License activation</span>
+      </div>
+      <h2 class="auth-heading">Activate this software</h2>
+      <p class="auth-hint">Each installation needs a one-time per-site license before it can be set up. Enter the activation code you received after purchase.</p>
+      <form id="license-form">
+        <div class="field">
+          <label class="label" for="license-code">Activation code</label>
+          <input class="input" id="license-code" type="text" autocomplete="off" spellcheck="false" placeholder="PVH-XXXX-XXXX">
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="license-btn">Activate license</button>
+      </form>
+      <p class="auth-error" id="license-error"></p>
+      <p class="auth-hint">No code yet? Contact <strong>me_media01@yahoo.com</strong> or WhatsApp <strong>+233 54 770 0003</strong> to purchase one.</p>
     </div>
 
     <!-- Login -->

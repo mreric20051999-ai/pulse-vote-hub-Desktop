@@ -14,6 +14,7 @@
   // App state for the current voting session (reset per voter).
   let election = null;      // selected election obj
   let voter = null;         // verified voter public info
+  let castTicket = null;    // one-time ballot ticket minted by sign-in
   let positions = [];       // ballot data
   let candidates = [];
   let selections = new Map(); // positionId -> { candidate, position } (max per position)
@@ -191,6 +192,7 @@
         return;
       }
       voter = res.voter;
+      castTicket = res.castTicket || null;
       if (election.type === 'station' && !voter.checked_in) {
         if (window.pvhAudio) window.pvhAudio.playError();
         showBlocked('This voter must be checked in before casting a ballot — please see the station officer.', false);
@@ -590,7 +592,7 @@
       for (const s of list) selection.push({ positionId: posId, candidateId: s.candidate.id });
     }
     try {
-      const res = await window.pvh.castVote(election.id, voter.voter_id, selection, ballotStation || undefined);
+      const res = await window.pvh.castVote(election.id, voter.voter_id, selection, castTicket, ballotStation || undefined);
       if (res.ok) {
         $('confirm-modal').remove();
         showThanks();
@@ -599,6 +601,7 @@
         btn.textContent = 'Confirm & Cast';
         $('confirm-modal').remove();
         if (res.code === 'already-voted') showBlocked('You have already voted in this election.', true);
+        else if (res.code === 'verify-first') { castTicket = null; showBlocked(res.error || 'Your sign-in expired. Please sign in again.', false); setTimeout(toSignIn, 1500); }
         else showBlocked(res.error || 'Your vote could not be cast. Please try again.', true);
       }
     } catch (e) {
@@ -636,7 +639,7 @@
 
   // Back to the voter sign-in for the next voter (same election stays selected).
   function toSignIn() {
-    voter = null; positions = []; candidates = []; selections = new Map();
+    voter = null; castTicket = null; positions = []; candidates = []; selections = new Map();
     showAccess();
   }
 

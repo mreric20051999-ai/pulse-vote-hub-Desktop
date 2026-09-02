@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://kit.fontawesome.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com https://kit.fontawesome.com; connect-src 'self' ws: wss: http: https:;">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Station &middot; Pulse Vote Hub</title>
@@ -27,7 +28,7 @@
       <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
       <a class="nav-item" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
       <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
-      <a class="nav-item developer-only" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="shieldCheck"></span>Developer</a>
+      <a class="nav-item developer-only" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="code"></span>Developer</a>
 
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
@@ -54,7 +55,7 @@
             <div class="st-banner-meta"><i class="fa-solid fa-location-dot"></i> <span id="station-name">Unnamed Station</span> <code id="station-code"></code></div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-            <button class="btn btn-secondary" id="btnOpenBallot" onclick="openStationBallot()">Launch this station's ballot</button>
+            <button class="btn btn-secondary" id="btnOpenBallot">Launch this station's ballot</button>
             <span class="status-pill st-not_opened" id="statusPill"><span class="status-dot gray"></span><span id="statusText">Not opened</span></span>
           </div>
         </div>

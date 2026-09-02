@@ -234,7 +234,9 @@ Hub.prototype._mountKiosk = function (app) {
       res.status(429).json({ ok: false, error: 'Too many attempts. Please slow down and try again in a minute.', code: 'rate-limited' });
       return;
     }
-    res.json(voter.verifyVoter(b.electionId, b.voterId, b.password));
+    // The ticket is minted against the caller's IP so it cannot be replayed
+    // from a different LAN device, and is single-use/expiring.
+    res.json(voter.verifyVoter(b.electionId, b.voterId, b.password, ip));
   });
 
   app.post('/api/kiosk/verify-details', express.json(), (req, res) => {
@@ -270,9 +272,12 @@ Hub.prototype._mountKiosk = function (app) {
       res.status(429).json({ ok: false, error: 'Too many requests. Please try again shortly.', code: 'rate-limited' });
       return;
     }
-    const r = voter.castVote(b.electionId, b.voterId, b.selection, b.station);
+    const r = voter.castVote(b.electionId, b.voterId, b.selection, b.castTicket, b.station, clientIp(req));
     if (r && r.ok) {
       try { self.onWritten(b.electionId, b.voterId, b.selection, r.timestamp); } catch (err) { /* ignore */ }
+    } else if (r && r.code === 'verify-first') {
+      // Browser must re-verify before casting.
+      r.needVerifyAgain = true;
     }
     res.json(r);
   });

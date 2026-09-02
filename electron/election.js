@@ -76,7 +76,8 @@ function createElection({ title, type, election_date, start_date, end_date, stat
 
 function canAccessElection(e, actor) {
   if (!actor || !actor.id) return { ok: false, error: 'Authentication required', code: 'forbidden' };
-  if (actor.role === 'admin') return { ok: true };
+  // Admin and developer (which supersedes admin) bypass ownership checks.
+  if (actor.role === 'admin' || actor.role === 'developer') return { ok: true };
   if (!e) return { ok: false, error: 'Election not found' };
   if (e.owner_id && e.owner_id !== actor.id) {
     return { ok: false, error: 'You do not have access to this election.', code: 'forbidden' };
@@ -85,7 +86,7 @@ function canAccessElection(e, actor) {
 }
 
 function listElections(actor) {
-  const admin = actor && actor.role === 'admin';
+  const admin = actor && (actor.role === 'admin' || actor.role === 'developer');
   if (admin) {
     return db.get().prepare(`
       SELECT e.*,

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const os = require('os');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 
@@ -380,6 +381,131 @@ function redeemDeveloperCode({ code, officerId, password, confirmPassword }) {
   return { ok: true, officer: publicOfficer(officer) };
 }
 
+// ---- Software licensing (per-site activation codes) ----
+// Commercial licensing: the developer issues a one-time, revocable activation
+// code for a paid site. An ordinary user redeems it on a fresh install to
+// unlock first-run setup. Codes are stored hashed, and redemption is recorded
+// against the machine, matching the "one site per license" model.
+
+// Generate an 8-char, unambiguous base32 code with a PVH- prefix:
+// e.g. PVH-8X2K-L7QN. No 0/O/1/I/L, easy to read and type.
+function genActivationCode() {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let raw = '';
+  for (let i = 0; i < 8; i++) raw += alphabet[crypto.randomInt(alphabet.length)];
+  return `PVH-${raw.slice(0, 4)}-${raw.slice(4)}`;
+}
+
+// Normalize a typed code: strip separators/spaces, uppercase (PVH-8X2K-L7QN).
+function normalizeActivationCode(code) {
+  return String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+// Issue an activation code for a paid site (developer-only).
+function issueActivationCode(actingOfficerId, siteName) {
+  const actor = findById(actingOfficerId);
+  if (!actor || actor.role !== 'developer') return { ok: false, error: 'Not authorized' };
+  const site = String(siteName || '').trim();
+  if (!site) return { ok: false, error: 'A customer / site name is required' };
+
+  const code = genActivationCode();
+  const salt = generateSalt();
+  const record = {
+    id: uuidv4(),
+    code_hash: encodeHash(salt, hashPassword(normalizeActivationCode(code), salt)),
+    site_name: site,
+    created_by: actor.id,
+    created_at: Date.now(),
+  };
+  db.get().prepare(`
+    INSERT INTO activation_codes (id, code_hash, site_name, created_by, created_at, redeemed_at, redeemed_machine, revoked_at)
+    VALUES (@id, @code_hash, @site_name, @created_by, @created_at, NULL, NULL, NULL)
+  `).run(record);
+  return { ok: true, code, id: record.id, site_name: site };
+}
+
+// List issued activation codes with usage status (developer-only). Revoked
+// codes are deleted on revoke (legacy revoked rows are hidden and cleaned).
+function listActivationCodes() {
+  return db.get().prepare(`
+    SELECT id, site_name, created_by, created_at, redeemed_at, redeemed_machine, revoked_at
+    FROM activation_codes WHERE revoked_at IS NULL ORDER BY created_at DESC
+  `).all().map((c) => ({
+    ...c,
+    status: c.redeemed_at ? 'used' : 'active',
+  }));
+}
+
+// Revoke an unused activation code (developer-only). Revoking deletes the code
+// entirely, so it can never be redeemed and no longer appears anywhere.
+// A redeemed license is perpetual and cannot be revoked after redemption.
+function revokeActivationCode(actingOfficerId, codeId) {
+  const actor = findById(actingOfficerId);
+  if (!actor || actor.role !== 'developer') return { ok: false, error: 'Not authorized' };
+  const row = db.get().prepare('SELECT * FROM activation_codes WHERE id = ?').get(codeId);
+  if (!row) return { ok: false, error: 'Activation code not found' };
+  if (row.redeemed_at) return { ok: false, error: 'Already used by a site — a redeemed license cannot be revoked' };
+  // Delete the code even if a legacy revoke already marked it — revoking must
+  // leave no trace.
+  db.get().prepare('DELETE FROM activation_codes WHERE id = ?').run(codeId);
+  return { ok: true, deleted: true };
+}
+
+// Redeem an activation code. Public (the code is the credential), like access
+// and developer-code redemption. On success the device is licensed for good.
+function redeemLicense({ code }) {
+  const raw = normalizeActivationCode(code);
+  if (!raw) return { ok: false, error: 'An activation code is required' };
+
+  // A device is only activated once.
+  if (db.getConfig('license_code')) return { ok: false, error: 'This device is already activated.' };
+
+  // Bounded, timing-safe scan over still-usable codes.
+  const candidates = db.get().prepare(
+    'SELECT * FROM activation_codes WHERE redeemed_at IS NULL AND revoked_at IS NULL'
+  ).all();
+  let match = null;
+  for (const row of candidates) {
+    const decoded = decodeHash(row.code_hash);
+    if (!decoded) continue;
+    const expected = Buffer.from(decoded.hash, 'hex');
+    const actual = Buffer.from(hashPassword(raw, decoded.salt), 'hex');
+    if (actual.length === expected.length && crypto.timingSafeEqual(actual, expected)) {
+      match = row;
+      break;
+    }
+  }
+  if (!match) return { ok: false, error: 'Invalid or revoked activation code' };
+
+  const machine = os.hostname();
+  db.get().prepare('UPDATE activation_codes SET redeemed_at = ?, redeemed_machine = ? WHERE id = ?')
+    .run(Date.now(), machine, match.id);
+  db.setConfig('license_code', raw);
+  db.setConfig('license_site', match.site_name);
+  db.setConfig('license_activated_at', String(Date.now()));
+  db.setConfig('license_machine', machine);
+  return { ok: true, site: match.site_name, machine };
+}
+
+// Current license state for this device. A maintainer's own machine (one that
+// has a developer account) is implicitly licensed.
+function licenseStatus() {
+  const code = db.getConfig('license_code');
+  const site = db.getConfig('license_site');
+  const activatedAtRaw = db.getConfig('license_activated_at');
+  const activatedAt = activatedAtRaw ? Number(activatedAtRaw) : null;
+  const developerAuthed = hasDeveloper();
+  return {
+    ok: true,
+    licensed: !!code || developerAuthed,
+    activated: !!code,
+    developerAuthed,
+    site: site || null,
+    activatedAt,
+    machine: db.getConfig('license_machine') || null,
+  };
+}
+
 // ---- Login audit log (track who signs in and from which device) ----
 function logLoginAttempt({ officerId, officerName, role, device, ip, success }) {
   try {
@@ -600,14 +726,17 @@ function createSession(officer, senderId) {
   return token;
 }
 
-// Validate a session token and return the acting officer, or null.
+// Validate a session token and return the acting officer, or null. Every
+// caller MUST pass the originating webContents id (`senderId`): a token is only
+// valid from the exact renderer that minted it, so a token stolen from one
+// window can never be replayed from another. Sessions are always created bound
+// to a sender, but even a defensive null-bound token requires a senderId here.
 function validateSession(token, senderId) {
   if (!token || typeof token !== 'string') return null;
   const s = sessions.get(token);
   if (!s) return null;
-  // Bound to the webContents that originally logged in, so a session minted in
-  // one window cannot be replayed from a different renderer.
-  if (s.senderId != null && senderId != null && s.senderId !== senderId) return null;
+  if (senderId == null) return null;
+  if (s.senderId != null && s.senderId !== senderId) return null;
   if (Date.now() > s.expiresAt) { sessions.delete(token); return null; }
   // Sliding expiry.
   s.expiresAt = Date.now() + SESSION_TTL_MS;
@@ -670,6 +799,11 @@ module.exports = {
   issueSetupCode,
   redeemSetupCode,
   listSetupCodes,
+  issueActivationCode,
+  listActivationCodes,
+  revokeActivationCode,
+  redeemLicense,
+  licenseStatus,
   createSession,
   validateSession,
   revokeSession,

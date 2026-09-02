@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss: http: https:;">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Developer &middot; Pulse Vote Hub</title>
@@ -30,7 +31,7 @@
       <a class="nav-item" href="results.html" data-nav="results"><span class="icon nav-ic" data-icon="results"></span>Results</a>
       <a class="nav-item" href="location-runs.html" data-nav="location-runs"><span class="icon nav-ic" data-icon="globe"></span>Location Runs</a>
       <a class="nav-item admin-only" href="administration.html" data-nav="admin"><span class="icon nav-ic" data-icon="admin"></span>Administration</a>
-      <a class="nav-item developer-only active" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="shieldCheck"></span>Developer</a>
+      <a class="nav-item developer-only active" href="developer.html" data-nav="developer"><span class="icon nav-ic" data-icon="code"></span>Developer</a>
 
     </nav>
     <div class="sidebar-footer" id="sidebar-footer"></div>
@@ -50,8 +51,11 @@
       <a href="#elect-data" class="sub-link" data-target="elect-data"><span class="icon" data-icon="upload"></span>Export / delete election</a>
       <a href="#accounts" class="sub-link" data-target="accounts"><span class="icon" data-icon="admin"></span>Officer accounts</a>
       <a href="#access-codes" class="sub-link" data-target="access-codes"><span class="icon" data-icon="key"></span>Access codes</a>
-      <a href="#dev-codes" class="sub-link" data-target="dev-codes"><span class="icon" data-icon="shieldCheck"></span>Developer codes</a>
+      <a href="#license" class="sub-link" data-target="license"><span class="icon" data-icon="lock"></span>License activation</a>
+      <a href="#dev-codes" class="sub-link" data-target="dev-codes"><span class="icon" data-icon="code"></span>Developer codes</a>
       <a href="#login-audit" class="sub-link" data-target="login-audit"><span class="icon" data-icon="calendar"></span>Login activity</a>
+      <a href="#distribution" class="sub-link" data-target="distribution"><span class="icon" data-icon="download"></span>Distribution</a>
+      <a href="#safety" class="sub-link" data-target="safety"><span class="icon" data-icon="alertTriangle"></span>Safety</a>
     </nav>
 
     <!-- Backup & restore -->
@@ -236,6 +240,40 @@
       </div>
     </section>
 
+    <!-- License activation -->
+    <section class="card panel ofc-section" id="license">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">License activation</div>
+          <p class="text-muted panel-sub">Issue per-site activation codes to customers who have purchased the software. A code is single-use and can be revoked any time before it is redeemed.</p>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field" style="flex: 1 1 320px; min-width: 300px;">
+          <label class="label" for="lic-site">Customer / site name <b>*</b></label>
+          <input class="input" id="lic-site" type="text" placeholder="e.g. Accra Campus" maxlength="80">
+        </div>
+        <button class="btn btn-primary" id="lic-issue-btn"><span class="icon btn-icon" data-icon="key"></span>Issue activation code</button>
+      </div>
+      <p class="auth-error" id="lic-msg"></p>
+
+      <div class="code-output" id="lic-code-output" hidden>
+        <span class="code-display mono" id="lic-code-text"></span>
+        <button class="btn btn-ghost btn-sm" id="lic-copy-btn"><span class="icon btn-icon" data-icon="copy"></span>Copy</button>
+      </div>
+
+      <div class="ab-backups">
+        <div class="ab-backups-head">
+          <span class="label">Issued activation codes</span>
+          <span class="text-muted ab-count" id="lic-count"></span>
+        </div>
+        <div id="lic-list">
+          <p class="text-muted hint">No activation codes issued yet.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- Developer codes -->
     <section class="card panel ofc-section" id="dev-codes">
       <div class="panel-head">
@@ -292,10 +330,130 @@
       </div>
       <p class="auth-error" id="audit-msg"></p>
     </section>
+
+    <!-- Distribution: creator console (downloads + local install register) -->
+    <section class="card panel ofc-section" id="distribution">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Distribution</div>
+          <p class="text-muted panel-sub">Installer downloads and the local install register for the software itself. Developer-only — admins and regular users never see this.</p>
+        </div>
+      </div>
+
+      <!-- Current-state summary -->
+      <div class="dist-kpis">
+        <div class="dist-kpi">
+          <div class="dist-kpi-num" id="dist-stat-installs">0</div>
+          <div class="dist-kpi-label">Installs recorded</div>
+        </div>
+        <div class="dist-kpi">
+          <div class="dist-kpi-num" id="dist-stat-downloads">0</div>
+          <div class="dist-kpi-label">Total downloads</div>
+        </div>
+        <div class="dist-kpi">
+          <div class="dist-kpi-num" id="dist-stat-releases">0</div>
+          <div class="dist-kpi-label">Releases</div>
+        </div>
+      </div>
+
+      <!-- Downloads -->
+      <div class="dist-card">
+        <div class="dist-card-head">
+          <div>
+            <div class="dist-card-title">Installer downloads</div>
+            <div class="dist-card-sub">Download counts from each release on GitHub. <span class="dist-repo">mreric20051999-ai/pulse-vote-hub-Desktop</span></div>
+          </div>
+          <div class="dist-card-actions">
+            <span class="dist-fetched" id="dist-fetched" hidden></span>
+            <button class="btn btn-secondary" id="dist-refresh-btn"><span class="icon btn-icon" data-icon="download"></span>Refresh downloads</button>
+          </div>
+        </div>
+
+        <form id="dist-token-form" class="dist-token">
+          <div class="field dist-token-field">
+            <label class="label" for="dist-token">GitHub token <em>(optional)</em></label>
+            <input class="input" id="dist-token" type="password" placeholder="For private repos only — leave blank for public" autocomplete="off">
+          </div>
+          <button type="submit" class="btn btn-ghost"><span class="icon btn-icon" data-icon="check"></span>Save</button>
+        </form>
+        <p class="dist-token-hint" id="dist-token-msg">Used only to read release counts. Stored on this device.</p>
+
+        <p class="auth-error" id="dist-github-msg"></p>
+        <div id="dist-releases">
+          <p class="text-muted hint">Click “Refresh downloads” to fetch download counts. This needs an internet connection.</p>
+        </div>
+      </div>
+
+      <!-- Install register -->
+      <div class="dist-card">
+        <div class="dist-card-head">
+          <div>
+            <div class="dist-card-title">Install register</div>
+            <div class="dist-card-sub">A local record of who has the software, so installs are tracked without any telemetry.</div>
+          </div>
+          <div class="dist-card-actions">
+            <button class="btn btn-secondary" id="dist-register-this-btn"><span class="icon btn-icon" data-icon="plus"></span>Register this computer</button>
+            <button class="btn btn-secondary" id="dist-export-btn"><span class="icon btn-icon" data-icon="download"></span>Export CSV</button>
+          </div>
+        </div>
+
+        <form id="dist-add-form" class="dist-form">
+          <div class="dist-form-grid">
+            <div class="field dist-f-machine">
+              <label class="label" for="dist-mach">Machine / user <b>*</b></label>
+              <input class="input" id="dist-mach" type="text" placeholder="e.g. School office PC 1" maxlength="80" required>
+            </div>
+            <div class="field">
+              <label class="label" for="dist-loc">Location</label>
+              <input class="input" id="dist-loc" type="text" placeholder="e.g. Accra campus" maxlength="80">
+            </div>
+            <div class="field">
+              <label class="label" for="dist-ver">App version</label>
+              <input class="input" id="dist-ver" type="text" placeholder="auto if blank" maxlength="30">
+            </div>
+            <div class="field">
+              <label class="label" for="dist-inst">Installed</label>
+              <input class="input" id="dist-inst" type="date" title="Defaults to today when blank">
+            </div>
+            <div class="field dist-f-notes">
+              <label class="label" for="dist-notes">Notes</label>
+              <input class="input" id="dist-notes" type="text" maxlength="160" placeholder="Optional">
+            </div>
+          </div>
+          <div class="dist-form-foot">
+            <span class="dist-form-hint">Fully local — these records never leave the device.</span>
+            <button type="submit" class="btn btn-primary" id="dist-add-btn"><span class="icon btn-icon" data-icon="plus"></span>Add install</button>
+          </div>
+        </form>
+
+        <div id="dist-rows">
+          <p class="text-muted hint">Nothing recorded yet. Add an entry above, or use “Register this computer”.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Safety: suspicious-activity kill-switch -->
+    <section class="card panel ofc-section" id="safety">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Safety &amp; emergency stop</div>
+          <p class="text-muted panel-sub">If you suspect suspicious activity on this machine, you can terminate the application immediately. The shutdown action is written to the login-audit trail before the app quits.</p>
+        </div>
+      </div>
+      <div class="field" style="max-width: 420px;">
+        <label class="label" for="safety-confirm">Type <span class="mono">TERMINATE</span> to confirm</label>
+        <input class="input" id="safety-confirm" type="text" placeholder="TERMINATE" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-danger" id="terminate-app-btn" disabled><span class="icon btn-icon" data-icon="x"></span>Terminate application</button>
+      </div>
+      <p class="auth-error" id="safety-msg"></p>
+    </section>
   </main>
 
   <script src="js/icons.js"></script>
   <script src="js/common.js"></script>
   <script src="js/developer.js"></script>
+  <script src="js/distribution.js"></script>
 </body>
 </html>

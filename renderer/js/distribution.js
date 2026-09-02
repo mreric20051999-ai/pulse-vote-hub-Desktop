@@ -1,6 +1,6 @@
 // Creator console: product distribution (downloads + local install register).
-// Runs only inside the admin-only administration page; every IPC call is also
-// role-gated on the main-process side.
+// Runs only inside the developer page; every IPC call is also role-gated to the
+// developer role on the main-process side.
 (function () {
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>

@@ -56,7 +56,7 @@ function send(officerId, body) {
 function replyTo(msgId, actor, body) {
   const d = db.get();
   const admin = officerOf(d, actor && actor.id);
-  if (!admin || admin.role !== 'admin') return { ok: false, error: 'Admins only' };
+  if (!admin || (admin.role !== 'admin' && admin.role !== 'developer')) return { ok: false, error: 'Admins only' };
   const root = d.prepare('SELECT * FROM messages WHERE id = ?').get(msgId);
   if (!root) return { ok: false, error: 'Message not found' };
   const chk = normalizeText(body);
@@ -144,7 +144,8 @@ function del(id, actor) {
   const msg = d.prepare('SELECT * FROM messages WHERE id = ?').get(id);
   if (!msg) return { ok: false, error: 'Message not found' };
   const o = officerOf(d, actor && actor.id);
-  if (actor.role !== 'admin' && !(o && (o.officer_id === msg.from_officer || o.officer_id === msg.to_officer))) {
+  const isAdmin = actor.role === 'admin' || actor.role === 'developer';
+  if (!isAdmin && !(o && (o.officer_id === msg.from_officer || o.officer_id === msg.to_officer))) {
     return { ok: false, error: 'You can only delete your own messages' };
   }
   d.prepare('DELETE FROM messages WHERE id = ?').run(id);
@@ -154,7 +155,7 @@ function del(id, actor) {
 
 // Admins only: empty the whole inbox.
 function clearAll(actor) {
-  if (!actor || actor.role !== 'admin') return { ok: false, error: 'Admins only' };
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Admins only' };
   const n = db.get().prepare('DELETE FROM messages').run().changes;
   audit('clear_inbox', `Deleted ${n} message${n === 1 ? '' : 's'}`);
   return { ok: true, deleted: n };

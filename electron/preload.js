@@ -49,7 +49,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   candidatePhotoUrl: (p) => ipcRenderer.invoke('candidate:photo-url', p),
 
   listVoters: (eid, opts) => ipcRenderer.invoke('voter:list', eid, opts, oid()),
-  getVoter: (eid, vid) => ipcRenderer.invoke('voter:get', eid, vid),
+  getVoter: (eid, vid) => ipcRenderer.invoke('voter:get', eid, vid, oid()),
   addVoter: (p) => ipcRenderer.invoke('voter:add', p, oid()),
   importVoters: (eid, csv) => ipcRenderer.invoke('voter:import', eid, csv, oid()),
   autoGenerateVoters: (eid, opts) => ipcRenderer.invoke('voter:autogen', eid, opts, oid()),
@@ -58,7 +58,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   unvoteVoter: (eid, vid) => ipcRenderer.invoke('voter:unvote', eid, vid, oid()),
   verifyVoter: (eid, vid, pwd) => ipcRenderer.invoke('voter:verify', eid, vid, pwd),
   verifyVoterDetails: (eid, details) => ipcRenderer.invoke('voter:verify-details', eid, details),
-  castVote: (eid, vid, sel, station) => ipcRenderer.invoke('voter:cast', eid, vid, sel, station),
+  castVote: (eid, vid, sel, tkt, station) => ipcRenderer.invoke('voter:cast', eid, vid, sel, tkt, station),
   exportVoters: (eid, format) => ipcRenderer.invoke('voter:export', { electionId: eid, format }, oid()),
 
   listStations: (eid) => ipcRenderer.invoke('station:list', eid, oid()),
@@ -112,6 +112,14 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   listDeveloperCodes: () => ipcRenderer.invoke('dev:list-developer-codes', oid()),
   revokeDeveloperCode: (id) => ipcRenderer.invoke('dev:revoke-developer-code', id, oid()),
   redeemDeveloperCode: (payload) => ipcRenderer.invoke('auth:redeem-developer-code', payload),
+  terminateApp: () => ipcRenderer.invoke('dev:terminate-app', oid()),
+
+  // Software licensing (per-site activation codes)
+  licenseStatus: () => ipcRenderer.invoke('lic:status'),
+  activateLicense: (code) => ipcRenderer.invoke('lic:redeem', { code }),
+  issueLicense: (siteName) => ipcRenderer.invoke('lic:issue', siteName, oid()),
+  listLicenses: () => ipcRenderer.invoke('lic:list', oid()),
+  revokeLicense: (id) => ipcRenderer.invoke('lic:revoke', id, oid()),
   listDeployments: () => ipcRenderer.invoke('dist:list', oid()),
   addDeployment: (fields) => ipcRenderer.invoke('dist:add', fields, oid()),
   removeDeployment: (id) => ipcRenderer.invoke('dist:remove', id, oid()),
@@ -133,7 +141,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   backupAutoPickDir: () => ipcRenderer.invoke('backup:auto-pick-dir', oid()),
 
   // Multi-location runs ("Location Coordinator")
-  listLocations: (electionId) => ipcRenderer.invoke('location:list', electionId),
+  listLocations: (electionId) => ipcRenderer.invoke('location:list', electionId, oid()),
   createRunPack: (opts) => ipcRenderer.invoke('location:create-run', opts, oid()),
   importRunPack: (opts) => ipcRenderer.invoke('location:import-run', opts, oid()),
   createResultPack: (electionId) => ipcRenderer.invoke('location:create-result', electionId, oid()),
@@ -166,14 +174,14 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   // External link (web version)
   openExternal: (url) => ipcRenderer.invoke('shell:open-external', url),
 
-  // LAN networking
-  lanStatus: () => ipcRenderer.invoke('lan:status'),
-  lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {})),
-  lanStop: () => ipcRenderer.invoke('lan:stop'),
-  lanSetName: (name) => ipcRenderer.invoke('lan:set-name', name),
-  lanSetSecret: (value) => ipcRenderer.invoke('lan:set-secret', value),
-  lanDiscover: (ms) => ipcRenderer.invoke('lan:discover', ms),
-  lanLocalAddresses: () => ipcRenderer.invoke('lan:local-addresses'),
+  // LAN networking (controls require an admin/developer session)
+  lanStatus: () => ipcRenderer.invoke('lan:status', oid()),
+  lanSetMode: (mode, opts) => ipcRenderer.invoke('lan:set-mode', Object.assign({ mode }, opts || {}), oid()),
+  lanStop: () => ipcRenderer.invoke('lan:stop', oid()),
+  lanSetName: (name) => ipcRenderer.invoke('lan:set-name', name, oid()),
+  lanSetSecret: (value) => ipcRenderer.invoke('lan:set-secret', value, oid()),
+  lanDiscover: (ms) => ipcRenderer.invoke('lan:discover', ms, oid()),
+  lanLocalAddresses: () => ipcRenderer.invoke('lan:local-addresses', oid()),
   onLanStatus: (cb) => {
     ipcRenderer.removeAllListeners('lan:status');
     ipcRenderer.on('lan:status', (_e, s) => cb(s));

@@ -279,6 +279,17 @@ CREATE TABLE IF NOT EXISTS developer_codes (
   redeemed_by TEXT,
   revoked_at INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS activation_codes (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL,
+  site_name TEXT NOT NULL,
+  created_by TEXT,
+  created_at INTEGER,
+  redeemed_at INTEGER,
+  redeemed_machine TEXT,
+  revoked_at INTEGER
+);
 `;
 
 function init() {
@@ -554,6 +565,11 @@ function migrate() {
   // can see everything) and is not exposed to coordinators.
   const admin = db.prepare("SELECT id FROM officers WHERE role = 'admin' ORDER BY created_at LIMIT 1").get();
   if (admin) db.prepare('UPDATE elections SET owner_id = ? WHERE owner_id IS NULL').run(admin.id);
+
+  // Revoked activation codes are deleted on revoke; purge any legacy rows that
+  // were only flagged revoked before that rule existed, so revoked licenses
+  // never surface again.
+  db.prepare('DELETE FROM activation_codes WHERE revoked_at IS NOT NULL').run();
 }
 
 // Assign sequential ballot numbers (per category) to any candidates that

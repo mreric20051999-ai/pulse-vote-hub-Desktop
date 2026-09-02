@@ -193,7 +193,7 @@
       let btn = '';
       if (!done) {
         if (inQ) btn = '<button class="btn-checkin" disabled style="opacity:.5;">Checked In</button>';
-        else if (canCheckIn) btn = '<button class="btn-checkin" onclick="stationCheckIn(\'' + esc(v.id) + '\',\'' + esc(v.name || 'Unnamed') + '\')">Check In</button>';
+        else if (canCheckIn) btn = '<button class="btn-checkin" data-vid="' + esc(v.id) + '" data-name="' + esc(v.name || 'Unnamed') + '">Check In</button>';
         else btn = '<button class="btn-checkin" disabled style="opacity:.4;">Locked</button>';
       }
       return '<div class="voter-row">' +
@@ -202,6 +202,12 @@
         '<div class="v-sub"><code>' + esc(v.voter_id || '') + '</code>' + (v.assigned_station ? ' · ' + esc(v.assigned_station) : '') + '</div></div>' +
         badge + btn + '</div>';
     }).join('');
+    // Bind check-in actions via addEventListener instead of inline onclick:
+    // voter names are attacker-controllable (CSV import), and an inline handler
+    // would decode esc()'d quotes back into the JS string, breaking out.
+    body.querySelectorAll('.btn-checkin[data-vid]').forEach((b) => {
+      b.addEventListener('click', () => window.stationCheckIn(b.dataset.vid, b.dataset.name || 'Unnamed'));
+    });
   }
 
   window.stationCheckIn = function (id, name) {
@@ -330,6 +336,11 @@
 
   // ---- Init ----
   $('pollSearch').addEventListener('input', function () { searchTerm = this.value.toLowerCase(); renderPollbook(); });
+
+  // Bind the "Launch this station's ballot" button via addEventListener instead
+  // of an inline onclick (keeps the page CSP-clean, no inline handlers).
+  const openBtn = $('btnOpenBallot');
+  if (openBtn) openBtn.addEventListener('click', () => window.openStationBallot());
 
   loadDashboard();
   refreshTimer = setInterval(loadDashboard, 10000);
