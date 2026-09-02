@@ -141,6 +141,14 @@
   box-sizing: border-box;
 }
 
+/* The `hidden` attribute must beat any explicit display value (e.g.
+   .field { display: flex }). Without this, a hidden element that also has an
+   explicit display property (like the developer sign-in Confirm-password
+   field) stays visible no matter what sets hidden=true. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   height: 100%;
