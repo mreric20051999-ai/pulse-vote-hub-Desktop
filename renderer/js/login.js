@@ -550,11 +550,16 @@
   const devLoginCode = $('dev-login-code');
   const devLoginConfirmField = $('dev-login-confirm-field');
   const devLoginConfirm = $('dev-login-pass-confirm');
+  // The short code decides the mode: blank code = an existing developer signing
+  // in (no confirmation), a code = a brand-new developer creating an account
+  // (confirmation required). This decision is locked in when the user clicks
+  // Continue on the short-code step.
+  let devIsNew = false;
   const syncDevLoginMode = () => {
-    const withCode = (devLoginCode.value || '').trim().length > 0;
-    if (devLoginConfirmField) devLoginConfirmField.hidden = !withCode;
-    if (devLoginConfirm) devLoginConfirm.required = withCode;
-    $('dev-login-btn').textContent = withCode ? 'Create developer account' : 'Sign in';
+    devIsNew = (devLoginCode.value || '').trim().length > 0;
+    if (devLoginConfirmField) devLoginConfirmField.hidden = !devIsNew;
+    if (devLoginConfirm) devLoginConfirm.required = devIsNew;
+    $('dev-login-btn').textContent = devIsNew ? 'Create developer account' : 'Sign in';
   };
   initSetupSteps({
     formId: 'developer-login-form',
@@ -563,15 +568,11 @@
     optionalIdx: [0],
     onStepNext: syncDevLoginMode,
   });
-  // Keep the mode live: editing the short code (including via the ‹ Back step)
-  // immediately shows/hides the Confirm-password field for a new developer.
-  devLoginCode.addEventListener('input', syncDevLoginMode);
 
   $('developer-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const errEl = errors.developerLogin;
     errEl.textContent = '';
-    syncDevLoginMode();
     const btn = $('dev-login-btn');
     btn.disabled = true;
     btn.textContent = 'Working…';
@@ -581,7 +582,7 @@
     const password = $('dev-login-pass').value;
 
     try {
-      if (code) {
+      if (devIsNew) {
         // First-time developer: redeem the short code and create the account,
         // then hand over to the normal login to sign in.
         const res = await window.pvh.redeemDeveloperCode({
