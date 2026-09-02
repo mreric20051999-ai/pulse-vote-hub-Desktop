@@ -563,6 +563,9 @@
     optionalIdx: [0],
     onStepNext: syncDevLoginMode,
   });
+  // Keep the mode live: editing the short code (including via the ‹ Back step)
+  // immediately shows/hides the Confirm-password field for a new developer.
+  devLoginCode.addEventListener('input', syncDevLoginMode);
 
   $('developer-login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
