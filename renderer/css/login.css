@@ -2,10 +2,26 @@
 
 .auth-body {
   display: flex;
-  align-items: center;
   justify-content: center;
   min-height: 100vh;
   padding: var(--space-6);
+}
+
+/* The auth card must never be clipped on short windows. Using `margin: auto`
+   on the flex child (instead of align-items: center on the container) means the
+   card centers when it fits, but scrolls reachably — without clipping the top
+   — when the form is taller than the viewport (e.g. the recovery form). */
+.auth-card {
+  margin: auto;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-8);
+  box-shadow: var(--shadow-lg);
 }
 
 /* Background matching the splash theme */
@@ -60,18 +76,6 @@
 @keyframes traceLine {
   from { stroke-dashoffset: 340; }
   to { stroke-dashoffset: 0; }
-}
-
-.auth-card {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 400px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-8);
-  box-shadow: var(--shadow-lg);
 }
 
 .auth-brand {
@@ -224,6 +228,26 @@
 
 .auth-view {
   animation: splashIn 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* View switch on the auth screen (sign-in ↔ recovery ↔ license ↔ first-run).
+   Sliding up with a fade, the same motion the setup steps use. */
+@keyframes splashIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+/* Recovery + recovery-save cards carry 4-5 fields, so tighten their rhythm to
+   keep the card as lean as the other sign-in screens. */
+#recovery-view .auth-hint,
+#recovery-save-view .auth-hint {
+  margin-bottom: var(--space-4);
+}
+#recovery-view .field,
+#recovery-save-view .field {
+  margin-bottom: var(--space-4);
+}
+#recovery-view .auth-error,
+#recovery-save-view .auth-error {
+  margin-top: var(--space-3);
 }
 .auth-heading {
   font-size: var(--fs-lg);
