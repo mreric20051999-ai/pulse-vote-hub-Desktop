@@ -54,3 +54,10 @@ nsis:
   installerHeader: installerHeader.bmp
   installerSidebar: installerSidebar.bmp
   uninstallerSidebar: installerSidebar.bmp
+
+# Back the electron-updater feed with this GitHub repo, so packaged installs
+# auto-update from the published release assets (latest-mac.yml / latest.yml).
+publish:
+  provider: github
+  owner: mreric20051999-ai
+  repo: pulse-vote-hub-Desktop

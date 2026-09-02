@@ -186,6 +186,11 @@ app.whenReady().then(() => {
   backup.setUserData(app.getPath('userData'));
   backup.startScheduler();
 
+  // Auto-update: packaged installs check the GitHub release feed on launch and
+  // periodically, so users upgrade in place without manual downloads. Dev runs
+  // (npx electron .) skip this entirely.
+  try { require('./updater').startAutoUpdate(); } catch (err) { console.error('[updater] start failed:', err.message); }
+
   createSplashWindow();
   setTimeout(createMainWindow, 600);
 
