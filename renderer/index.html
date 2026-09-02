@@ -130,28 +130,43 @@
       </div>
       <h2 class="auth-heading">Recover access</h2>
       <p class="auth-hint">Use the recovery code issued at setup to reset a forgotten administrator or developer password.</p>
+      <div class="step-dots" id="recovery-dots" aria-hidden="true">
+        <span class="step-dot is-active"></span>
+        <span class="step-dot"></span>
+        <span class="step-dot"></span>
+      </div>
       <form id="recovery-form">
-        <div class="field">
-          <label class="label" for="recovery-id">Account ID</label>
-          <input class="input" id="recovery-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
-        </div>
-        <div class="field">
-          <label class="label" for="recovery-code">Recovery code</label>
-          <input class="input" id="recovery-code" type="password" autocomplete="off" placeholder="REC-XXXX-XXXX-XXXX">
-        </div>
-        <div class="field">
-          <label class="label" for="recovery-pass">New password</label>
-          <div class="password-wrap">
-            <input class="input" id="recovery-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+        <div class="setup-step is-active" data-step="1">
+          <div class="field">
+            <label class="label" for="recovery-id">Account ID</label>
+            <input class="input" id="recovery-id" type="text" autocomplete="username" placeholder="e.g. ADMIN1">
           </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <div class="field">
-          <label class="label" for="recovery-pass-confirm">Confirm new password</label>
-          <div class="password-wrap">
-            <input class="input" id="recovery-pass-confirm" type="password" autocomplete="new-password" placeholder="Re-enter the new password">
+        <div class="setup-step" data-step="2" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="recovery-code">Recovery code</label>
+            <input class="input" id="recovery-code" type="password" autocomplete="off" placeholder="REC-XXXX-XXXX-XXXX">
           </div>
+          <button type="button" class="btn btn-primary btn-lg btn-block step-next">Continue</button>
         </div>
-        <button type="submit" class="btn btn-primary btn-lg btn-block" id="recovery-btn">Reset password</button>
+        <div class="setup-step" data-step="3" hidden>
+          <button type="button" class="step-back"><span class="step-back-chevron" aria-hidden="true">‹</span>Back</button>
+          <div class="field">
+            <label class="label" for="recovery-pass">New password</label>
+            <div class="password-wrap">
+              <input class="input" id="recovery-pass" type="password" autocomplete="new-password" placeholder="Min. 6 characters">
+            </div>
+          </div>
+          <div class="field">
+            <label class="label" for="recovery-pass-confirm">Confirm new password</label>
+            <div class="password-wrap">
+              <input class="input" id="recovery-pass-confirm" type="password" autocomplete="new-password" placeholder="Re-enter the new password">
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-lg btn-block" id="recovery-btn">Reset password</button>
+        </div>
       </form>
       <p class="auth-error" id="recovery-error"></p>
       <button class="btn btn-ghost btn-block" id="recovery-back">← Back to sign in</button>

@@ -443,6 +443,7 @@
   initSetupSteps({ formId: 'admin-setup-form', dotsId: '#admin-setup-dots', fieldIds: ['admin-setup-name', 'admin-setup-id', 'admin-setup-code', 'admin-setup-pass'] });
   initSetupSteps({ formId: 'developer-setup-form', dotsId: '#developer-setup-dots', fieldIds: ['dev-setup-name', 'dev-setup-id', 'dev-setup-pass', 'dev-setup-key'] });
   initSetupSteps({ formId: 'redeem-form', dotsId: '#redeem-dots', fieldIds: ['redeem-code', 'redeem-name', 'redeem-id', 'redeem-pass'] });
+  initSetupSteps({ formId: 'recovery-form', dotsId: '#recovery-dots', fieldIds: ['recovery-id', 'recovery-code', 'recovery-pass'] });
 
   // Explain the setup code step depending on whether this machine has already
   // been provisioned with a setup code.
