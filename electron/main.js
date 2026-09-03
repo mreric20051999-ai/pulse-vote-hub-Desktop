@@ -27,6 +27,7 @@ const merge = require('./merge');
 const messages = require('./messages');
 const distribution = require('./distribution');
 const checkInLink = require('./checkin-link');
+const vault = require('./vault');
 const locationPack = require('./location');
 const { LanManager } = require('./lan');
 const backup = require('./backup');
@@ -994,11 +995,27 @@ function senderIsApp(event) {
 
 ipcMain.handle('election:list', (_e, officerId) => election.listElections(resolveActor(officerId, _e.sender.id)));
 ipcMain.handle('election:get', (_e, id, officerId) => guardElection(id, officerId, (actor) => election.getElection(id, actor), _e.sender.id));
-ipcMain.handle('election:create', (_e, payload, officerId) => election.createElection(payload, resolveActor(officerId, _e.sender.id)));
-ipcMain.handle('election:update', (_e, id, payload, officerId) => election.updateElection(id, payload, resolveActor(officerId, _e.sender.id)));
-ipcMain.handle('election:status', (_e, id, status, officerId) => election.setStatus(id, status, resolveActor(officerId, _e.sender.id)));
-ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publishElection(id, opts, resolveActor(officerId, _e.sender.id)));
-ipcMain.handle('election:apply-schedule', () => election.applySchedule());
+ipcMain.handle('election:create', (_e, payload, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.createElection(payload, resolveActor(officerId, _e.sender.id));
+});
+ipcMain.handle('election:update', (_e, id, payload, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.updateElection(id, payload, resolveActor(officerId, _e.sender.id));
+});
+ipcMain.handle('election:status', (_e, id, status, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.setStatus(id, status, resolveActor(officerId, _e.sender.id));
+});
+ipcMain.handle('election:publish', (_e, id, opts, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.publishElection(id, opts, resolveActor(officerId, _e.sender.id));
+});
+ipcMain.handle('election:apply-schedule', (e, token) => {
+  const r = requireSignedIn(token, e);
+  if (!r.ok) return { ...r, changed: [] };
+  return election.applySchedule();
+});
 ipcMain.handle('election:delete', (e, id, permanent, token) => {
   const r = requireSignedIn(token, e);
   if (!r.ok) return r;
@@ -1021,7 +1038,10 @@ ipcMain.handle('election:purge-deleted', (e, id, token) => {
 });
 
 ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listPositions(electionId, actor), _e.sender.id));
-ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => election.addPosition(electionId, title, maxVotes, resolveActor(officerId, _e.sender.id)));
+ipcMain.handle('election:position-add', (_e, electionId, title, maxVotes, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.addPosition(electionId, title, maxVotes, resolveActor(officerId, _e.sender.id));
+});
 ipcMain.handle('election:position-remove', (_e, id, officerId) => {
   const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
   if (!pos) return { ok: false, error: 'Position not found' };
@@ -1039,7 +1059,10 @@ ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) =>
   if (!cand) return election.listCandidatesByPosition(positionId);
   return guardElection(cand.election_id, officerId, () => election.listCandidatesByPosition(positionId), _e.sender.id);
 });
-ipcMain.handle('election:candidate-add', (_e, payload, officerId) => election.addCandidate(payload, resolveActor(officerId, _e.sender.id)));
+ipcMain.handle('election:candidate-add', (_e, payload, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.addCandidate(payload, resolveActor(officerId, _e.sender.id));
+});
 ipcMain.handle('election:candidate-remove', (_e, id, officerId) => {
   const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
   if (!cand) return { ok: false, error: 'Candidate not found' };
@@ -1302,7 +1325,7 @@ ipcMain.handle('voter:export-credentials', async (_e, { electionId }, officerId)
         csvCell(v.name || ''),
         csvCell(v.phone || ''),
         csvCell(v.assigned_station || ''),
-        csvCell(Array.isArray(v.plain_password) ? v.plain_password.join(',') : String(v.plain_password || '')),
+        csvCell(Array.isArray(v.plain_password) ? v.plain_password.join(',') : String(vault.decrypt(v.plain_password) || '')),
         v.has_voted ? 'Voted' : 'Ready',
       ].join(','));
     }
@@ -1327,8 +1350,8 @@ const safeStation = (fn) => (_e, ...args) => {
 // Authorize a station-scoped operation. Admins and election owners pass;
 // an assistant (station officer) passes only when assigned to exactly this
 // (election, station). Station ops are no longer open to any signed-in caller.
-function guardStation(electionId, stationId, officerId, fn) {
-  const actor = resolveActor(officerId, _e.sender.id);
+function guardStation(electionId, stationId, officerId, senderId, fn) {
+  const actor = resolveActor(officerId, senderId);
   // Resolve the station row by id, code, or name within this election so
   // operators can reference their station however the portal expresses it.
   const st = (electionId ? station.resolveStationRef(electionId, stationId) : null) || station.getStation(stationId);
@@ -1359,29 +1382,29 @@ ipcMain.handle('station:remove', (_e, id, officerId) => {
 ipcMain.handle('station:open', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardStation(row.election_id, id, officerId, () => station.openPolls(id, opts || {}));
+  return guardStation(row.election_id, id, officerId, _e.sender.id, () => station.openPolls(id, opts || {}));
 });
 ipcMain.handle('station:close', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardStation(row.election_id, id, officerId, () => station.closePolls(id, opts || {}));
+  return guardStation(row.election_id, id, officerId, _e.sender.id, () => station.closePolls(id, opts || {}));
 });
 ipcMain.handle('station:close-queue-now', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardStation(row.election_id, id, officerId, () => station.closeQueueNow(id, opts || {}));
+  return guardStation(row.election_id, id, officerId, _e.sender.id, () => station.closeQueueNow(id, opts || {}));
 });
 ipcMain.handle('station:submit', (_e, id, opts, officerId) => {
   const row = db.get().prepare('SELECT election_id FROM stations WHERE id = ?').get(id);
   if (!row) return { ok: false, error: 'Station not found' };
-  return guardStation(row.election_id, id, officerId, () => station.submitPacket(id, opts || {}));
+  return guardStation(row.election_id, id, officerId, _e.sender.id, () => station.submitPacket(id, opts || {}));
 });
 ipcMain.handle('station:checkin', (_e, voterId, opts, officerId) => {
   const stationId = (opts && opts.stationId) || null;
   if (!stationId) return { ok: false, error: 'stationId is required for a station check-in.', code: 'no-station' };
   const row = db.get().prepare('SELECT election_id, station_id FROM voters WHERE id = ?').get(voterId);
   if (!row) return { ok: false, error: 'Voter not found' };
-  return guardStation(row.election_id, stationId, officerId, () => {
+  return guardStation(row.election_id, stationId, officerId, _e.sender.id, () => {
     const res = station.checkInVoter(voterId, opts || {});
     if (res && res.ok && res.voter) {
       try { getLan().onLocalCheckin(res.voter, (opts && opts.officerName) || 'Officer', { station: stationId }); } catch (err) { console.error('LAN checkin hook failed:', err.message); }
@@ -1393,9 +1416,9 @@ ipcMain.handle('station:ballot-cast', (_e, voterId, opts, officerId) => {
   const row = db.get().prepare('SELECT * FROM voters WHERE id = ?').get(voterId);
   if (!row) return { ok: false, error: 'Voter not found' };
   const st = station.resolveVoterStation(row);
-  return guardStation(row.election_id, st ? st.id : null, officerId, () => station.markBallotCast(voterId, opts || {}));
+  return guardStation(row.election_id, st ? st.id : null, officerId, _e.sender.id, () => station.markBallotCast(voterId, opts || {}));
 });
-ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, () => station.stationDashboard(electionId, stationId)));
+ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, _e.sender.id, () => station.stationDashboard(electionId, stationId)));
 
 // ---- Secure browser check-in links (coordinator-generated magic link + PIN) ----
 
@@ -1788,64 +1811,64 @@ ipcMain.handle('messages:delete', (_e, id, officerId) => {
 });
 
 // ---- Creator console: product distribution (admin-only) ----
-const adminGuard = (officerId) => {
-  const actor = resolveActor(officerId, _e.sender.id);
+const adminGuard = (officerId, senderId) => {
+  const actor = resolveActor(officerId, senderId);
   if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return null;
   return actor;
 };
 
-const developerGuard = (officerId) => {
-  const actor = resolveActor(officerId, _e.sender.id);
+const developerGuard = (officerId, senderId) => {
+  const actor = resolveActor(officerId, senderId);
   if (!actor || actor.role !== 'developer') return null;
   return actor;
 };
 
 ipcMain.handle('dist:list', (_e, officerId) => {
-  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
+  if (!developerGuard(officerId, _e.sender.id)) return { ok: false, error: 'Developer only' };
   try { return { ok: true, deployments: distribution.listDeployments() }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:add', (_e, fields, officerId) => {
-  const actor = developerGuard(officerId);
+  const actor = developerGuard(officerId, _e.sender.id);
   if (!actor) return { ok: false, error: 'Developer only' };
   try { return distribution.addDeployment(fields, actor); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:remove', (_e, id, officerId) => {
-  const actor = developerGuard(officerId);
+  const actor = developerGuard(officerId, _e.sender.id);
   if (!actor) return { ok: false, error: 'Developer only' };
   try { return distribution.removeDeployment(id, actor); }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:this-computer', (_e, fields, officerId) => {
-  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
+  if (!developerGuard(officerId, _e.sender.id)) return { ok: false, error: 'Developer only' };
   try { return { ok: true, computer: distribution.thisComputer(fields) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 
 ipcMain.handle('dist:github', (_e, officerId) => {
-  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
+  if (!developerGuard(officerId, _e.sender.id)) return { ok: false, error: 'Developer only' };
   return distribution.fetchReleases();
 });
 
 ipcMain.handle('dist:get-token', (_e, officerId) => {
-  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
+  if (!developerGuard(officerId, _e.sender.id)) return { ok: false, error: 'Developer only' };
   const v = db.getConfig('github_token') || '';
   return { ok: true, hasToken: !!v.trim() };
 });
 
 ipcMain.handle('dist:set-token', (_e, token, officerId) => {
-  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
+  if (!developerGuard(officerId, _e.sender.id)) return { ok: false, error: 'Developer only' };
   const t = String(token || '').trim();
   if (t) db.setConfig('github_token', t); else db.setConfig('github_token', '');
   return { ok: true };
 });
 
 ipcMain.handle('dist:export-csv', async (_e, officerId) => {
-  if (!developerGuard(officerId)) return { ok: false, error: 'Developer only' };
+  if (!developerGuard(officerId, _e.sender.id)) return { ok: false, error: 'Developer only' };
   try {
     const rows = distribution.listDeployments();
     const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;

@@ -38,7 +38,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   updateElection: (id, p) => ipcRenderer.invoke('election:update', id, p, oid()),
   setElectionStatus: (id, s) => ipcRenderer.invoke('election:status', id, s, oid()),
   publishElection: (id, opts) => ipcRenderer.invoke('election:publish', id, opts, oid()),
-  applySchedule: () => ipcRenderer.invoke('election:apply-schedule'),
+  applySchedule: () => ipcRenderer.invoke('election:apply-schedule', oid()),
   deleteElection: (id, permanent) => ipcRenderer.invoke('election:delete', id, !!permanent, oid()),
   listDeletedElections: () => ipcRenderer.invoke('election:list-deleted', oid()),
   recoverElection: (id) => ipcRenderer.invoke('election:recover', id, oid()),

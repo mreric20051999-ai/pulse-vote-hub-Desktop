@@ -334,9 +334,20 @@ function recoverElection(id, actor) {
   if (!acc.ok) return acc;
 
   const tx = d.transaction(() => {
+    // Restore each row using only column names that genuinely exist in the
+    // target table (PRAGMA table_info) — never names pulled from the snapshot.
+    // This closes the SQL-injection hole where a tampered snapshot could smuggle
+    // identifiers into the INSERT statement, while staying forward-compatible
+    // with columns added by future migrations.
+    const tableColumns = (table) => new Set(
+      db.get().prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name)
+    );
+    const columnCache = {};
     const ins = (table, rows) => {
+      const allowed = columnCache[table] || (columnCache[table] = tableColumns(table));
       for (const r of rows) {
-        const columns = Object.keys(r);
+        const columns = Object.keys(r).filter((c) => allowed.has(c));
+        if (!columns.length) continue;
         const stmt = d.prepare(`INSERT OR REPLACE INTO ${table} (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
         stmt.run(columns.map((c) => r[c]));
       }

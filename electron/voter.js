@@ -6,6 +6,7 @@ const auth = require('./auth');
 const { computedStatus } = require('./election');
 const station = require('./station');
 const sig = require('./signature');
+const vault = require('./vault');
 
 // ---- Voter management ----
 
@@ -43,7 +44,7 @@ function addVoter({ electionId, name, voterId, assignedStation, password, phone 
     name: name ? String(name).trim() : null,
     password_hash: auth.hashPassword(finalPassword, fallbackSalt()),
     password_salt: '',
-    plain_password: finalPassword,
+    plain_password: vault.encrypt(finalPassword),
     phone: phone ? String(phone).trim() : null,
     assigned_station: assignedStation ? String(assignedStation).trim() : null,
   });
@@ -84,7 +85,7 @@ function importCsv(electionId, csvText) {
         name: (row.name || row.full_name || row.fullname || '').trim() || null,
         password_hash: auth.hashPassword(password, fallbackSalt()),
         password_salt: '',
-        plain_password: password,
+        plain_password: vault.encrypt(password),
         phone: (row.phone || row.phone_number || row.phoneNumber || '').trim() || null,
         assigned_station: (row.assigned_station || '').trim() || null,
       });
@@ -152,7 +153,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
       name,
       password_hash: auth.hashPassword(password, fallbackSalt()),
       password_salt: '',
-      plain_password: password,
+      plain_password: vault.encrypt(password),
       phone: phone || null,
       assigned_station: assignedStation ? String(assignedStation).trim() : null,
     });
@@ -370,7 +371,7 @@ function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword =
       voter_id: voter.voter_id,
       name: voter.name,
       phone: voter.phone,
-      password: (canReveal && voter.plain_password) || null,
+      password: (canReveal && voter.plain_password) ? vault.decrypt(voter.plain_password) : null,
       assigned_station: voter.assigned_station,
       has_voted: !!voter.has_voted,
     },

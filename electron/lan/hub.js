@@ -6,7 +6,7 @@ const http = require('http');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-const { randomUUID } = require('crypto');
+const { randomUUID, timingSafeEqual } = require('crypto');
 const { WebSocketServer } = require('ws');
 const sync = require('./sync');
 const db = require('../db');
@@ -95,7 +95,15 @@ Hub.prototype.start = function (port) {
     // authorized peers/operators with the token may read a snapshot.
     if (self.secret) {
       const provided = (req.query.token) || req.get('x-hub-token') || '';
-      if (provided !== self.secret) {
+      // Constant-time comparison: never short-circuits on length, so a LAN
+      // attacker cannot use timing to recover the network secret byte-by-byte.
+      let ok = false;
+      if (typeof provided === 'string' && typeof self.secret === 'string') {
+        const a = Buffer.from(provided);
+        const b = Buffer.from(self.secret);
+        ok = a.length === b.length && timingSafeEqual(a, b);
+      }
+      if (!ok) {
         res.status(403).json({ ok: false, error: 'Forbidden' });
         return;
       }

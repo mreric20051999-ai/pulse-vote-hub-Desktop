@@ -27,6 +27,7 @@ const auth = require('./auth');
 const voterApi = require('./voter');
 const electionMod = require('./election');
 const signature = require('./signature');
+const vault = require('./vault');
 
 const RUN_SCHEMA = 'pulse-vote-hub-run';
 const RESULT_SCHEMA = 'pulse-vote-hub-result';
@@ -255,9 +256,9 @@ function importRunPack(parsed, { passphrase = '', setupCode = '', actor = null }
       election_id: newElectionId,
       voter_id: v.voter_id,
       name: v.name || null,
-      password_hash: v.plain_password ? auth.hashPassword(v.plain_password, body.voter_salt || '') : '',
+      password_hash: v.plain_password ? auth.hashPassword(vault.decrypt(v.plain_password), body.voter_salt || '') : '',
       password_salt: '',
-      plain_password: v.plain_password || null,
+      plain_password: vault.encrypt(v.plain_password) || null,
       phone: v.phone || null,
       assigned_station: v.assigned_station || null,
     });
