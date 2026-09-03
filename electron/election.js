@@ -166,6 +166,12 @@ function setStatus(id, status, actor) {
   const acc = canAccessElection(exists, actor);
   if (!acc.ok) return acc;
 
+  // An election cannot be active before its scheduled start time.
+  if (status === 'active' && exists.start_date != null && Number(exists.start_date) > Date.now()) {
+    status = 'upcoming';
+    audit('elections', `Forced "${id}" to active before schedule — moved to upcoming by schedule`);
+  }
+
   db.get().prepare('UPDATE elections SET status = ?, closed_at = ? WHERE id = ?')
     .run(status, status === 'closed' ? Date.now() : exists.closed_at, id);
 
@@ -220,7 +226,8 @@ function applySchedule(now = Date.now()) {
     WHERE (status = 'upcoming' AND start_date IS NOT NULL AND start_date <= ?)
        OR (status = 'active'   AND end_date   IS NOT NULL AND end_date   <= ?)
        OR (status = 'upcoming' AND end_date   IS NOT NULL AND end_date   <= ?)
-  `).all(now, now, now);
+       OR (status = 'active'   AND start_date IS NOT NULL AND start_date > ?)
+  `).all(now, now, now, now);
 
   const changed = [];
   for (const r of rows) {
@@ -230,22 +237,202 @@ function applySchedule(now = Date.now()) {
       if (r.end_date != null && r.end_date <= now) next = 'closed';
     } else if (r.status === 'active' && r.end_date != null && r.end_date <= now) {
       next = 'closed';
+    } else if (r.status === 'active' && r.start_date != null && r.start_date > now) {
+      // Cannot be active before its scheduled start time — roll back to upcoming.
+      next = 'upcoming';
     }
     if (next && next !== r.status) {
       d.prepare('UPDATE elections SET status = ?, closed_at = ? WHERE id = ?')
         .run(next, next === 'closed' ? now : null, r.id);
-      audit('elections', `Auto-${next === 'closed' ? 'closed' : 'opened'} election "${r.id}" by schedule`);
+      const verb = next === 'closed' ? 'closed' : (next === 'active' ? 'opened' : 'rolled back to upcoming');
+      audit('elections', `Auto-${verb} election "${r.id}" by schedule`);
       changed.push(r.id);
     }
   }
   return { ok: true, changed };
 }
 
-function deleteElection(id, actor) {
+// Build a complete serializable snapshot of EVERY row an election owns across
+// all its tables (including voter login credentials) so a deleted election can
+// be restored byte-for-byte. This is stronger than the portable merge snapshot,
+// which intentionally omits passwords.
+function electionRecoverySnapshot(id) {
+  const d = db.get();
+  const take = (sql, ...args) => d.prepare(sql).all(...args);
+  return {
+    schema: 'pulse-vote-hub-deleted-election',
+    schema_version: 1,
+    deleted_at: Date.now(),
+    elections: take('SELECT * FROM elections WHERE id = ?', id),
+    positions: take('SELECT * FROM positions WHERE election_id = ?', id),
+    candidates: take('SELECT * FROM candidates WHERE election_id = ?', id),
+    voters: take('SELECT * FROM voters WHERE election_id = ?', id),
+    votes: take('SELECT * FROM votes WHERE election_id = ?', id),
+    stations: take('SELECT * FROM stations WHERE election_id = ?', id),
+    checkins: take('SELECT * FROM checkins WHERE election_id = ?', id),
+    station_tokens: take('SELECT * FROM station_tokens WHERE election_id = ?', id),
+    locations: take('SELECT * FROM locations WHERE election_id = ?', id),
+    locations_officers: take('SELECT * FROM locations_officers WHERE location_id IN (SELECT id FROM locations WHERE election_id = ?)', id),
+    run_packs: take('SELECT * FROM run_packs WHERE election_id = ?', id),
+    result_packs: take('SELECT * FROM result_packs WHERE election_id = ?', id),
+  };
+}
+
+// Store a deleted election's full snapshot so it can be recovered later. Stored
+// under config key `deleted_election:<id>` alongside the deletion timestamp.
+const DELETED_PREFIX = 'deleted_election:';
+function storeDeletedSnapshot(id, snapshot) {
+  db.get().prepare('INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+    .run(DELETED_PREFIX + id, JSON.stringify(snapshot));
+}
+
+// Recoverable (soft-deleted) elections visible to this user: id/title/deleted_at
+// only, newest first. Admin/developer see everything; other users only see the
+// elections they own.
+function listDeletedElections(actor) {
+  const d = db.get();
+  const isAdmin = actor && (actor.role === 'admin' || actor.role === 'developer');
+  const rows = d.prepare("SELECT key, value FROM config WHERE key LIKE ? ESCAPE '\\'").all(escapeLike(DELETED_PREFIX) + '%');
+  const out = [];
+  for (const r of rows) {
+    try {
+      const snap = JSON.parse(r.value);
+      const e = snap && Array.isArray(snap.elections) && snap.elections[0];
+      if (!e) continue;
+      // Filter to elections this (non-privileged) user owns.
+      if (!isAdmin && e.owner_id && e.owner_id !== (actor && actor.id)) continue;
+      if (!isAdmin && !e.owner_id) continue;
+      out.push({ id: r.key.slice(DELETED_PREFIX.length), title: e.title || 'Deleted election', type: e.type || 'school', deleted_at: snap.deleted_at, owner_id: e.owner_id });
+    } catch (err) { /* skip corrupt entry */ }
+  }
+  return out.sort((a, b) => (b.deleted_at || 0) - (a.deleted_at || 0));
+}
+
+function escapeLike(s) {
+  return String(s).replace(/[\\%_]/g, (m) => '\\' + m);
+}
+
+// Restore a previously soft-deleted election from its stored snapshot.
+function recoverElection(id, actor) {
+  const d = db.get();
+  const row = d.prepare('SELECT key, value FROM config WHERE key = ?').get(DELETED_PREFIX + id);
+  if (!row) return { ok: false, error: 'No recoverable election found with that ID.' };
+  let snap;
+  try {
+    snap = JSON.parse(row.value);
+  } catch (err) {
+    return { ok: false, error: 'The recovery snapshot is corrupted and cannot be restored.' };
+  }
+  if (!snap || snap.schema !== 'pulse-vote-hub-deleted-election' || !Array.isArray(snap.elections)) {
+    return { ok: false, error: 'This recovery snapshot is not in a recognizable format.' };
+  }
+  if (d.prepare('SELECT id FROM elections WHERE id = ?').get(id)) {
+    return { ok: false, error: 'An election with this ID already exists. Remove it before restoring.' };
+  }
+  const elective = snap.elections[0] || null;
+  const acc = canAccessElection({ id, owner_id: elective && elective.owner_id }, actor);
+  if (!acc.ok) return acc;
+
+  const tx = d.transaction(() => {
+    const ins = (table, rows) => {
+      for (const r of rows) {
+        const columns = Object.keys(r);
+        const stmt = d.prepare(`INSERT OR REPLACE INTO ${table} (${columns.map((c) => `"${c}"`).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`);
+        stmt.run(columns.map((c) => r[c]));
+      }
+    };
+    ins('elections', snap.elections);
+    ins('positions', snap.positions || []);
+    ins('candidates', snap.candidates || []);
+    ins('voters', snap.voters || []);
+    ins('votes', snap.votes || []);
+    ins('stations', snap.stations || []);
+    ins('checkins', snap.checkins || []);
+    ins('station_tokens', snap.station_tokens || []);
+    ins('locations', snap.locations || []);
+    ins('locations_officers', snap.locations_officers || []);
+    ins('run_packs', snap.run_packs || []);
+    ins('result_packs', snap.result_packs || []);
+    d.prepare('DELETE FROM config WHERE key = ?').run(DELETED_PREFIX + id);
+  });
+  try {
+    tx();
+  } catch (e) {
+    return { ok: false, error: 'Restore failed: ' + e.message };
+  }
+  audit('elections', `Recovered deleted election "${id}"`);
+  return { ok: true };
+}
+
+// Permanently remove a deleted election from the Recovery bin — this clears all
+// of its data for good (no recovery copy is kept). Used when a user decides to
+// delete an election completely. Ownership is enforced like every other
+// election operation; admin/developer bypass.
+function purgeDeletedElection(id, actor) {
+  const d = db.get();
+  const row = d.prepare('SELECT key, value FROM config WHERE key = ?').get(DELETED_PREFIX + id);
+  if (!row) return { ok: false, error: 'No deleted election found in the Recovery bin.' };
+  let snap = null;
+  try {
+    snap = JSON.parse(row.value);
+  } catch (err) {
+    snap = null;
+  }
+  const e = snap && Array.isArray(snap.elections) && snap.elections[0];
+  const acc = canAccessElection({ id, owner_id: e && e.owner_id }, actor);
+  if (!acc.ok) return acc;
+
+  const tx = d.transaction(() => {
+    d.prepare('DELETE FROM config WHERE key = ?').run(DELETED_PREFIX + id);
+    // Defensively clear any orphaned rows in case a partial deletion left data
+    // behind, so "clear the election data completely" is honored.
+    d.prepare('DELETE FROM candidates WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM positions WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM voters WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM checkins WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM stations WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM station_tokens WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM votes WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM audit_log WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM run_packs WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM result_packs WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM locations_officers WHERE location_id IN (SELECT id FROM locations WHERE election_id = ?)').run(id);
+    d.prepare('DELETE FROM locations WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM elections WHERE id = ?').run(id);
+  });
+  try {
+    tx();
+  } catch (e) {
+    return { ok: false, error: 'Permanent delete failed: ' + e.message };
+  }
+  audit('elections', `Permanently deleted election "${id}" (removed from Recovery bin)`);
+  return { ok: true };
+}
+
+function deleteElection(id, actor, permanent) {
   const exists = getElection(id);
   if (!exists) return { ok: false, error: 'Election not found' };
   const acc = canAccessElection(exists, actor);
   if (!acc.ok) return acc;
+  const eff = exists.status === 'closed' ? 'closed' : deriveStatusFromSchedule(exists);
+  // Never delete a LIVE election — voters may still be casting. Draft, upcoming
+  // and closed elections can be removed. The Administration panel only offers
+  // closed elections; the Elections/Developer screens may also remove draft and
+  // upcoming elections for cleanup.
+  if (eff === 'active') {
+    return { ok: false, error: 'This election is currently open for voting and cannot be deleted until it closes.', code: 'active' };
+  }
+  // Normally (soft delete) a full snapshot is archived BEFORE removal so an
+  // accidental deletion can be recovered from the Recovery bin. When the user
+  // chooses to delete permanently ("empty to clear all data"), no recovery copy
+  // is kept — the confirmation in the UI is the point of no return.
+  if (!permanent) {
+    try {
+      storeDeletedSnapshot(id, electionRecoverySnapshot(id));
+    } catch (e) {
+      return { ok: false, error: 'Could not archive election for recovery: ' + e.message };
+    }
+  }
   const d = db.get();
   const tx = d.transaction(() => {
     d.prepare('DELETE FROM candidates WHERE election_id = ?').run(id);
@@ -253,6 +440,17 @@ function deleteElection(id, actor) {
     d.prepare('DELETE FROM voters WHERE election_id = ?').run(id);
     d.prepare('DELETE FROM checkins WHERE election_id = ?').run(id);
     d.prepare('DELETE FROM stations WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM station_tokens WHERE election_id = ?').run(id);
+    // votes and audit_log have no FK to elections, so they must be removed
+    // explicitly or their rows survive as orphans and keep inflating the
+    // global/dashboard vote totals.
+    d.prepare('DELETE FROM votes WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM audit_log WHERE election_id = ?').run(id);
+    // Multi-location run artifacts (children of locations, then the locations).
+    d.prepare('DELETE FROM run_packs WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM result_packs WHERE election_id = ?').run(id);
+    d.prepare('DELETE FROM locations_officers WHERE location_id IN (SELECT id FROM locations WHERE election_id = ?)').run(id);
+    d.prepare('DELETE FROM locations WHERE election_id = ?').run(id);
     d.prepare("UPDATE officers SET assigned_station_id = NULL, assigned_election_id = NULL WHERE assigned_election_id = ?").run(id);
     d.prepare('DELETE FROM elections WHERE id = ?').run(id);
   });
@@ -429,6 +627,9 @@ module.exports = {
   deriveStatusFromSchedule,
   applySchedule,
   deleteElection,
+  listDeletedElections,
+  recoverElection,
+  purgeDeletedElection,
   addPosition,
   listPositions,
   removePosition,

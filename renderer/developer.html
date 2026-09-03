@@ -67,53 +67,75 @@
         </div>
       </div>
 
-      <div class="btn-row">
-        <button class="btn btn-secondary" id="backup-db-btn"><span class="icon btn-icon" data-icon="download"></span>Back up database</button>
+      <!-- Manual backup -->
+      <div class="bk-section bk-section-actions">
+        <div class="bk-section-head">
+          <div class="bk-section-title">Manual backup</div>
+          <p class="text-muted bk-section-sub">Snapshot the whole database now, or restore this machine from a backup file on disk.</p>
+        </div>
+        <div class="bk-actions">
+          <button class="btn btn-secondary" id="backup-db-btn"><span class="icon btn-icon" data-icon="download"></span>Back up database</button>
+          <button type="button" class="btn btn-ghost" id="restore-db-file-btn"><span class="icon btn-icon" data-icon="upload"></span>Restore from file…</button>
+        </div>
+        <p class="auth-error" id="backup-msg"></p>
       </div>
-      <p class="auth-error" id="backup-msg"></p>
 
-      <div style="margin-top: var(--space-4);">
-        <div class="card-title panel-title" style="font-size: 1rem;">Automatic backup</div>
-        <div class="auto-backup-grid">
-          <div class="field auto-backup-toggle">
-            <label class="label">Automatic backups</label>
+      <!-- Automatic backup -->
+      <div class="bk-section">
+        <div class="bk-section-head">
+          <div class="bk-section-title">Automatic backups</div>
+          <p class="text-muted bk-section-sub">Schedule recurring snapshots and choose how long to keep them.</p>
+        </div>
+
+        <div class="bk-settings-row">
+          <div class="bk-toggle">
+            <div>
+              <div class="bk-toggle-title">Recurring backups</div>
+              <div class="text-muted bk-toggle-sub">Save a verified snapshot on a timer while the app is open.</div>
+            </div>
             <label class="ab-switch"><input type="checkbox" id="auto-backup-enabled"><span class="ab-slider"></span></label>
           </div>
-          <div class="field">
-            <label class="label" for="auto-backup-interval">Every</label>
-            <div class="ab-inline">
-              <input class="input" id="auto-backup-interval" type="number" min="1" max="1440" value="30">
-              <span class="ab-unit">min</span>
+
+          <div class="bk-stepper">
+            <div class="bk-stepper-field">
+              <label class="bk-stepper-label" for="auto-backup-interval">Every</label>
+              <div class="bk-stepper-input">
+                <input class="input" id="auto-backup-interval" type="number" min="1" max="1440" value="30">
+                <span class="bk-stepper-unit">min</span>
+              </div>
             </div>
+            <div class="bk-stepper-field">
+              <label class="bk-stepper-label" for="auto-backup-keep">Keep</label>
+              <div class="bk-stepper-input">
+                <input class="input" id="auto-backup-keep" type="number" min="1" max="100" value="10">
+                <span class="bk-stepper-unit">backups</span>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="auto-backup-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
           </div>
-          <div class="field">
-            <label class="label" for="auto-backup-keep">Keep</label>
-            <div class="ab-inline">
-              <input class="input" id="auto-backup-keep" type="number" min="1" max="100" value="10">
-              <span class="ab-unit">backups</span>
+        </div>
+
+        <div class="bk-folder-row">
+          <div class="field bk-folder">
+            <label class="label" for="auto-backup-dir">Backup folder</label>
+            <div class="bk-folder-input">
+              <input class="input" id="auto-backup-dir" type="text" placeholder="Default: app data /backups">
+              <button type="button" class="btn btn-ghost" id="auto-backup-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
             </div>
           </div>
         </div>
 
-        <div class="inline-form">
-          <div class="field ab-folder">
-            <label class="label" for="auto-backup-dir">Backup folder</label>
-            <input class="input" id="auto-backup-dir" type="text" placeholder="Default: app data /backups">
-          </div>
-          <button type="button" class="btn btn-ghost" id="auto-backup-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
-          <button type="button" class="btn btn-primary" id="auto-backup-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
+        <div class="bk-actions" style="margin-top: var(--space-4);">
           <button type="button" class="btn btn-secondary" id="auto-backup-now-btn"><span class="icon btn-icon" data-icon="download"></span>Back up now</button>
         </div>
         <p class="auth-error" id="auto-backup-msg"></p>
 
-        <div class="ab-backups">
-          <div class="ab-backups-head">
+        <div class="bk-backups">
+          <div class="bk-backups-head">
             <span class="label">Saved backups</span>
-            <span class="text-muted ab-count" id="auto-backup-count"></span>
+            <span class="text-muted bk-count" id="auto-backup-count"></span>
           </div>
-          <div id="auto-backup-list">
-            <p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>
-          </div>
+          <div id="auto-backup-list"></div>
         </div>
       </div>
     </section>
@@ -123,7 +145,7 @@
       <div class="panel-head">
         <div>
           <div class="card-title panel-title">Export / delete election</div>
-          <p class="text-muted panel-sub">Export an election as a portable JSON snapshot, or permanently delete an election.</p>
+          <p class="text-muted panel-sub">Export an election as a portable JSON snapshot, import a previously-exported election, or permanently delete an election.</p>
         </div>
       </div>
 
@@ -135,6 +157,7 @@
           </select>
         </div>
         <button class="btn btn-secondary" id="export-election-btn"><span class="icon btn-icon" data-icon="upload"></span>Export JSON</button>
+        <button type="button" class="btn btn-secondary" id="import-election-btn"><span class="icon btn-icon" data-icon="download"></span>Import JSON…</button>
         <button type="button" class="btn btn-danger" id="delete-election-btn"><span class="icon btn-icon" data-icon="trash"></span>Delete election</button>
       </div>
       <p class="auth-error" id="dev-data-msg"></p>
@@ -173,7 +196,8 @@
       </form>
       <p class="auth-error" id="ao-error"></p>
 
-      <div class="dev-search">
+      <div class="dev-search search-wrap">
+        <span class="icon search-ic" data-icon="search"></span>
         <input class="input" id="officer-search" type="text" placeholder="Search officers…">
       </div>
       <div class="table-wrap">

@@ -44,7 +44,7 @@
       <a href="#admin"><span class="toc-num">9</span>Administration</a>
       <a href="#backup"><span class="toc-num">10</span>Backups &amp; recovery</a>
       <a href="#merge"><span class="toc-num">11</span>Merge results</a>
-      <a href="#lan"><span class="toc-num">12</span>LAN sync</a>
+      <a href="#lan"><span class="toc-num">12</span>LAN sync &amp; Browser ballot</a>
       <a href="#agent"><span class="toc-num">13</span>Agent live display</a>
       <a href="#integrity"><span class="toc-num">14</span>Integrity &amp; security</a>
       <a href="#profile"><span class="toc-num">15</span>Profile &amp; preferences</a>
@@ -78,7 +78,8 @@
         <table class="guide-table">
           <thead><tr><th>Role</th><th>What they can do</th></tr></thead>
           <tbody>
-            <tr><td>Administrator</td><td>Everything. Manage all officers and elections, read the inbox, back up the database, export and delete elections, merge results, run LAN hosting and integrity checks.</td></tr>
+            <tr><td>Administrator</td><td>Everything in the app for running elections: manage all officers and elections, read the inbox, back up the database and restore from a snapshot, merge results, run LAN hosting and integrity checks.</td></tr>
+            <tr><td>Developer</td><td>Everything an administrator can do, plus the deep system tools: export and delete elections, import an election snapshot, control installer downloads and the sign-in used to add developers. The Developer section is not shown to regular admins.</td></tr>
             <tr><td>Coordinator</td><td>Create and run elections, manage voter rolls and officers for their elections, view results and the declaration.</td></tr>
             <tr><td>Station officer (assistant)</td><td>Operates the polling station portal on voting day: open polls, check voters in, manage the queue, close and submit results. Assigned to a station by an admin/coordinator.</td></tr>
           </tbody>
@@ -97,7 +98,7 @@
       </figure>
       <ul>
         <li><strong>Stat cards</strong> — total elections, active, draft/upcoming, closed, voters, votes cast and turnout percentage.</li>
-        <li><strong>Active elections panel</strong> — shows each election currently running with its category/candidate counts, how many of the roll has voted, turnout, and two actions: <strong>Configure</strong> (open the election builder) and <strong>Run voting</strong> (open the kiosk voting screen).</li>
+        <li><strong>Active elections panel</strong> — shows each election currently running with its category/candidate counts, how many of the roll has voted, turnout, and two actions: <strong>Edit</strong> (dimmed, since an active election’s ballot is locked) and <strong>Run voting</strong> (open the kiosk voting screen). Edit a draft/upcoming election on the Elections page instead.</li>
         <li><strong>Status pill</strong> — confirms what you are signed in as.</li>
       </ul>
       <div class="guide-tip">Solid turnout is shown in green on the stat card — hover the card to see the exact percentage.</div>
@@ -281,12 +282,16 @@
       <h3>Inbox — “Speak to admin”</h3>
       <p>Officers send you short notes from their Profile menu. Unread messages show a badge on the Administration nav item and in the Profile menu. From here you can mark each message read (or all), delete a message, or clear the whole inbox. Message actions are audited.</p>
 
-      <h3>Backup &amp; export</h3>
+      <h3>Where the backing up tools live</h3>
+      <p>Backups and recovery are <strong>not</strong> part of Administration — they are on the <strong>Dashboard → Backup &amp; recovery</strong> panel (see chapter 10) and, for the developer-only tools, the <strong>Developer</strong> section. Quick map:</p>
       <ul>
-        <li><strong>Back up database</strong> — snapshot the entire database to any location. Do this before every major change.</li>
-        <li><strong>Export election JSON</strong> — package an election (voters, votes, integrity data) into a single portable file. This is also the file used by the Merge tool.</li>
-        <li><strong>Delete election</strong> — permanently deletes an election and all its categories, candidates, voters and votes (confirmed; cannot be undone).</li>
+        <li><strong>Dashboard → Backup &amp; recovery</strong> (admins &amp; developers) — automatic snapshots, “Back up now”, and “Restore from file…”.</li>
+        <li><strong>Developer → Back up database</strong> (developers only) — snapshot the entire database to any location.</li>
+        <li><strong>Developer → Export / Import election JSON</strong> (developers only) — package an election (voters, votes, integrity data) into one portable file, or bring a previously-exported election back in. The export is also the file used by the Merge tool.</li>
+        <li><strong>Developer → Delete election</strong> (developers only) — permanently deletes an election and all its categories, candidates, voters and votes (confirmed; cannot be undone).</li>
       </ul>
+
+      <div class="guide-note"><strong>Importing an election snapshot.</strong> <em>Developer → Import election JSON</em> brings a previously-exported election back into this machine — its positions, candidates, voters and votes are recreated as a <strong>draft</strong> you can re-run or re-export. The original election IDs are preserved so vote records stay linked, and the imported election is placed on-balance as a draft until you review and reopen it. An import is refused if an election with the same ID already exists in this database.</div>
 
       <h3>My account</h3>
       <p>Change your own password here (min 6 characters).</p>
@@ -314,10 +319,10 @@
       <h3>Restoring after a problem</h3>
       <ol class="guide-steps">
         <li>Open <strong>Dashboard → Backup &amp; recovery</strong> and find the snapshot from just before the incident.</li>
-        <li>Press <strong>Restore</strong> on that snapshot.</li>
+        <li>Press <strong>Restore</strong> on that snapshot — or <strong>Restore from file…</strong> to bring in a backup you saved to a disk or USB drive (for example on another machine).</li>
         <li>The app verifies the backup fully first (vote hash chain, audit hash chain, signatures, page integrity), pauses the LAN, swaps the database, re-verifies, and rolls back automatically if anything fails. You are signed out and sign back in — your data is back to how it was when that snapshot was taken.</li>
       </ol>
-      <div class="guide-warn"><strong>Restore replaces the current database.</strong> Votes cast after the snapshot was taken are not in the restored copy. Keep external copies (Dashboard → <em>Back up now</em> to a USB drive, or Administration → Back up database) as a final backstop.</div>
+      <div class="guide-warn"><strong>Restore replaces the current database.</strong> Votes cast after the snapshot was taken are not in the restored copy. The file you choose is checked before anything is touched, and the swap rolls back automatically if it fails. Keep external copies (Dashboard → <em>Back up now</em> to a USB drive, or <em>Developer → Back up database</em>) as a final backstop.</div>
     </section>
 
     <!-- 10 -->
@@ -327,7 +332,7 @@
 
       <h3>The workflow</h3>
       <ol class="guide-steps">
-        <li>From each location, export the election: <strong>Administration → Backup &amp; export → Export election JSON</strong>.</li>
+        <li>From each location, export the election: <strong>Developer section → Export election JSON</strong>.</li>
         <li>Bring the files here (any storage medium) and choose <strong>“Choose election files…”</strong>.</li>
         <li>If the files describe the same election, the workspace builds automatically; if they differ, pick which election to merge.</li>
         <li>Review the summary — locations, registered, votes cast, turnout — and the <strong>duplicate detection</strong> table:</li>
@@ -358,6 +363,15 @@
         <li>The status pill tells you everything: Hosting (N connected), Connected, or Offline — reconnecting, with queued-event counts.</li>
       </ul>
       <div class="guide-warn"><strong>Hosts are authoritative.</strong> Keep the hub device powered and on the network for the whole polling window. Stop the hub from the Administration page when you’re done.</p> <p class="guide-note" style="margin-top:12px">Vote totals shown in the LAN stats (votes in database, connected devices, pending sync) help you confirm every device is caught up before closing.</div>
+
+      <h3>Browser ballot (no install on voters’ machines)</h3>
+      <p>With <strong>Browser ballot</strong>, voting laptops and desktops don’t need the app installed — the app itself <em>serves</em> the ballot over your local network, and voters open it in an ordinary browser. Coordinators and admins start it from <strong>Dashboard → Browser ballot</strong>.</p>
+      <ol class="guide-steps">
+        <li>On the hub device, open <strong>Dashboard → Browser ballot</strong> and start the service (the same hub that powers LAN sync).</li>
+        <li>Share the displayed link (and the same <strong>voter ID + password</strong> rules) with each voting machine — any laptop or desktop on the network can open it and cast.</li>
+        <li>Voters authenticate with their roll credentials and vote; every ballot is signed and hash-chained on the hub exactly like a vote cast directly on the machine.</li>
+      </ol>
+      <div class="guide-note"><strong>Stays on your network.</strong> Browser-ballot traffic is served by the app over your Wi-Fi or LAN only — it never goes out to the Internet. Voting laptops need to remain on the same network while they vote; if the connection drops mid-ballot the vote can simply be recast, and all cast ballots are re-verified for integrity on the hub.</div>
     </section>
 
     <!-- 12 -->
@@ -454,7 +468,7 @@
     </section>
 
     <footer class="guide-footer">
-      Pulse Vote Hub &middot; Secure Offline Voting &middot; Full manual version 1.2.0<br>
+      Pulse Vote Hub &middot; Secure Offline Voting &middot; Full manual version 1.2.16<br>
       This guide covers the built-in feature set. Installers, roll-out advice and the latest news are on our website.
     </footer>
   </main>

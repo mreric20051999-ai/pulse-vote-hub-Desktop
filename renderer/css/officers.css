@@ -105,6 +105,24 @@
   margin-top: var(--space-2);
 }
 
+/* ---------- Officer accounts (Developer) ---------- */
+#accounts .inline-form {
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+#accounts .inline-form .field {
+  min-width: 240px;
+}
+#accounts .dev-search {
+  margin-top: var(--space-5);
+}
+#accounts .dev-search .input {
+  max-width: 320px;
+}
+#accounts .table-wrap {
+  margin-top: var(--space-3);
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 640px) {
   .ofc-grid {

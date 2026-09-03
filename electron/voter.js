@@ -341,11 +341,13 @@ function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword =
 
   if (!voter) return { ok: false, error: 'No voter matches those details. Check them and try again.', code: 'no-match' };
 
-  // Only release the password when the match required a second factor of
-  // identity (name or phone). Schemes that are keyed by voter ID ALONE
-  // (index-only/range) are treated like the network path: no password reveal,
-  // otherwise the endpoint would double as an enumeration oracle.
-  const canReveal = revealPassword && (scheme === 'name-index' || scheme === 'index-phone');
+  // The password may only be revealed on an authenticated local (desktop) path
+  // where the caller is a trusted coordinator/help desk and requests it
+  // explicitly (`revealPassword: true`, gated by session token + account role
+  // and rate-limited). On every network-exposed path (`revealPassword: false`)
+  // the password is never released, for every scheme — otherwise an attacker
+  // who knows a voter ID could turn the endpoint into an enumeration oracle.
+  const canReveal = revealPassword;
 
   // Station elections: surface the voter's polling station during password
   // recovery, and only release credentials once polls at that station are

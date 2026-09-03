@@ -331,6 +331,169 @@
     refresh();
   }
 
+  // ---------- Delete election (closed only) ----------
+  function statusLabel(s) {
+    return ({ draft: 'Draft', upcoming: 'Upcoming', active: 'Active', closed: 'Closed' })[s] || s || 'Draft';
+  }
+  function fmtDelDate(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return isNaN(d) ? '—' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const delBtn = $('del-election-btn');
+  const delMsg = $('del-election-msg');
+  const delSummary = $('del-election-summary');
+  let delElectionMap = {};
+  const delDD = buildSelectDropdown($('del-election-select'), () => updateDelSummary());
+
+  function loadClosedElections() {
+    return window.pvh.listElections().then((res) => {
+      const elections = (res && res.elections) || res || [];
+      delElectionMap = {};
+      const effClosed = (e) => e.status === 'closed' || (e.end_date != null && Number(e.end_date) <= Date.now());
+      const closed = elections.filter(effClosed);
+      delDD.setOptions(closed.map((e) => ({
+        value: e.id,
+        label: e.title + (e.voter_count ? ` (${e.voter_count} voters)` : ''),
+      })));
+      if (!closed.length) {
+        delSummary.textContent = 'No closed elections to delete.';
+        delBtn.disabled = true;
+        return;
+      }
+      closed.forEach((e) => (delElectionMap[e.id] = e));
+      updateDelSummary();
+    });
+  }
+  function updateDelSummary() {
+    const e = delElectionMap[delDD.get()];
+    delBtn.disabled = !e;
+    if (!e) { delSummary.textContent = ''; return; }
+    delSummary.textContent = `“${e.title}” — ${statusLabel(e.status)} election · ${e.position_count || 0} categories · ${e.voter_count || 0} voters. Deleting removes it and all its data.`;
+  }
+  delBtn.addEventListener('click', async () => {
+    const e = delElectionMap[delDD.get()];
+    if (!e) return;
+    delMsg.className = 'auth-error';
+    delMsg.textContent = '';
+    if (!confirm(`Delete "${e.title}"? This removes it from the database. A recovery copy is kept in the Recovery bin so you can restore it from this screen.`)) return;
+    delBtn.disabled = true;
+    delBtn.textContent = 'Deleting…';
+    const res = await window.pvh.deleteElection(e.id);
+    delBtn.disabled = false;
+    delBtn.textContent = 'Delete election';
+    if (!res || !res.ok) {
+      delMsg.textContent = (res && res.error) || 'Delete failed';
+      delMsg.className = 'auth-error';
+      window.pvhUI.toast(delMsg.textContent, 'error');
+      return;
+    }
+    delMsg.textContent = `“${e.title}” deleted. It can be recovered from the Recovery bin.`;
+    delMsg.className = 'notice-ok';
+    window.pvhUI.toast(`Deleted "${e.title}".`, 'success');
+    loadClosedElections();
+  });
+
+  // ---------- Recovery bin (deleted elections; click an entry to restore) ----------
+  const recMsg = $('rec-election-msg');
+  const recList = $('recover-bin-list');
+  const recRefreshBtn = $('rec-refresh-btn');
+  let recElectionMap = {};
+
+  function recRow(x) {
+    const type = x.type === 'school' ? 'School' : 'Station';
+    return `
+      <div class="bin-item" data-id="${esc(x.id)}">
+        <div class="bin-item-main">
+          <div class="bin-item-title">${esc(x.title)}</div>
+          <div class="bin-item-meta">${type} election · deleted ${fmtDelDate(x.deleted_at)}</div>
+        </div>
+        <div class="bin-item-action">
+          <button class="btn btn-primary btn-sm restore" data-id="${esc(x.id)}"><span class="icon btn-icon" data-icon="refresh"></span>Restore</button>
+          <button class="btn btn-danger btn-sm purge" data-id="${esc(x.id)}"><span class="icon btn-icon" data-icon="trash"></span>Delete forever</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function loadDeletedElections() {
+    return window.pvh.listDeletedElections().then((res) => {
+      const list = (res && res.ok && res.elections) || [];
+      recElectionMap = {};
+      list.forEach((x) => (recElectionMap[x.id] = x));
+      if (!list.length) {
+        recList.innerHTML = '<p class="text-muted hint">Recovery bin is empty — no deleted elections.</p>';
+        return;
+      }
+      recList.innerHTML = list.map(recRow).join('');
+      recList.querySelectorAll('.bin-item').forEach((row) =>
+        row.addEventListener('click', (ev) => {
+          if (ev.target.closest('.restore') || ev.target.closest('.purge')) return;
+          restoreDeleted(recElectionMap[row.dataset.id]);
+        }));
+      recList.querySelectorAll('.restore').forEach((b) =>
+        b.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          restoreDeleted(recElectionMap[b.dataset.id]);
+        }));
+      recList.querySelectorAll('.purge').forEach((b) =>
+        b.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          purgeDeleted(recElectionMap[b.dataset.id]);
+        }));
+    });
+  }
+  recRefreshBtn.addEventListener('click', () => {
+    recMsg.className = 'auth-error';
+    recMsg.textContent = '';
+    loadDeletedElections();
+    window.pvhUI.toast('Recovery bin refreshed.', 'success');
+  });
+
+  async function purgeDeleted(x) {
+    if (!x) return;
+    recMsg.className = 'auth-error';
+    recMsg.textContent = '';
+    if (!confirm(`Delete "${x.title}" forever? This permanently clears ALL of its data (categories, candidates, voters and votes). This cannot be undone and cannot be recovered.`)) return;
+    const res = await window.pvh.purgeDeletedElection(x.id);
+    if (!res || !res.ok) {
+      recMsg.textContent = (res && res.error) || 'Permanent delete failed';
+      recMsg.className = 'auth-error';
+      window.pvhUI.toast('Could not delete: ' + recMsg.textContent, 'error');
+      loadDeletedElections();
+      return;
+    }
+    recMsg.className = 'notice-ok';
+    recMsg.textContent = `“${x.title}” permanently deleted. All of its data was cleared.`;
+    window.pvhUI.toast(`Permanently deleted "${x.title}".`, 'success');
+    await loadDeletedElections();
+    await loadClosedElections();
+  }
+
+  async function restoreDeleted(x) {
+    if (!x) return;
+    recMsg.className = 'auth-error';
+    recMsg.textContent = '';
+    if (!confirm(`Restore "${x.title}" and all its data?`)) return;
+    const res = await window.pvh.recoverElection(x.id);
+    if (!res || !res.ok) {
+      recMsg.textContent = (res && res.error) || 'Restore failed';
+      recMsg.className = 'auth-error';
+      window.pvhUI.toast(recMsg.textContent, 'error');
+      loadDeletedElections();
+      return;
+    }
+    recMsg.className = 'notice-ok';
+    recMsg.textContent = `“${x.title}” restored.`;
+    window.pvhUI.toast(`Restored "${x.title}".`, 'success');
+    await loadDeletedElections();
+    await loadClosedElections();
+  }
+
+  loadDeletedElections();
+
   bindMyPassword();
   bindInbox();
+  loadClosedElections();
 })();

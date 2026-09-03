@@ -205,6 +205,15 @@
   font-size: var(--fs-md);
 }
 
+/* Credentials export spans the full width of the card */
+#creds-export-grid {
+  grid-template-columns: 1fr;
+  margin-top: var(--space-3);
+}
+#creds-export-grid .btn {
+  justify-content: center;
+}
+
 /* Responsive: collapse side column alongside main content */
 @media (max-width: 1024px) {
   .voters-layout {

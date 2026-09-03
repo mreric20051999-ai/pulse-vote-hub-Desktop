@@ -151,48 +151,78 @@
       <div class="panel-head">
         <div>
           <div class="card-title panel-title">Backup &amp; recovery</div>
-          <p class="text-muted panel-sub">Protect the election database against data loss. Schema and votes backed up at a cadence you choose, and one-click restore if anything happens mid-election.</p>
+          <p class="text-muted panel-sub">Protect the election database against data loss. Schema and votes are snapshotted on your schedule, and a verified one-click restore brings data back if anything happens mid-election.</p>
         </div>
       </div>
 
-      <div class="auto-backup-grid">
-        <div class="field auto-backup-toggle">
-          <label class="label">Automatic backups</label>
-          <label class="ab-switch"><input type="checkbox" id="dbk-auto-enabled"><span class="ab-slider"></span></label>
+      <!-- Automatic backups -->
+      <div class="bk-section">
+        <div class="bk-section-head">
+          <div class="bk-section-title">Automatic backups</div>
+          <p class="text-muted bk-section-sub">Schedule recurring snapshots and choose how long to keep them.</p>
         </div>
-        <div class="field ab-inline">
-          <label class="label" for="dbk-interval">Every</label>
-          <input class="input" id="dbk-interval" type="number" min="1" max="1440" value="30">
-          <span class="ab-unit">min</span>
+
+        <div class="bk-settings-row">
+          <div class="bk-toggle">
+            <div>
+              <div class="bk-toggle-title">Recurring backups</div>
+              <div class="text-muted bk-toggle-sub">Save a verified snapshot on a timer while the app is open.</div>
+            </div>
+            <label class="ab-switch"><input type="checkbox" id="dbk-auto-enabled"><span class="ab-slider"></span></label>
+          </div>
+
+          <div class="bk-stepper">
+            <div class="bk-stepper-field">
+              <label class="bk-stepper-label" for="dbk-interval">Every</label>
+              <div class="bk-stepper-input">
+                <input class="input" id="dbk-interval" type="number" min="1" max="1440" value="30">
+                <span class="bk-stepper-unit">min</span>
+              </div>
+            </div>
+            <div class="bk-stepper-field">
+              <label class="bk-stepper-label" for="dbk-keep">Keep</label>
+              <div class="bk-stepper-input">
+                <input class="input" id="dbk-keep" type="number" min="1" max="100" value="10">
+                <span class="bk-stepper-unit">backups</span>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="dbk-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
+          </div>
         </div>
-        <div class="field ab-inline">
-          <label class="label" for="dbk-keep">Keep</label>
-          <input class="input" id="dbk-keep" type="number" min="1" max="100" value="10">
-          <span class="ab-unit">backups</span>
+
+        <div class="bk-folder-row">
+          <div class="field bk-folder">
+            <label class="label" for="dbk-dir">Backup folder</label>
+            <div class="bk-folder-input">
+              <input class="input" id="dbk-dir" type="text" placeholder="Default: app data /backups">
+              <button type="button" class="btn btn-ghost" id="dbk-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="inline-form">
-        <div class="field ab-folder">
-          <label class="label" for="dbk-dir">Backup folder</label>
-          <input class="input" id="dbk-dir" type="text" placeholder="Default: app data /backups">
+      <!-- Manual backup -->
+      <div class="bk-section bk-section-actions">
+        <div class="bk-section-head">
+          <div class="bk-section-title">Manual backup</div>
+          <p class="text-muted bk-section-sub">Snapshot now, or restore this machine from a backup file on disk.</p>
         </div>
-        <button type="button" class="btn btn-ghost" id="dbk-pick-btn"><span class="icon btn-icon" data-icon="folder"></span>Choose…</button>
-        <button type="button" class="btn btn-secondary" id="dbk-now-btn"><span class="icon btn-icon" data-icon="download"></span>Back up now</button>
-        <button type="button" class="btn btn-primary" id="dbk-save-btn"><span class="icon btn-icon" data-icon="check"></span>Save settings</button>
+        <div class="bk-actions">
+          <button type="button" class="btn btn-secondary" id="dbk-now-btn"><span class="icon btn-icon" data-icon="download"></span>Back up now</button>
+          <button type="button" class="btn btn-ghost" id="dbk-restore-file-btn"><span class="icon btn-icon" data-icon="upload"></span>Restore from file…</button>
+        </div>
       </div>
-      <p class="ab-hint">Tip for election day: set the interval to <strong>1–2 minutes</strong> so a snapshot is never more than a minute behind, and point the folder at a separate disk or USB drive so an outage can’t wipe the backups with the main one. Restores are fully verified and roll back automatically if anything fails.</p>
 
       <p class="auth-error" id="dbk-msg"></p>
 
-      <div class="ab-backups">
-        <div class="ab-backups-head">
+      <p class="ab-hint">Tip for election day: set the interval to <strong>1–2 minutes</strong> so a snapshot is never more than a minute behind, and point the folder at a separate disk or USB drive so an outage can’t wipe the backups with the main one. Restores are fully verified and roll back automatically if anything fails.</p>
+
+      <div class="bk-backups">
+        <div class="bk-backups-head">
           <span class="label">Saved backups</span>
-          <span class="text-muted ab-count" id="dbk-count"></span>
+          <span class="text-muted bk-count" id="dbk-count"></span>
         </div>
-        <div id="dbk-list">
-          <p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>
-        </div>
+        <div id="dbk-list"></div>
       </div>
     </section>
   </main>

@@ -36,33 +36,31 @@
   </aside>
 
   <main class="main">
-    <div style="max-width:1000px;margin:0 auto;padding:8px 24px 48px;">
-      <div class="page-header">
+    <div class="page-header">
+      <div>
+        <h1>Polling Stations</h1>
+        <p id="page-subtitle">Configure stations, assign a station officer to each, and run stations as coordinator — opening, closing and submitting any station supersedes the officer console.</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-secondary" id="create-officer-btn"><span class="icon btn-icon" data-icon="users"></span>Create officer</button>
+        <button class="btn btn-primary" id="add-station-btn"><span class="icon btn-icon" data-icon="plus"></span>Add station</button>
+      </div>
+    </div>
+
+    <section class="card panel" id="station-admin">
+      <div class="panel-head">
         <div>
-          <h1>Polling Stations</h1>
-          <p id="page-subtitle">Configure stations, assign a station officer to each, and run stations as coordinator — opening, closing and submitting any station supersedes the officer console.</p>
-        </div>
-        <div class="page-actions">
-          <button class="btn btn-secondary" id="create-officer-btn"><span class="icon btn-icon" data-icon="users"></span>Create officer</button>
-          <button class="btn btn-primary" id="add-station-btn"><span class="icon btn-icon" data-icon="plus"></span>Add station</button>
+          <div class="card-title panel-title">Manage stations</div>
+          <p class="text-muted panel-sub">Select a station election, then add stations and link each one to an assistant account who will serve as its officer.</p>
         </div>
       </div>
-
-      <section class="card panel" id="station-admin">
-        <div class="panel-head">
-          <div>
-            <div class="card-title panel-title">Manage stations</div>
-            <p class="text-muted panel-sub">Select a station election, then add stations and link each one to an assistant account who will serve as its officer.</p>
-          </div>
-        </div>
-        <div class="btn-row" style="margin-bottom:14px;">
-          <select class="input" id="station-election-select" style="max-width:380px;">
-            <option value="">-- Select a station election --</option>
-          </select>
-        </div>
-        <div id="station-body"><p class="text-muted hint">Select a station election to configure its stations.</p></div>
-      </section>
-    </div>
+      <div class="btn-row" style="margin-bottom:14px;">
+        <select class="input" id="station-election-select" style="max-width:380px;">
+          <option value="">-- Select a station election --</option>
+        </select>
+      </div>
+      <div id="station-body"><p class="text-muted hint">Select a station election to configure its stations.</p></div>
+    </section>
   </main>
 
   <!-- Add station modal -->

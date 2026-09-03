@@ -96,18 +96,19 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  /* Surfaces */
-  --bg: #eff6ff;
-  --bg-elevated: #ffffff;
+  /* Surfaces — keep cards white but keep the page tone + borders crisp so
+     the Swiss layering (sidebar / cards / inputs) stays visible in light mode */
+  --bg: #e8eef7;
+  --bg-elevated: #f4f7fc;
   --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --surface-3: #e2e8f0;
-  --border: #dbe3ef;
-  --border-strong: #b8c4db;
+  --surface-2: #f2f5fa;
+  --surface-3: #e5ebf5;
+  --border: #d0d9ea;
+  --border-strong: #aab8d4;
 
   /* Text */
-  --text: #1e3a8a;
-  --text-muted: #475569;
+  --text: #16264b;
+  --text-muted: #46536b;
   --text-dim: #64748b;
 
   /* Brand / accents */
@@ -354,6 +355,10 @@ h3 {
   font-size: var(--fs-md);
   transition: var(--transition);
   min-height: 44px;
+}
+
+.textarea {
+  resize: vertical;
 }
 
 .input:focus,

@@ -22,6 +22,11 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   platform: () => ipcRenderer.invoke('platform:info'),
   getTheme: () => ipcRenderer.invoke('theme:get'),
   setTheme: (theme) => ipcRenderer.invoke('theme:set', theme),
+  onSessionExpired: (cb) => {
+    const listener = () => { try { cb(); } catch (e) { /* noop */ } };
+    ipcRenderer.on('auth:session-expired', listener);
+    return () => ipcRenderer.removeListener('auth:session-expired', listener);
+  },
 
   dbInit: () => ipcRenderer.invoke('db:init'),
   dashboardStats: () => ipcRenderer.invoke('db:stats', oid()),
@@ -34,7 +39,10 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   setElectionStatus: (id, s) => ipcRenderer.invoke('election:status', id, s, oid()),
   publishElection: (id, opts) => ipcRenderer.invoke('election:publish', id, opts, oid()),
   applySchedule: () => ipcRenderer.invoke('election:apply-schedule'),
-  deleteElection: (id) => ipcRenderer.invoke('election:delete', id, oid()),
+  deleteElection: (id, permanent) => ipcRenderer.invoke('election:delete', id, !!permanent, oid()),
+  listDeletedElections: () => ipcRenderer.invoke('election:list-deleted', oid()),
+  recoverElection: (id) => ipcRenderer.invoke('election:recover', id, oid()),
+  purgeDeletedElection: (id) => ipcRenderer.invoke('election:purge-deleted', id, oid()),
 
   listPositions: (eid) => ipcRenderer.invoke('election:positions', eid, oid()),
   addPosition: (eid, title, max) => ipcRenderer.invoke('election:position-add', eid, title, max, oid()),
@@ -60,6 +68,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   verifyVoterDetails: (eid, details) => ipcRenderer.invoke('voter:verify-details', eid, details),
   castVote: (eid, vid, sel, tkt, station) => ipcRenderer.invoke('voter:cast', eid, vid, sel, tkt, station),
   exportVoters: (eid, format) => ipcRenderer.invoke('voter:export', { electionId: eid, format }, oid()),
+  exportVoterCredentials: (eid) => ipcRenderer.invoke('voter:export-credentials', { electionId: eid }, oid()),
 
   listStations: (eid) => ipcRenderer.invoke('station:list', eid, oid()),
   addStation: (p) => ipcRenderer.invoke('station:add', p, oid()),
@@ -142,6 +151,11 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   backupAutoNow: () => ipcRenderer.invoke('backup:auto-now', oid()),
   backupAutoRestore: (filePath) => ipcRenderer.invoke('backup:auto-restore', filePath, oid()),
   backupAutoPickDir: () => ipcRenderer.invoke('backup:auto-pick-dir', oid()),
+
+  // Restore the database from an arbitrary backup file (admin/developer)
+  restoreDatabaseFromFile: () => ipcRenderer.invoke('backup:restore-file', oid()),
+  // Import a previously-exported election snapshot JSON (developer)
+  importElection: () => ipcRenderer.invoke('backup:election-import', oid()),
 
   // Multi-location runs ("Location Coordinator")
   listLocations: (electionId) => ipcRenderer.invoke('location:list', electionId, oid()),

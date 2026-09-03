@@ -13,7 +13,7 @@ const LOCKOUT_MS = 5 * 60 * 1000;
 const LOCKOUT_PREFIX = 'lockout:';
 
 function lockoutKey(officerId) {
-  return LOCKOUT_PREFIX + String(officerId).trim().toUpperCase();
+  return LOCKOUT_PREFIX + String(officerId).trim();
 }
 
 function readLockout(officerId) {
@@ -116,7 +116,7 @@ function hasDeveloper() {
 function findByOfficerId(officerId) {
   return db.get()
     .prepare('SELECT * FROM officers WHERE officer_id = ?')
-    .get(String(officerId).trim().toUpperCase());
+    .get(String(officerId).trim());
 }
 
 // Look up an officer by its internal UUID id (used to resolve the acting
@@ -136,7 +136,7 @@ function insertOfficer(name, officerId, password, role, extra = {}) {
   const officer = {
     id: uuidv4(),
     name: String(name).trim(),
-    officer_id: String(officerId).trim().toUpperCase(),
+    officer_id: String(officerId).trim(),
     password: stored,
     role,
     assigned_device: extra.assigned_device != null ? extra.assigned_device : null,

@@ -53,6 +53,8 @@
       <a href="#lan-sync" class="sub-link" data-target="lan-sync"><span class="icon" data-icon="lan"></span>LAN sync</a>
       <a href="#integrity" class="sub-link" data-target="integrity"><span class="icon" data-icon="lock"></span>Integrity check</a>
       <a href="#contact-dev" class="sub-link" data-target="contact-dev"><span class="icon" data-icon="phone"></span>Contact developer</a>
+      <a href="#delete-election" class="sub-link" data-target="delete-election"><span class="icon" data-icon="trash"></span>Delete election</a>
+      <a href="#recover-election" class="sub-link" data-target="recover-election"><span class="icon" data-icon="refresh"></span>Recovery bin</a>
       <a href="#my-account" class="sub-link" data-target="my-account"><span class="icon" data-icon="user"></span>My account</a>
     </nav>
 
@@ -89,7 +91,7 @@
       </div>
 
       <div class="merge-intro">
-        <p>Each location exports the election as JSON (<strong>Administration &rarr; Backup &amp; export &rarr; Export election JSON</strong>). Pick those files here; the tool combines the voter rolls, flags any voter registered or voted at more than one location, and lets you resolve each before tallying.</p>
+        <p>Each location exports the election as JSON (<strong>Developer section &rarr; Export election JSON</strong>). Pick those files here; the tool combines the voter rolls, flags any voter registered or voted at more than one location, and lets you resolve each before tallying.</p>
         <div class="btn-row">
           <button class="btn btn-primary" id="pick-files-btn"><span class="icon btn-icon" data-icon="upload"></span>Choose election files&hellip;</button>
           <button class="btn btn-secondary" id="merge-reset-btn" title="Start a fresh merge" style="display:none;"><span class="icon btn-icon" data-icon="x"></span>Reset</button>
@@ -213,19 +215,62 @@
           <span class="contact-dev-body">
             <span class="contact-dev-label">Email developer</span>
             <span class="contact-dev-value">me_media01@yahoo.com</span>
+            <span class="contact-dev-helper">For files, logs and non-urgent requests</span>
           </span>
-          <span class="contact-dev-arrow" aria-hidden="true">›</span>
+          <span class="contact-dev-caret" aria-hidden="true"><span class="icon" data-icon="chevron"></span></span>
         </a>
         <a class="contact-dev-item" href="https://wa.me/233547700003?text=Hello%20developer%2C%20I%20need%20help%20with%20Pulse%20Vote%20Hub" target="_blank" rel="noopener">
           <span class="contact-dev-icon" aria-hidden="true"><span class="icon" data-icon="phone"></span></span>
           <span class="contact-dev-body">
             <span class="contact-dev-label">Developer on WhatsApp</span>
             <span class="contact-dev-value">+233 54 770 0003</span>
+            <span class="contact-dev-helper">Fastest for urgent issues during the election &middot; Call <strong>020 469 9001</strong> for urgent voice support</span>
           </span>
-          <span class="contact-dev-arrow" aria-hidden="true">›</span>
+          <span class="contact-dev-caret" aria-hidden="true"><span class="icon" data-icon="chevron"></span></span>
         </a>
       </div>
-      <p class="text-muted hint" id="contact-dev-note">Use email to share files or logs; WhatsApp is fastest for urgent issues.</p>
+      <div class="contact-dev-note">
+        <span class="contact-dev-note-icon" aria-hidden="true"><span class="icon" data-icon="help"></span></span>
+        <span>Send logs or a database backup and the developer can help faster. Share by email; for an outage, try WhatsApp first.</span>
+      </div>
+    </section>
+
+    <!-- Delete election (closed only) -->
+    <section class="card panel ofc-section" id="delete-election">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Delete election</div>
+          <p class="text-muted panel-sub">Remove closed elections and all their data from this database. Choose an election, review it, then confirm. A recovery copy is kept so an accidental deletion can be restored.</p>
+        </div>
+      </div>
+      <div class="del-election-body">
+        <div class="field inline-field">
+          <label class="label" for="del-election-select">Closed election</label>
+          <select class="input" id="del-election-select"></select>
+        </div>
+        <p class="text-muted panel-sub" id="del-election-summary"></p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-danger" id="del-election-btn" disabled><span class="icon btn-icon" data-icon="trash"></span>Delete election</button>
+        </div>
+        <p class="auth-error" id="del-election-msg"></p>
+      </div>
+    </section>
+
+    <!-- Recovery bin (deleted elections, click an entry to restore) -->
+    <section class="card panel ofc-section" id="recover-election">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">Recovery bin</div>
+          <p class="text-muted panel-sub">Deleted elections are kept here. Click an election to restore it — useful after an accidental deletion. Entries are removed once restored.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="rec-refresh-btn"><span class="icon btn-icon" data-icon="refresh"></span>Refresh</button>
+        </div>
+      </div>
+      <div class="recover-bin-list" id="recover-bin-list">
+        <p class="text-muted hint">Loading deleted elections…</p>
+      </div>
+      <p class="auth-error" id="rec-election-msg"></p>
     </section>
 
     <!-- My account -->

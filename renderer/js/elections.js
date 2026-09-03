@@ -82,7 +82,7 @@
     const list = $('elections-list');
     $('elections-empty').hidden = elections.length > 0;
     list.innerHTML = elections.map((e) => `
-      <div class="card election-card" data-id="${e.id}">
+      <div class="card election-card" data-id="${e.id}" data-status="${esc(e.status)}">
         <div class="election-main">
           <div class="election-info">
             <h3>${esc(e.title)}</h3>
@@ -95,7 +95,7 @@
         </div>
         <div class="election-actions">
           ${statusPill(e.status)}
-          <button class="btn btn-secondary btn-sm open" data-id="${e.id}">Configure</button>
+          <button class="btn btn-secondary btn-sm open" data-id="${e.id}" ${isLocked(e.status) ? 'disabled' : ''} title="${isLocked(e.status) ? 'Editing is disabled while an election is active or closed' : ''}">Edit</button>
           <button class="btn btn-danger btn-sm del" data-id="${e.id}">Delete</button>
         </div>
       </div>
@@ -107,12 +107,28 @@
     list.querySelectorAll('.del').forEach((b) =>
       b.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        if (!confirm('Delete this election and all its data?')) return;
-        await window.pvh.deleteElection(b.dataset.id);
+        if (!confirm('Delete this election? A recovery copy is kept so it can be restored from the Administration screen.')) return;
+        const btn = b;
+        btn.disabled = true;
+        const res = await window.pvh.deleteElection(b.dataset.id);
+        btn.disabled = false;
+        if (!res || !res.ok) {
+          window.pvhUI.toast((res && res.error) || 'Could not delete this election.', 'error');
+          if (res && res.code === 'active') loadList();
+          return;
+        }
+        window.pvhUI.toast('Election deleted.', 'success');
         loadList();
       }));
     list.querySelectorAll('.election-card').forEach((card) =>
-      card.addEventListener('click', () => openBuilder(card.dataset.id)));
+      card.addEventListener('click', () => {
+        // Clicking a card opens its builder, matching the Edit button. Locked
+        // (active/closed) elections cannot be opened — the card click mirrors
+        // the disabled Edit button so it doesn't silently open a read-only
+        // editor for a live/closed ballot.
+        if (isLocked(card.dataset.status)) return;
+        openBuilder(card.dataset.id);
+      }));
   }
 
   // ---- Builder view ----
@@ -531,10 +547,12 @@
     if (res && res.changed && res.changed.length) await loadList();
   }, 30000);
 
-  // Delete an election from the builder — works for Active/Closed/Setup alike.
+  // Delete an election from the builder. Closed/draft/upcoming can be deleted;
+  // an active (live) election is refused by the backend. Deletion keeps a
+  // recovery copy available from the Administration screen.
   $('delete-election').addEventListener('click', async () => {
     if (!currentElection || !currentElection.id) return;
-    if (!confirm(`Delete "${currentElection.title}" and all its categories, candidates and votes? This cannot be undone.`)) return;
+    if (!confirm(`Delete "${currentElection.title}"? A recovery copy is kept so it can be restored from the Administration screen. This will not delete a live election.`)) return;
     $('delete-election').disabled = true;
     const res = await window.pvh.deleteElection(currentElection.id);
     $('delete-election').disabled = false;

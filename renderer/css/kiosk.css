@@ -218,6 +218,12 @@
   letter-spacing: 0.12em;
   font-size: var(--fs-xl);
 }
+.kiosk-panel .vk-no-password {
+  color: var(--muted);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-normal);
+  letter-spacing: 0;
+}
 .kiosk-panel .vk-station-loc {
   color: var(--muted);
   font-weight: var(--fw-normal);

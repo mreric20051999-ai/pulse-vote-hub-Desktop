@@ -55,10 +55,11 @@
           name: $('ao-name').value,
           officerId: $('ao-id').value,
           password: $('ao-pass').value,
-          role: isAdmin ? ($('ao-role').value || 'assistant') : 'assistant',
+          role: isAdmin ? (roleDD ? roleDD.get() : 'assistant') : 'assistant',
         });
         if (res.ok) {
           form.reset();
+          if (roleDD) roleDD.set('assistant');
           $('ao-name').focus();
           window.pvhUI.toast('Officer account created.', 'success');
           loadOfficers();
@@ -132,9 +133,7 @@
       }));
     body.querySelectorAll('.setpass').forEach((b) => {
       b.addEventListener('click', () => {
-        const target = $('pw-target');
-        target.value = b.dataset.id;
-        target.dispatchEvent(new Event('change'));
+        pwTargetDD.set(b.dataset.id);
         document.getElementById('passwords').scrollIntoView({ behavior: 'auto', block: 'start' });
         $('pw-new').focus();
       });
@@ -155,21 +154,20 @@
   // ---------- Change / assign password ----------
   async function loadPasswordTargets() {
     const officers = (await window.pvh.listOfficers()) || [];
-    const sel = $('pw-target');
-    const keep = sel.value;
+    const keep = pwTargetDD ? pwTargetDD.get() : '';
     const options = officers
       .filter(canManageRole)
       .filter((o) => o.id !== session.id)
-      .map((o) => `<option value="${esc(o.id)}">${esc(o.name)} (${esc(o.officer_id)})</option>`).join('');
-    sel.innerHTML = '<option value="">— Select an officer —</option>' + options;
-    if (options && keep) sel.value = officers.some((o) => o.id === keep) ? keep : '';
+      .map((o) => ({ value: o.id, label: `${o.name} (${o.officer_id})` }));
+    pwTargetDD.setOptions([{ value: '', label: '— Select an officer —' }].concat(options));
+    if (options.some((o) => o.value === keep)) pwTargetDD.set(keep);
   }
   function bindPassword() {
     $('password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = $('pw-error');
       err.textContent = '';
-      const id = $('pw-target').value;
+      const id = pwTargetDD.get();
       const pw = $('pw-new').value;
       if (!id) { err.textContent = 'Select an officer first.'; return; }
       await window.pvhUI.busy($('pw-submit'), 'Updating…', async () => {
@@ -303,10 +301,14 @@
   }
 
   // ---------- Init ----------
+  // Build the custom dropdowns for the role and password-target selectors so
+  // they match the rest of the app.
+  const roleDD = $('ao-role') ? buildSelectDropdown($('ao-role')) : null;
+  const pwTargetDD = buildSelectDropdown($('pw-target'));
+  loadPasswordTargets();
+  loadOfficers();
   bindAddOfficer();
   bindPassword();
-  loadOfficers();
-  loadPasswordTargets();
   renderAssignElections();
   window.addEventListener('focus', () => { loadOfficers(); loadPasswordTargets(); });
 })();

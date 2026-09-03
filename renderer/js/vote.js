@@ -301,7 +301,9 @@
           </div></div>` : ''}
         <div class="vk-field">
           <label>Password</label>
-          <div class="vk-recovered-value vk-recovered-password">${esc(v.password || '—')}</div>
+          ${v.password
+            ? `<div class="vk-recovered-value vk-recovered-password">${esc(v.password)}</div>`
+            : `<div class="vk-recovered-value"><span class="vk-no-password">This password is not available here — ask a coordinator at the help desk to look it up for you.</span></div>`}
         </div>
         <button class="btn btn-primary btn-xl" id="vk-recovered-back"><span>Back to sign in</span></button>
       </div>`;

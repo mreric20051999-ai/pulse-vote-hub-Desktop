@@ -65,7 +65,7 @@
           <span>${e.voters ? Math.round((e.cast / e.voters) * 100) : 0}% turnout</span>
         </div>
         <div class="active-actions">
-          <button class="btn btn-secondary btn-sm configure" data-id="${e.id}">Configure</button>
+          <button class="btn btn-secondary btn-sm configure" data-id="${e.id}" disabled title="Editing is disabled while an election is active">Edit</button>
           <button class="btn btn-secondary btn-sm open-vote" data-id="${e.id}">Run voting</button>
         </div>
       </div>`).join('')}</div>`;
@@ -163,8 +163,12 @@
 
     function renderList(backupsList) {
       if (!backupsList || !backupsList.length) {
-        bk.list.innerHTML = '<p class="text-muted hint">Nothing saved yet — enable automatic backups or click "Back up now".</p>';
         bk.count.textContent = '';
+        bk.list.innerHTML = `
+          <div class="bk-empty">
+            <div class="bk-empty-title">No backups yet</div>
+            <div class="bk-empty-sub">Enable automatic backups to save a verified snapshot on a timer, or click “Back up now” for an immediate one. Restores are fully verified and roll back automatically if anything fails.</div>
+          </div>`;
         return;
       }
       bk.count.textContent = backupsList.length + (backupsList.length === 1 ? ' backup' : ' backups');
@@ -246,6 +250,30 @@
       }
       bk.dir.value = res.path;
     });
+
+    const restoreFileBtn = $('dbk-restore-file-btn');
+    if (restoreFileBtn) {
+      restoreFileBtn.addEventListener('click', async () => {
+        bk.msg.textContent = '';
+        await window.pvhUI.busy(restoreFileBtn, 'Choosing…', async () => {
+          const pick = await window.pvh.restoreDatabaseFromFile();
+          if (!pick || pick.canceled || !pick.ok) return;
+          const name = pick.name || pick.path;
+          if (!confirm(`Restore the database from "${name}"?\n\nThis replaces the current database and signs you out. The backup is fully verified first, and nothing changes if it fails the check. Continue?`)) return;
+          const res = await window.pvh.backupAutoRestore(pick.path);
+          if (!res || !res.ok) {
+            bk.msg.textContent = (res && res.error) || 'Restore failed.';
+            bk.msg.className = 'auth-error';
+            window.pvhUI.toast((res && res.error) || 'Restore failed.', 'error');
+            return;
+          }
+          bk.msg.textContent = 'Database restored successfully.';
+          bk.msg.className = 'notice-ok';
+          window.pvhUI.toast('Database restored. Signing you back in…', 'success');
+          setTimeout(() => { window.location.assign('index.html'); }, 1200);
+        });
+      });
+    }
 
     bk.list.addEventListener('click', async (e) => {
       const btn = e.target.closest('.ab-restore');

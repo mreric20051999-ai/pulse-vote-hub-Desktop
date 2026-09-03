@@ -10,6 +10,23 @@
     return;
   }
 
+  // A session can become invalid server-side after it was stored locally: the
+  // token expired, was superseded by another login, or the app restarted so the
+  // main process no longer recognizes it. When a privileged action triggers a
+  // session failure, the main process tells us and we return the user to the
+  // sign-in page (clearing the dead token) instead of a bare "Not signed in".
+  if (window.pvh && window.pvh.onSessionExpired) {
+    window.pvh.onSessionExpired(() => {
+      try { window.localStorage.removeItem('pvh_session'); } catch (e) { /* noop */ }
+      try {
+        if (window.pvhUI && window.pvhUI.toast) {
+          window.pvhUI.toast('Your session has expired. Please sign in again.', 'success');
+        }
+      } catch (e) { /* noop */ }
+      window.location.assign('index.html');
+    });
+  }
+
   if (session.role === 'admin' || session.role === 'developer') document.body.classList.add('is-admin');
   if (session.role === 'developer') document.body.classList.add('is-developer');
 
@@ -363,7 +380,7 @@
         <p class="pvh-about">${PULSE_TREND.about}</p>
         <h4 class="pvh-social-title">Connect with us</h4>
         <div class="pvh-social-grid">${socialLinks()}</div>
-        <p class="pvh-contact">Contact: <strong>020 469 9001</strong></p>
+        <p class="pvh-contact">Contact: <strong>020 469 9001</strong> (call) &middot; <strong>+233 54 770 0003</strong> (WhatsApp)</p>
       `,
       onMount(bodyEl) {
         bodyEl.querySelectorAll('.pvh-social').forEach((a) =>
@@ -386,7 +403,7 @@
         <p class="pvh-about">${PULSE_TREND.about}</p>
         <h4 class="pvh-social-title">Connect with us</h4>
         <div class="pvh-social-grid">${socialLinks()}</div>
-        <p class="pvh-contact">Contact: <strong>020 469 9001</strong></p>
+        <p class="pvh-contact">Contact: <strong>020 469 9001</strong> (call) &middot; <strong>+233 54 770 0003</strong> (WhatsApp)</p>
       `,
       onMount(bodyEl) {
         bodyEl.querySelectorAll('.pvh-social').forEach((a) =>
@@ -456,7 +473,7 @@
     ['14. Governing law & disputes',
      'These Terms are governed by and construed in accordance with the laws of the Republic of Ghana. If a dispute arises, both parties will first try to resolve it in good faith through the contact details below. Any dispute not resolved informally will be subject to the exclusive jurisdiction of the courts of Ghana (Accra).'],
     ['15. Contact',
-     'Questions, refund requests, and support requests may be sent to us at <strong>me_media01@yahoo.com</strong> or on WhatsApp at <strong>+233 54 770 0003</strong>. Please include your site name and, where relevant, your activation code. Effective date of these Terms: <strong>1 September 2026</strong>.'],
+     'Questions, refund requests, and support requests may be sent to us at <strong>me_media01@yahoo.com</strong>, on WhatsApp at <strong>+233 54 770 0003</strong>, or by call/text at <strong>020 469 9001</strong>. Please include your site name and, where relevant, your activation code. Effective date of these Terms: <strong>1 September 2026</strong>.'],
   ];
 
   function termsModal() {

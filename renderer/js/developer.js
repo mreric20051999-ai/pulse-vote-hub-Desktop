@@ -111,6 +111,30 @@
       });
     });
 
+    const restoreFileBtn = $('restore-db-file-btn');
+    if (restoreFileBtn) {
+      restoreFileBtn.addEventListener('click', async () => {
+        msg.textContent = '';
+        await window.pvhUI.busy(restoreFileBtn, 'Choosing…', async () => {
+          const pick = await window.pvh.restoreDatabaseFromFile();
+          if (!pick || pick.canceled || !pick.ok) return;
+          const name = pick.name || pick.path;
+          if (!confirm(`Restore the database from "${name}"?\n\nThe chosen .db file replaces the current database and signs you out. It is fully verified first, and nothing changes if it fails the check. Continue?`)) return;
+          const res = await window.pvh.backupAutoRestore(pick.path);
+          if (!res || !res.ok) {
+            msg.textContent = (res && res.error) || 'Restore failed.';
+            msg.className = 'auth-error';
+            window.pvhUI.toast((res && res.error) || 'Restore failed.', 'error');
+            return;
+          }
+          msg.textContent = 'Database restored successfully.';
+          msg.className = 'notice-ok';
+          window.pvhUI.toast('Database restored. Signing you back in…', 'success');
+          setTimeout(() => { window.location.assign('index.html'); }, 1200);
+        });
+      });
+    }
+
     const enabledEl = $('auto-backup-enabled');
     const intervalEl = $('auto-backup-interval');
     const keepEl = $('auto-backup-keep');
@@ -120,8 +144,12 @@
 
     function renderList(backups) {
       if (!backups || !backups.length) {
-        listEl.innerHTML = '<p class="text-muted hint">Nothing saved yet — enable automatic backups or click “Back up now”.</p>';
         countEl.textContent = '';
+        listEl.innerHTML = `
+          <div class="bk-empty">
+            <div class="bk-empty-title">No backups yet</div>
+            <div class="bk-empty-sub">Enable automatic backups to save a verified snapshot on a timer, or click “Back up now” for an immediate one. Restores are fully verified and roll back automatically if anything fails.</div>
+          </div>`;
         return;
       }
       countEl.textContent = backups.length + (backups.length === 1 ? ' backup' : ' backups');
@@ -280,6 +308,27 @@
       }
     });
 
+    const importBtn = $('import-election-btn');
+    if (importBtn) {
+      importBtn.addEventListener('click', async () => {
+        msg.textContent = '';
+        await window.pvhUI.busy(importBtn, 'Importing…', async () => {
+          const res = await window.pvh.importElection();
+          if (!res || res.canceled) return;
+          if (!res || !res.ok) {
+            msg.textContent = (res && res.error) || 'Import failed';
+            msg.className = 'auth-error';
+            window.pvhUI.toast((res && res.error) || 'Import failed.', 'error');
+            return;
+          }
+          msg.textContent = `Imported election (${res.positions} positions, ${res.candidates} candidates, ${res.voters} voters, ${res.votes} votes).`;
+          msg.className = 'notice-ok';
+          window.pvhUI.toast('Election imported.', 'success');
+          loadElections();
+        });
+      });
+    }
+
     loadElections();
   }
 
@@ -340,9 +389,7 @@
       }));
     body.querySelectorAll('.setpass').forEach((b) => {
       b.addEventListener('click', () => {
-        const target = $('pw-target');
-        target.value = b.dataset.id;
-        target.dispatchEvent(new Event('change'));
+        pwTargetDD.set(b.dataset.id);
         $('pw-new').focus();
       });
     });
@@ -372,10 +419,11 @@
           name: $('ao-name').value,
           officerId: $('ao-id').value,
           password: $('ao-pass').value,
-          role: $('ao-role').value || 'assistant',
+          role: (roleDD ? roleDD.get() : 'coordinator') || 'assistant',
         });
         if (res.ok) {
           form.reset();
+          if (roleDD) roleDD.set('coordinator');
           $('ao-name').focus();
           window.pvhUI.toast('Officer account created.', 'success');
           refreshOfficers();
@@ -390,13 +438,12 @@
 
   async function loadPasswordTargets() {
     const officers = (await window.pvh.listOfficers()) || [];
-    const sel = $('pw-target');
-    const keep = sel.value;
+    const keep = pwTargetDD.get();
     const options = officers
       .filter((o) => o.id !== session.id)
-      .map((o) => `<option value="${esc(o.id)}">${esc(o.name)} (${esc(o.officer_id)})</option>`).join('');
-    sel.innerHTML = '<option value="">— Select an officer —</option>' + options;
-    if (options && keep) sel.value = officers.some((o) => o.id === keep) ? keep : '';
+      .map((o) => ({ value: o.id, label: `${o.name} (${o.officer_id})` }));
+    pwTargetDD.setOptions([{ value: '', label: '— Select an officer —' }].concat(options));
+    if (options.some((o) => o.value === keep)) pwTargetDD.set(keep);
   }
 
   function bindPassword() {
@@ -404,7 +451,7 @@
       e.preventDefault();
       const err = $('pw-error');
       err.textContent = '';
-      const id = $('pw-target').value;
+      const id = pwTargetDD.get();
       const pw = $('pw-new').value;
       if (!id) { err.textContent = 'Select an officer first.'; return; }
       await window.pvhUI.busy($('pw-submit'), 'Updating…', async () => {
@@ -773,6 +820,8 @@
   }
 
   // ---------- Init ----------
+  const roleDD = $('ao-role') ? buildSelectDropdown($('ao-role')) : null;
+  const pwTargetDD = buildSelectDropdown($('pw-target'));
   bindBackup();
   bindElectionData();
   bindAddOfficer();

@@ -73,10 +73,16 @@
     } else {
       $('voter-rows').innerHTML = '<tr><td colspan="5" class="text-muted center">Select an election.</td></tr>';
       $('picker-summary').textContent = '';
-      $('v-station').innerHTML = '<option value="">-- No station --</option>';
-      $('autogen-station').innerHTML = '<option value="">-- No station --</option>';
+      vStationDD.setOptions([{ value: '', label: '— No station —' }]);
+      autogenStationDD.setOptions([{ value: '', label: '— No station —' }]);
     }
   });
+
+  // Auto-generate scheme selector (custom dropdown)
+  const autogenSchemeDD = buildSelectDropdown($('autogen-scheme'), () => updateAutogenUI());
+  // Station selectors (custom dropdowns), populated by loadStations()
+  const vStationDD = buildSelectDropdown($('v-station'));
+  const autogenStationDD = buildSelectDropdown($('autogen-station'));
 
   async function loadElections() {
     elections = await window.pvh.listElections();
@@ -90,11 +96,14 @@
   async function loadStations() {
     let stations = [];
     try { stations = await window.pvh.listStations(currentElectionId) || []; } catch (e) { stations = []; }
-    const opts = '<option value="">-- No station --</option>' +
-      stations.map((s) => '<option value="' + esc(s.code || s.id) + '">' +
-        esc((s.name || s.code || s.id) + (s.code ? ' (' + s.code + ')' : '')) + '</option>').join('');
-    $('v-station').innerHTML = opts;
-    $('autogen-station').innerHTML = opts;
+    const opts = [{ value: '', label: '— No station —' }].concat(
+      stations.map((s) => ({
+        value: s.code || s.id,
+        label: (s.name || s.code || s.id) + (s.code ? ' (' + s.code + ')' : ''),
+      }))
+    );
+    vStationDD.setOptions(opts);
+    autogenStationDD.setOptions(opts);
   }
 
   async function refresh() {
@@ -158,10 +167,10 @@
         electionId: currentElectionId,
         voterId: $('v-voter-id').value,
         name: $('v-name').value,
-        assignedStation: $('v-station').value,
+        assignedStation: vStationDD.get(),
       });
       if (!res.ok) { window.pvhUI.toast(res.error || 'Could not add voter', 'error'); return; }
-      $('v-voter-id').value = ''; $('v-name').value = ''; $('v-station').value = '';
+      $('v-voter-id').value = ''; $('v-name').value = ''; vStationDD.set('');
       window.pvhUI.toast(`Added ${res.voter.voter_id} — password: ${res.voter.password}`, 'success');
       refresh();
     });
@@ -186,7 +195,7 @@
     'range': 'Generate sequential Voter IDs over a numeric range (V0001 → V00nn).',
   };
   function updateAutogenUI() {
-    const scheme = $('autogen-scheme').value;
+    const scheme = autogenSchemeDD.get();
     const isRange = scheme === 'range';
     $('autogen-list-label').textContent = schemeLabels[scheme] || schemeLabels['name-index'];
     $('autogen-range').hidden = !isRange;
@@ -194,11 +203,11 @@
     $('autogen-list').style.display = isRange ? 'none' : '';
     $('autogen-list-label').style.display = isRange ? 'none' : '';
   }
-  $('autogen-scheme').addEventListener('change', updateAutogenUI);
+  updateAutogenUI();
 
   // Auto-generate button
   $('autogen-btn').addEventListener('click', async () => {
-    const scheme = $('autogen-scheme').value;
+    const scheme = autogenSchemeDD.get();
     if (!confirm(`Auto-generate voters with the selected scheme?`)) return;
     const btn = $('autogen-btn');
     btn.disabled = true;
@@ -209,7 +218,7 @@
       list: $('autogen-list').value,
       from: Number($('autogen-from').value),
       to: Number($('autogen-to').value),
-      assignedStation: $('autogen-station').value,
+      assignedStation: autogenStationDD.get(),
     };
     const res = await window.pvh.autoGenerateVoters(currentElectionId, opts);
     btn.disabled = false;
@@ -249,6 +258,18 @@
   Object.keys(exportBtnMap).forEach((fmt) => {
     $(exportBtnMap[fmt]).addEventListener('click', async (e) => {
       await window.pvhUI.busy(e.currentTarget, exportLabelMap[fmt], () => doExport(fmt));
+    });
+  });
+
+  $('export-creds').addEventListener('click', async (e) => {
+    if (!currentElectionId) return;
+    await window.pvhUI.busy(e.currentTarget, 'Exporting…', async () => {
+      const res = await window.pvh.exportVoterCredentials(currentElectionId);
+      if (res.ok) {
+        window.pvhUI.toast(`Exported ${res.count} credential(s): ${res.path}`, 'success');
+      } else if (res.error && res.error !== 'Export cancelled') {
+        window.pvhUI.toast(`Export failed: ${res.error}`, 'error');
+      }
     });
   });
 

@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, nativeTheme, dialog, shell } = require('ele
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
+const { v4: uuid } = require('uuid');
 
 // Fix the user-data path so dev runs (`npx electron .`) resolve to the same
 // directory as the packaged app; otherwise dev defaults to the "Electron" dir
@@ -465,10 +467,22 @@ ipcMain.handle('kiosk:exit', () => {
 // (or a malicious script) can never create admins or change passwords.
 // The developer role outranks admin, so requireAdmin admits both.
 
+// A signed-in session has gone stale in the main process (expired, superseded,
+// or the app restarted so the in-memory session map is empty) even though the
+// renderer still holds a token in localStorage. Tell that window to re-authenticate
+// instead of letting the user stare at a bare "Not signed in" on a private action.
+function notifySessionExpired(event) {
+  try {
+    if (event && event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('auth:session-expired');
+    }
+  } catch (e) { /* best effort */ }
+}
+
 function requireAdmin(token, event) {
   if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
   const actor = resolveActor(token, event.sender.id);
-  if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
+  if (!actor) { notifySessionExpired(event); return { ok: false, error: 'Not signed in', code: 'forbidden' }; }
   if (actor.role !== 'admin' && actor.role !== 'developer') return { ok: false, error: 'Requires admin access', code: 'forbidden' };
   return { ok: true, actor };
 }
@@ -478,8 +492,19 @@ function requireAdmin(token, event) {
 function requireDeveloper(token, event) {
   if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
   const actor = resolveActor(token, event.sender.id);
-  if (!actor) return { ok: false, error: 'Not signed in', code: 'forbidden' };
+  if (!actor) { notifySessionExpired(event); return { ok: false, error: 'Not signed in', code: 'forbidden' }; }
   if (actor.role !== 'developer') return { ok: false, error: 'Requires developer access', code: 'forbidden' };
+  return { ok: true, actor };
+}
+
+// Any signed-in officer may manage their OWN elections (ownership is enforced
+// inside the election functions via canAccessElection). This deliberately does
+// NOT require admin/developer so coordinators and assistants can delete and
+// recover elections they created.
+function requireSignedIn(token, event) {
+  if (!senderIsApp(event)) return { ok: false, error: 'Unauthorized', code: 'forbidden' };
+  const actor = resolveActor(token, event.sender.id);
+  if (!actor) { notifySessionExpired(event); return { ok: false, error: 'Not signed in', code: 'forbidden' }; }
   return { ok: true, actor };
 }
 
@@ -745,6 +770,129 @@ ipcMain.handle('backup:auto-pick-dir', async (e, token) => {
   return { ok: true, path: res.filePaths[0] };
 });
 
+// Restore the database from an arbitrarily-chosen backup .db file (e.g. copied
+// from another machine), using the same verify/pause/swap/rollback safety as
+// the saved-list restore. This handler only picks the file; the renderer
+// confirms, then calls backup:auto-restore with the returned path.
+ipcMain.handle('backup:restore-file', async (e, token) => {
+  const r = requireAdmin(token, e);
+  if (!r.ok) return r;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Restore database from file',
+    properties: ['openFile'],
+    filters: [
+      { name: 'SQLite Database', extensions: ['db', 'sqlite', 'sqlite3'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths[0]) return { ok: false, error: 'Restore cancelled', canceled: true };
+  const p = res.filePaths[0];
+  if (!fs.existsSync(p)) return { ok: false, error: 'Backup file not found.' };
+  return { ok: true, path: p, name: path.basename(p) };
+});
+
+// Import a portable election snapshot (JSON) that was previously exported.
+// Creates the election with its positions, candidates and voters in this
+// database. Votes are re-inserted so an exported election is fully recoverable.
+ipcMain.handle('backup:election-import', async (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import election snapshot',
+    properties: ['openFile'],
+    filters: [{ name: 'Election Snapshot (JSON)', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths[0]) return { ok: false, error: 'Import cancelled', canceled: true };
+  const filePath = res.filePaths[0];
+  let doc;
+  try {
+    doc = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (err) {
+    return { ok: false, error: 'The chosen file is not valid JSON: ' + err.message };
+  }
+  if (!doc || doc.schema !== 'pulse-vote-hub-election') return { ok: false, error: 'This is not a Pulse Vote Hub election snapshot.' };
+  const d = db.get();
+  const snap = doc;
+  const now = Date.now();
+  const actor = r.actor;
+
+  // Bounds guard: a malicious or corrupted snapshot must not be able to exhaust
+  // memory or stall the app by declaring absurd array sizes (DoS via file).
+  const cap = (arr, max, label) => {
+    if (!Array.isArray(arr)) return { ok: true, n: 0 };
+    if (arr.length > max) return { ok: false, error: `Snapshot has too many ${label} (max ${max}).` };
+    return { ok: true, n: arr.length };
+  };
+  const bounds = [
+    ['positions', 50000, 'positions'],
+    ['candidates', 250000, 'candidates'],
+    ['voters', 1000000, 'voters'],
+    ['votes', 2000000, 'votes'],
+  ];
+  const counts = {};
+  for (const [key, max, label] of bounds) {
+    const c = cap(snap[key], max, label);
+    if (!c.ok) return { ok: false, error: c.error };
+    counts[key] = c.n;
+  }
+
+  const eid = (snap.election && snap.election.id) || null;
+
+  if (eid && db.prepare('SELECT id FROM elections WHERE id = ?').get(eid)) {
+    return { ok: false, error: 'An election with the same ID already exists in this database. Delete it first or rename the snapshot.' };
+  }
+  const assignedEid = eid || uuid();
+
+  const tx = d.transaction(() => {
+    db.prepare('INSERT INTO elections (id, title, type, status, election_date, start_date, end_date, owner_id, station_mode, close_grace_minutes, max_close_grace_minutes, created_at, closed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(
+        assignedEid,
+        String((snap.election && snap.election.title) || 'Imported election').trim().slice(0, 300),
+        (snap.election && ['school', 'station'].includes(snap.election.type)) ? snap.election.type : 'school',
+        'draft',
+        snap.election && snap.election.election_date ? Number(snap.election.election_date) : now,
+        snap.election && snap.election.start_date ? Number(snap.election.start_date) : now,
+        snap.election && snap.election.end_date ? Number(snap.election.end_date) : null,
+        actor.id,
+        (snap.election && snap.election.station_mode) ? 1 : 0,
+        Math.max(0, Math.min(Number((snap.election && snap.election.close_grace_minutes)) || 30, 1440)),
+        Math.max(1, Math.min(Number((snap.election && snap.election.max_close_grace_minutes)) || 120, 10080)),
+        now,
+        snap.election && snap.election.closed_at ? Number(snap.election.closed_at) : null
+      );
+
+    const realEid = assignedEid;
+    const insPos = db.prepare('INSERT INTO positions (id, election_id, title, max_votes) VALUES (?, ?, ?, ?)');
+    for (const p of (snap.positions || [])) {
+      insPos.run(p && p.id ? String(p.id).slice(0, 64) : uuid(), realEid, String((p && p.title) || 'Position').trim().slice(0, 300), Math.max(1, Math.min(Number(p && p.max_votes) || 1, 100)));
+    }
+    const insCand = db.prepare('INSERT INTO candidates (id, election_id, position_id, name, photo_path, ballot_number, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    for (const c of (snap.candidates || [])) {
+      insCand.run(c && c.id ? String(c.id).slice(0, 64) : uuid(), realEid, c && c.position_id ? String(c.position_id).slice(0, 64) : null, String((c && c.name) || '').trim().slice(0, 300) || 'Candidate', c && c.photo_path ? String(c.photo_path).slice(0, 1000) : null, c && c.ballot_number != null ? Number(c.ballot_number) : null, c && c.sort_order != null ? Number(c.sort_order) : null);
+    }
+    const insVoter = db.prepare('INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, assigned_station, has_voted, ballot_cast, voted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    let v = 0;
+    for (const voter of (snap.voters || [])) {
+      v++;
+      const vid = String((voter && voter.voter_id) || ('V' + String(v).padStart(6, '0'))).trim().toUpperCase().slice(0, 64);
+      const salt = crypto.randomBytes(16).toString('hex');
+      insVoter.run(uuid(), realEid, vid, (voter && voter.name) ? String(voter.name).trim().slice(0, 300) : null, auth.hashPassword('pvh' + vid + salt, salt), '', voter && voter.assigned_station ? String(voter.assigned_station).trim().slice(0, 64) : null, Number(voter && voter.has_voted) || 0, Number(voter && voter.ballot_cast) || 0, voter && voter.voted_at ? Number(voter.voted_at) : null);
+    }
+    const insVote = db.prepare('INSERT INTO votes (election_id, position_id, candidate_id, voter_id, station_id, timestamp) VALUES (?, ?, ?, ?, ?, ?)');
+    let voteCount = 0;
+    for (const vt of (snap.votes || [])) {
+      voteCount++;
+      insVote.run(realEid, vt && vt.position_id ? String(vt.position_id).slice(0, 64) : null, vt && vt.candidate_id ? String(vt.candidate_id).slice(0, 64) : null, vt && vt.voter_id ? String(vt.voter_id).slice(0, 64) : null, vt && vt.station_id ? String(vt.station_id).slice(0, 64) : 'MAIN', Number(vt && vt.timestamp) || now);
+    }
+    return { electionId: realEid, positions: counts.positions, candidates: counts.candidates, voters: counts.voters, votes: voteCount };
+  });
+
+  let result;
+  try { result = tx(); } catch (err) { return { ok: false, error: 'Import failed: ' + err.message }; }
+  election.audit('elections', `Imported election "${(snap.election && snap.election.title) || 'Imported election'}" from file`);
+  return { ok: true, path: filePath, ...result };
+});
+
 
 // Pick one or more election snapshot files for the merge tool. The files are
 // read and validated in the main process so the renderer never touches fs.
@@ -851,10 +999,25 @@ ipcMain.handle('election:update', (_e, id, payload, officerId) => election.updat
 ipcMain.handle('election:status', (_e, id, status, officerId) => election.setStatus(id, status, resolveActor(officerId, _e.sender.id)));
 ipcMain.handle('election:publish', (_e, id, opts, officerId) => election.publishElection(id, opts, resolveActor(officerId, _e.sender.id)));
 ipcMain.handle('election:apply-schedule', () => election.applySchedule());
-ipcMain.handle('election:delete', (e, id, token) => {
-  const r = requireDeveloper(token, e);
+ipcMain.handle('election:delete', (e, id, permanent, token) => {
+  const r = requireSignedIn(token, e);
   if (!r.ok) return r;
-  return election.deleteElection(id, r.actor);
+  return election.deleteElection(id, r.actor, !!permanent);
+});
+ipcMain.handle('election:list-deleted', (e, token) => {
+  const r = requireSignedIn(token, e);
+  if (!r.ok) return r;
+  try { return { ok: true, elections: election.listDeletedElections(r.actor) }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('election:recover', (e, id, token) => {
+  const r = requireSignedIn(token, e);
+  if (!r.ok) return r;
+  return election.recoverElection(id, r.actor);
+});
+ipcMain.handle('election:purge-deleted', (e, id, token) => {
+  const r = requireSignedIn(token, e);
+  if (!r.ok) return r;
+  return election.purgeDeletedElection(id, r.actor);
 });
 
 ipcMain.handle('election:positions', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listPositions(electionId, actor), _e.sender.id));
@@ -1111,6 +1274,46 @@ ipcMain.handle('voter:export', async (_e, { electionId, format }, officerId) => 
       if (!win.isDestroyed()) win.destroy();
       return result;
     }
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Export the voter credentials (voter ID + password) as CSV. This is a
+// privileged, desktop-only action for coordinators/help desk handing out
+// voting passwords; it is intentionally separate from the ordinary voter-roll
+// export which never carries credentials.
+ipcMain.handle('voter:export-credentials', async (_e, { electionId }, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  try {
+    const e = election.getElection(electionId);
+    const d = db.get();
+    const rows = d.prepare(
+      'SELECT voter_id, name, phone, assigned_station, plain_password, has_voted FROM voters WHERE election_id = ? ORDER BY name, voter_id'
+    ).all(electionId);
+    const title = (e && e.title) || 'Election';
+    const safe = sanitizeFileName((e && e.safe_name) || String(title).replace(/[^a-z0-9]+/gi, '-').toLowerCase());
+    const lines = ['Voter ID,Name,Phone,Station,Password,Status'];
+    for (const v of rows) {
+      lines.push([
+        csvCell(v.voter_id),
+        csvCell(v.name || ''),
+        csvCell(v.phone || ''),
+        csvCell(v.assigned_station || ''),
+        csvCell(Array.isArray(v.plain_password) ? v.plain_password.join(',') : String(v.plain_password || '')),
+        v.has_voted ? 'Voted' : 'Ready',
+      ].join(','));
+    }
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export Voter Credentials (CSV)',
+      defaultPath: `${safe}-credentials.csv`,
+      filters: [{ name: 'CSV', extensions: ['csv'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, error: 'Export cancelled', canceled: true };
+    fs.writeFileSync(res.filePath, lines.join('\n'), 'utf8');
+    return { ok: true, path: res.filePath, count: rows.length };
   } catch (err) {
     return { ok: false, error: err.message };
   }

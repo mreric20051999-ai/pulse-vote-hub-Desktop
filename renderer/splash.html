@@ -145,6 +145,34 @@
       opacity: 0.10;
     }
 
+    /* Splash always keeps the premium dark look, regardless of app theme */
+    html[data-theme="light"] body,
+    body {
+      background:
+        radial-gradient(1200px 800px at 15% -10%, rgba(37, 99, 235, 0.32), transparent 55%),
+        radial-gradient(1000px 700px at 100% 110%, rgba(185, 28, 28, 0.24), transparent 55%),
+        radial-gradient(900px 600px at 85% -10%, rgba(30, 64, 175, 0.36), transparent 60%),
+        #0f172a;
+    }
+    html[data-theme="light"] .splash-title,
+    .splash-title { color: #f1f5f9; }
+    html[data-theme="light"] .splash-tagline,
+    .splash-tagline { color: #94a3b8; }
+    html[data-theme="light"] .splash-loader span,
+    .splash-loader span { color: #64748b; }
+    html[data-theme="light"] .splash-footer,
+    .splash-footer { color: #64748b; }
+    html[data-theme="light"] .splash-logo,
+    .splash-logo { background: #1e293b; border-color: #334155; }
+    html[data-theme="light"] .spinner,
+    .spinner { border-color: #334155; }
+    html[data-theme="light"] .bg::before,
+    .bg::before {
+      background-image:
+        linear-gradient(#475569 1px, transparent 1px),
+        linear-gradient(90deg, #475569 1px, transparent 1px);
+    }
+
     @keyframes splashIn {
       from { opacity: 0; transform: scale(0.95); }
       to { opacity: 1; transform: scale(1); }
