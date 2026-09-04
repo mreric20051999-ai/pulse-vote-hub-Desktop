@@ -84,7 +84,7 @@
     $('tools').hidden = !currentElectionId;
     if (currentElectionId) {
       await Promise.all([refresh(), loadStations()]);
-      updateElectionStatus();
+      await updateElectionStatus();
     } else {
       $('voter-rows').innerHTML = '<tr><td colspan="5" class="text-muted center">Select an election.</td></tr>';
       $('picker-summary').textContent = '';
@@ -123,7 +123,31 @@
     autogenStationDD.setOptions(opts);
   }
 
-  function updateElectionStatus() {
+  // Build a link that opens the election's password-recovery screen. Works in
+  // a plain browser on the LAN (full http://<addr>:<port>/kiosk URL) AND in the
+  // desktop app's own file:// portal (relative vote.html path), so the shared
+  // "voter verification link" is usable from any machine on the network.
+  let _kioskBase = null;
+  let _kioskBaseP = null;
+  function kioskBase() {
+    if (_kioskBaseP) return _kioskBaseP;
+    _kioskBaseP = (async () => {
+      try {
+        const s = await window.pvh.lanStatus();
+        const urls = (s && Array.isArray(s.kioskUrls) && s.kioskUrls.length) ? s.kioskUrls : null;
+        _kioskBase = urls ? urls[0].replace(/\/$/, '') : null;
+      } catch (e) { _kioskBase = null; }
+      return _kioskBase;
+    })();
+    return _kioskBaseP;
+  }
+  async function buildVerifyLink(id) {
+    const q = `election=${encodeURIComponent(id)}&recover=1`;
+    const base = await kioskBase();
+    return base ? `${base}?${q}` : `vote.html?${q}`;
+  }
+
+  async function updateElectionStatus() {
     const e = elections.find((x) => x.id === currentElectionId) || null;
     const statusEl = $('picker-status');
     if (!e) { statusEl.hidden = true; return; }
@@ -155,7 +179,7 @@
     });
 
     // Voter verification link (opens straight on the recovery screen).
-    const linkVal = currentElectionId ? `vote.html?election=${encodeURIComponent(currentElectionId)}&recover=1` : '';
+    const linkVal = currentElectionId ? await buildVerifyLink(currentElectionId) : '';
     $('verify-link').value = linkVal;
   }
 
@@ -361,7 +385,7 @@ setInterval(async () => {
     const fresh = await window.pvh.listElections();
     if (fresh) {
       elections = fresh;
-      updateElectionStatus();
+      await updateElectionStatus();
     }
   } catch (e) { /* ignore */ }
 }, 30000);

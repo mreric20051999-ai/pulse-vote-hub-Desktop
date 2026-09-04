@@ -259,10 +259,12 @@ Hub.prototype._mountKiosk = function (app) {
       res.status(429).json({ ok: false, error: 'Too many attempts. Please slow down and try again in a minute.', code: 'rate-limited' });
       return;
     }
-    // IMPORTANT: this network endpoint never reveals the voting password
-    // (revealPassword stays false), so a leaked voterId+name/phone cannot be
-    // used to obtain credentials remotely.
-    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: false })));
+    // The hub serves the official ballot kiosk for THIS election: the verify-
+    // details screen is the help desk's password-recovery surface and is
+    // expected to hand the voter the password to cast their ballot, so it
+    // reveals the credential exactly like the desktop app does. Guarded by the
+    // same per-IP rate limiter as the other kiosk endpoints.
+    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: true })));
   });
 
   // Cast a ballot from a browser. Reuses the desktop castVote (validation,
