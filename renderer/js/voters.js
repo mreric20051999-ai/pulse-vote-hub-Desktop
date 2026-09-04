@@ -9,6 +9,20 @@
   let currentPage = 0;
   let total = 0;
 
+  const STATUS = {
+    draft: ['pill', 'Draft'],
+    upcoming: ['pill-info', 'Upcoming'],
+    active: ['pill-success', 'Active'],
+    closed: ['pill', 'Closed'],
+  };
+  const statusPill = (status) => {
+    const [cls, label] = STATUS[status] || ['pill', status];
+    return `<span class="pill ${cls}">${label}</span>`;
+  };
+  // The voter roll can only be edited while the election is a Draft. Once it is
+  // published (Upcoming/Active/Closed) additions are frozen server-side.
+  const isDraftOnly = (e) => !e || (e.status || 'draft') === 'draft';
+
   if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
   // ---- Reusable custom dropdown (opens downward, beneath the box) ----
@@ -70,9 +84,12 @@
     $('tools').hidden = !currentElectionId;
     if (currentElectionId) {
       await Promise.all([refresh(), loadStations()]);
+      updateElectionStatus();
     } else {
       $('voter-rows').innerHTML = '<tr><td colspan="5" class="text-muted center">Select an election.</td></tr>';
       $('picker-summary').textContent = '';
+      $('picker-status').hidden = true;
+      $('verify-link').value = '';
       vStationDD.setOptions([{ value: '', label: '— No station —' }]);
       autogenStationDD.setOptions([{ value: '', label: '— No station —' }]);
     }
@@ -104,6 +121,42 @@
     );
     vStationDD.setOptions(opts);
     autogenStationDD.setOptions(opts);
+  }
+
+  function updateElectionStatus() {
+    const e = elections.find((x) => x.id === currentElectionId) || null;
+    const statusEl = $('picker-status');
+    if (!e) { statusEl.hidden = true; return; }
+
+    const canEdit = isDraftOnly(e);
+    let html = `<span class="election-status-label">Election status:</span> ${statusPill(e.status)}`;
+    if (!canEdit) {
+      html += `<span class="lock-note" style="margin:0;">
+        <span class="icon" data-icon="lock"></span>
+        This election is <strong>${(STATUS[e.status] || ['', e.status])[1]}</strong> — the voter roll is frozen. You can no longer add, import, or generate voters. Reset to <strong>Draft</strong> (Elections page) to change the roll.
+      </span>`;
+    }
+    statusEl.innerHTML = html;
+    statusEl.hidden = false;
+
+    // Disable voter-add tools when the roll is frozen (server also enforces this).
+    const editable = canEdit;
+    ['add-voter-btn', 'import-btn', 'autogen-btn', 'clear-btn'].forEach((id) => {
+      const b = $(id);
+      if (b) b.disabled = !editable;
+    });
+    ['v-name', 'v-voter-id', 'csv-input', 'autogen-list', 'autogen-count', 'autogen-from', 'autogen-to'].forEach((id) => {
+      const el = $(id);
+      if (el) el.disabled = !editable;
+    });
+    // Custom station dropdowns use the .disabled state (dashboard.css).
+    [vStationDD, autogenStationDD].forEach((dd) => {
+      dd.root.classList.toggle('disabled', !editable);
+    });
+
+    // Voter verification link (opens straight on the recovery screen).
+    const linkVal = currentElectionId ? `vote.html?election=${encodeURIComponent(currentElectionId)}&recover=1` : '';
+    $('verify-link').value = linkVal;
   }
 
   async function refresh() {
@@ -288,6 +341,31 @@
     });
   });
 
-  updateAutogenUI();
+  // Copy the voter verification link to the clipboard
+  $('copy-verify-link').addEventListener('click', async () => {
+    const linkVal = $('verify-link').value;
+    if (!linkVal) { window.pvhUI.toast('Select an election first.', 'error'); return; }
+    try {
+      await navigator.clipboard.writeText(linkVal);
+      window.pvhUI.toast('Verification link copied.', 'success');
+    } catch (err) {
+      window.pvhUI.toast(`Copy failed: ${err.message}`, 'error');
+    }
+  });
+
+  // Keep the status pill fresh if a schedule transition happens while the page
+// is open (upcoming -> active, active -> closed).
+setInterval(async () => {
+  if (!currentElectionId) return;
+  try {
+    const fresh = await window.pvh.listElections();
+    if (fresh) {
+      elections = fresh;
+      updateElectionStatus();
+    }
+  } catch (e) { /* ignore */ }
+}, 30000);
+
+updateAutogenUI();
   loadElections();
 })();

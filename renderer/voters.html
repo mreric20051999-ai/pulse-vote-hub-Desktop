@@ -54,6 +54,7 @@
         </div>
         <div class="picker-summary" id="picker-summary"></div>
       </div>
+      <div class="picker-status" id="picker-status" hidden></div>
     </section>
 
     <!-- Voter tools -->
@@ -176,6 +177,21 @@
               <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
               <button class="btn btn-secondary btn-block" id="autogen-btn">Auto-generate</button>
             </div>
+          </section>
+
+          <section class="card tools-card">
+            <header class="card-head">
+              <span class="icon card-ic" data-icon="key"></span>
+              <div>
+                <h3 class="card-head-title">Voter verification link</h3>
+                <p class="card-head-sub">Share this link so a voter/help desk can retrieve the voting password.</p>
+              </div>
+            </header>
+            <div class="verify-link-row">
+              <input class="input" id="verify-link" readonly placeholder="Select an election above…">
+              <button class="btn btn-secondary" id="copy-verify-link" title="Copy link to clipboard">Copy</button>
+            </div>
+            <p class="field-desc" style="margin-top:6px;">Opens instantly on the password-recovery screen. A voter enters their Voter ID (plus name or phone, depending on scheme) to retrieve their password.</p>
           </section>
 
           <section class="card tools-card">

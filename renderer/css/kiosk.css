@@ -587,6 +587,10 @@
   color: var(--success);
   background: var(--success-soft);
 }
+.picker-card .pk-status.is-upcoming {
+  color: var(--info);
+  background: var(--info-soft);
+}
 .picker-card .pk-status.is-closed {
   color: var(--text-muted);
   background: var(--surface-2);

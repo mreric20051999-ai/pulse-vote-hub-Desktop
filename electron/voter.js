@@ -11,6 +11,20 @@ const { requiredString, optionalString, MAX_IMPORT_ROWS, LIMITS } = require('./v
 
 // ---- Voter management ----
 
+// Voters may only be ADDED while the election is still a draft. Once an
+// election is published (upcoming/active/closed) the voter roll is frozen so
+// the electorate cannot be changed mid-process. Stations are exempted in the
+// sense that station-mode elections still follow the same rule: only draft.
+function requireDraft(electionId) {
+  const e = db.get().prepare('SELECT status, start_date, end_date FROM elections WHERE id = ?').get(electionId);
+  if (!e) return { ok: false, error: 'Election not found' };
+  const status = computedStatus(e);
+  if (status !== 'draft') {
+    return { ok: false, error: 'Voters can only be added while the election is a Draft. Unpublish/close-back to Draft to edit the roll.' };
+  }
+  return { ok: true };
+}
+
 function listVoters(electionId, { limit = 200, offset = 0 } = {}) {
   const d = db.get();
   const total = d.prepare('SELECT COUNT(*) AS c FROM voters WHERE election_id = ?').get(electionId).c;
@@ -28,6 +42,8 @@ function getVoter(electionId, voterId) {
 // Add a single voter (name optional; voterId auto-generated if not given)
 function addVoter({ electionId, name, voterId, assignedStation, password, phone }) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
+  const draft = requireDraft(electionId);
+  if (!draft.ok) return draft;
 
   const vName = optionalString(name, 'Name', { max: LIMITS.voterName });
   if (!vName.ok) return vName;
@@ -69,6 +85,8 @@ function addVoter({ electionId, name, voterId, assignedStation, password, phone 
 // Accepts columns: voter_id, name, assigned_station (password auto-generated when absent)
 function importCsv(electionId, csvText) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
+  const draft = requireDraft(electionId);
+  if (!draft.ok) return draft;
   if (!csvText || !String(csvText).trim()) return { ok: false, error: 'CSV is empty' };
 
   let records;
@@ -126,6 +144,8 @@ function importCsv(electionId, csvText) {
 // range: { from, to } for 'range' scheme -> generates sequential Voter IDs over a numeric range.
 function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = '', from, to, assignedStation } = {}) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
+  const draft = requireDraft(electionId);
+  if (!draft.ok) return draft;
   if (!['name-index', 'index-only', 'index-phone', 'range'].includes(scheme)) {
     return { ok: false, error: 'Invalid generation scheme' };
   }

@@ -175,6 +175,15 @@ function setStatus(id, status, actor) {
     audit('elections', `Forced "${id}" to active before schedule — moved to upcoming by schedule`);
   }
 
+  // Running an election (upcoming/active) requires a populated voter roll for
+  // BOTH election types. You cannot set an election live with zero voters.
+  if (status === 'upcoming' || status === 'active') {
+    const vcount = db.get().prepare('SELECT COUNT(*) AS c FROM voters WHERE election_id = ?').get(id).c;
+    if (vcount === 0) {
+      return { ok: false, error: `No voters registered. Add at least one voter before running this ${exists.type} election.`, needVoters: true };
+    }
+  }
+
   db.get().prepare('UPDATE elections SET status = ?, closed_at = ? WHERE id = ?')
     .run(status, status === 'closed' ? Date.now() : exists.closed_at, id);
 
@@ -183,8 +192,9 @@ function setStatus(id, status, actor) {
 }
 
 // Publish an election: compute its status from the schedule, mirroring the web
-// app's saveElection('publish') logic. A school election without any voters
-// cannot publish — it is forced back to 'draft'.
+// app's saveElection('publish') logic. An election (school OR station) without
+// any registered voters cannot go live — publishing is blocked until the voter
+// roll is populated so every election type has voters.
 function publishElection(id, { schoolVoterCount = null } = {}, actor) {
   const exists = getElection(id);
   if (!exists) return { ok: false, error: 'Election not found' };
@@ -193,12 +203,12 @@ function publishElection(id, { schoolVoterCount = null } = {}, actor) {
 
   const now = Date.now();
   let status = deriveStatusFromSchedule(exists, now);
-  // School elections must have registered voters to go live.
-  if (exists.type === 'school') {
-    const vcount = schoolVoterCount != null
-      ? schoolVoterCount
-      : db.get().prepare('SELECT COUNT(*) AS c FROM voters WHERE election_id = ?').get(id).c;
-    if (vcount === 0) status = 'draft';
+  // Both election types must have registered voters to go live.
+  const vcount = schoolVoterCount != null
+    ? schoolVoterCount
+    : db.get().prepare('SELECT COUNT(*) AS c FROM voters WHERE election_id = ?').get(id).c;
+  if (vcount === 0) {
+    return { ok: false, error: `No voters registered. Add at least one voter before publishing this ${exists.type} election.`, needVoters: true };
   }
 
   db.get().prepare('UPDATE elections SET status = ? WHERE id = ?')

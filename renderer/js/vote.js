@@ -5,6 +5,30 @@
   const ic = (name, size = 22) =>
     (window.pvhIcons && window.pvhIcons.icon) ? window.pvhIcons.icon(name, size) : '';
 
+  // Effective election status derived from the schedule, mirroring the backend
+  // computedStatus(). Drawn from start_date/end_date vs now:
+  //   - published with start in the future  -> upcoming
+  //   - within the window (upcoming/active stored) -> active
+  //   - past the end                         -> closed
+  // Explicitly stored draft/closed return as-is.
+  function computedStatus(e, now = Date.now()) {
+    if (!e || !e.status) return 'draft';
+    if (e.status === 'draft' || e.status === 'closed') return e.status;
+    if (!e.start_date || !e.end_date) return e.status;
+    const s = Number(e.start_date);
+    const end = Number(e.end_date);
+    if (now >= s && now <= end) return 'active';
+    if (now < s) return 'upcoming';
+    return 'closed';
+  }
+
+  const STATUS_META = {
+    active: ['is-open', 'Active'],
+    upcoming: ['is-upcoming', 'Upcoming'],
+    closed: ['is-closed', 'Closed'],
+    draft: ['is-closed', 'Draft'],
+  };
+
   const content = $('kiosk-content');
   const titleEl = $('election-title');
 
@@ -68,16 +92,16 @@
       return;
     }
 
-    const voting = elections.filter((e) => e.status === 'active');
-    const cards = (voting.length ? voting : elections).map((e) => `
+    const withStatus = elections.map((e) => ({ e, es: computedStatus(e) }));
+    const cards = withStatus.map(({ e, es }) => {
+      const [cls, label] = STATUS_META[es] || STATUS_META.draft;
+      return `
       <div class="picker-card" data-id="${esc(e.id)}" role="button" tabindex="0">
         <div class="pk-icon" aria-hidden="true">${ic('ballot')}</div>
         <div class="pk-body">
           <div class="pk-top">
             ${e.type ? `<span class="pk-type">${esc(e.type)}</span>` : ''}
-            <span class="pk-status ${e.status === 'active' ? 'is-open' : 'is-closed'}">
-              ${e.status === 'active' ? 'Open' : 'Not open'}
-            </span>
+            <span class="pk-status ${cls}">${label}</span>
           </div>
           <div class="pk-title">${esc(e.title)}</div>
           <div class="pk-meta">
@@ -86,10 +110,11 @@
           </div>
         </div>
         <div class="pk-arrow" aria-hidden="true">
-          <span class="pk-go">${e.status === 'active' ? 'Cast vote' : 'View'}</span>
+          <span class="pk-go">${es === 'active' ? 'Cast vote' : 'View'}</span>
           <span class="pk-chev">→</span>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 
     content.innerHTML = `
       <div class="picker-msg">
@@ -102,10 +127,16 @@
     content.querySelectorAll('.picker-card').forEach((card) => {
       const open = async () => {
         const id = card.dataset.id;
-        const e = elections.find((x) => x.id === id);
-        if (!e) return;
-        if (e.status !== 'active') return showBlocked('This election is not open for voting yet.', true);
+        const match = withStatus.find((x) => x.e.id === id);
+        if (!match) return;
+        const { e, es } = match;
         election = e;
+        if (es !== 'active') {
+          const msg = es === 'closed'
+            ? 'This election has closed. Voting is no longer available.'
+            : (es === 'draft' ? 'This election is not open for voting yet.' : 'This election has not started yet. Voting opens at its scheduled start time.');
+          return showBlocked(msg, true);
+        }
         showAccess();
       };
       card.addEventListener('click', open);
@@ -774,15 +805,26 @@
 
   // Deep-link support: ?election=<id> skips the picker and opens that election
   // directly (used by the dashboard's active-election "Run voting" buttons).
+  // ?election=<id>&recover=1 jumps straight to the password-recovery screen
+  // (the "voter verification link" shared from the Voters page / help desk).
   async function deepLink() {
-    const deepId = new URLSearchParams(window.location.search).get('election');
+    const qs = new URLSearchParams(window.location.search);
+    const deepId = qs.get('election');
+    const recover = qs.get('recover') === '1';
     if (!deepId) return;
     let elections = [];
     try { elections = await window.pvh.listElections(); } catch (e) { elections = []; }
     const e = elections.find((x) => x.id === deepId);
     if (!e) return;
-    if (e.status !== 'active') { showBlocked('This election is not open for voting yet.', true); return; }
     election = e;
+    if (recover) { showVerify(); return; }
+    const es = computedStatus(e);
+    if (es !== 'active') {
+      const msg = es === 'closed'
+        ? 'This election has closed. Voting is no longer available.'
+        : 'This election has not started yet. Voting opens at its scheduled start time.';
+      return showBlocked(msg, true);
+    }
     showAccess();
   }
 
