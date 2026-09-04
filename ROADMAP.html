@@ -519,13 +519,28 @@ CREATE TABLE audit_log (
         <tr><td>Audio feedback</td><td>Peep sound on vote confirmation, error sounds (Web Audio, no assets)</td></tr>
         <tr><td>Voter card printing</td><td>Format and print voter ID cards</td></tr>
         <tr><td>Results printing</td><td>Format and print results certificates</td></tr>
-        <tr><td>Auto-update</td><td><code>electron-updater</code> for seamless updates — <strong>deferred/optional</strong>: requires a release host + signed builds; app is distributed by installer rebuild instead</td></tr>
+        <tr><td>Auto-update</td><td><code>electron-updater</code> for seamless updates — <strong>built and active</strong>: checks the GitHub release feed on launch and periodically; also falls back to manual installer distribution</td></tr>
         <tr><td>First-run wizard</td><td>Guided setup: station name, audio test, credentials</td></tr>
         <tr><td>Windows build</td><td><code>.exe</code> installer via <code>electron-builder</code> (NSIS, oneClick-off, desktop shortcut)</td></tr>
         <tr><td>macOS build</td><td><code>.dmg</code> via <code>electron-builder</code> (ad-hoc signed; add Developer ID + notary for store distribution)</td></tr>
       </table>
       <p style="margin-top: 12px;"><strong>Deliverable:</strong> Packaged app ready for distribution to polling stations.</p>
-      <p style="margin-top: 8px; color: #4ade80;"><strong>Built and verified:</strong> fullscreen kiosk lockdown (menu-bar auto-hide, before-input-event shortcut guard while kiosk, cursor auto-hide, context-menu block), audio feedback (synthesized success/confirm/error tones) on voting + check-in screens, and distribution installers — <code>electron-builder</code> configured in <code>electron-builder.yml</code> (appId <code>com.pulsevotehub.desktop</code>, asar with <code>better-sqlite3</code> unpacked, logo icon 1024²) producing macOS <code>.dmg</code> (x64, boots with integrity checks passing) and Windows NSIS <code>.exe</code> (cross-built on macOS). <strong>Deferred:</strong> auto-update (<code>electron-updater</code>) — optional, needs a release host and signed builds.</p>
+      <p style="margin-top: 8px; color: #4ade80;"><strong>Built and verified:</strong> fullscreen kiosk lockdown (menu-bar auto-hide, before-input-event shortcut guard while kiosk, cursor auto-hide, context-menu block), audio feedback (synthesized success/confirm/error tones) on voting + check-in screens, and distribution installers — <code>electron-builder</code> configured in <code>electron-builder.yml</code> (appId <code>com.pulsevotehub.desktop</code>, asar with <code>better-sqlite3</code> unpacked, logo icon 1024²) producing macOS <code>.dmg</code> (x64, boots with integrity checks passing) and Windows NSIS <code>.exe</code> (cross-built on macOS), plus background auto-update (<code>electron-updater</code>) against the GitHub release feed. <strong>Still deferred:</strong> a signed/notarized macOS build (Developer ID) — currently ad-hoc signed only.</p>
+    </div>
+
+    <div class="phase-card">
+      <h3>Phase 12: Licensing &amp; Distribution <span style="color:#60a5fa;font-weight:600;">— ongoing</span><span class="badge badge-green">✅ Complete</span></h3>
+      <p style="color: #94a3b8; margin-bottom: 12px;">Server-backed per-device activation, re-activation on version upgrades, a private developer channel, and the live release pipeline.</p>
+      <table>
+        <tr><th>Task</th><th>Detail</th></tr>
+        <tr><td>Activation server</td><td>Lighthouse license server deployed on Render (<code>pulse-vote-hub-license.onrender.com</code>) — redeems per-device activation codes, validates/revokes, and records the machine identity</td></tr>
+        <tr><td>Per-device activation</td><td>Each install must enter an activation code issued from the Developer console; the same code re-validates on a reinstall/upgrade of the same machine but is blocked on a different machine</td></tr>
+        <tr><td>Re-activation on version change</td><td>The license is bound to the app version it was activated under. On every version upgrade the stored license is cleared so the user must enter their activation code again — verifying a real, current user on each release. Existing users (already have an account) are routed to sign-in after activating; fresh installs go to profile setup</td></tr>
+        <tr><td>Private developer channel</td><td>Hidden gesture (Ctrl/⌘+Shift+D) opens the developer bootstrap only on licensed/dev machines; developer accounts are created with a single-use, server-issued developer key</td></tr>
+        <tr><td>Auto-update feed</td><td>Releases publish the macOS <code>.dmg</code>/<code>.exe</code> plus <code>latest*.yml</code> (sha512-verified) to GitHub Releases; <code>electron-updater</code> in the app pulls them</td></tr>
+        <tr><td>Adversarial hardening</td><td>A fresh installer or cloned install cannot bypass the private channel — activation is required before setup, and the developer gesture stays locked to licensed/dev machines</td></tr>
+      </table>
+      <p style="margin-top: 12px;"><strong>Deliverable:</strong> every release is gated behind per-device activation, re-validated on each upgrade, with a private developer channel that cannot be bypassed by reinstalling or cloning. Verified end-to-end against the live Render server and packaged builds.</p>
     </div>
 
     <h2>Timeline</h2>
@@ -583,15 +598,17 @@ CREATE TABLE audit_log (
       <tr><td><code>sqlcipher</code></td><td>⏳ Deferred (optional)</td><td>Encrypted database at rest — not required while hash chains + signatures cover tamper evidence</td></tr>
       <tr><td>Signatures</td><td>✅ Native Node crypto</td><td>ed25519 via built-in <code>crypto.generateKeyPairSync</code> — <code>node-forge</code>/<code>jose</code> not needed</td></tr>
       <tr><td><code>electron-builder</code></td><td>✅ Installed (26.x)</td><td>Packaging — macOS .dmg + Windows NSIS .exe (<code>electron-builder.yml</code>)</td></tr>
+      <tr><td><code>electron-updater</code></td><td>✅ Installed</td><td>Background auto-update against the GitHub release feed</td></tr>
+      <tr><td>License server</td><td>✅ Deployed (Render)</td><td>Per-device activation, code validation/revocation, server-issued developer keys — <code>pulse-vote-hub-license.onrender.com</code></td></tr>
       <tr><td><code>csv-parse</code></td><td>✅ Installed</td><td>CSV import</td></tr>
       <tr><td><code>pdfkit</code></td><td>✅ Installed</td><td>PDF export</td></tr>
     </table>
 
     <div class="summary-box">
-      <h3>Current Status — Week 5 of 6</h3>
-      <p>The single-device offline track is complete and verified: <strong>Phases 1, 2, 4, 5, 6, 7, 8, 9, 10</strong> (foundation, LAN networking with one server + multiple clients sharing a database, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, and multi-location merge with global duplicate detection). <strong>Phase 3</strong> is complete too: scrypt hashing, vote + audit hash chains, atomic transactions, role-based access, login lockout, integrity verification (start/close/on-demand), and per-vote ed25519 signatures (DB-at-rest encryption deferred by design).</p>
-      <p style="margin-top: 8px;"><strong>Remaining roadmap work:</strong> none on the core build — Phases 1–11 are complete. Optional follow-ups: auto-update (<code>electron-updater</code>), a signed/notarized macOS build, and a Windows CI build station.</p>
-      <p style="margin-top: 8px;">Say <strong>"Start Phase 11"</strong> to begin the next build.</p>
+      <h3>Current Status — All roadmap phases complete</h3>
+      <p>The full build is complete and verified: <strong>Phases 1–11</strong> (foundation, LAN networking with one server + multiple clients sharing a database, security &amp; integrity, election/voter/officer management, check-in, voting kiosk, results &amp; official declaration, multi-location merge with global duplicate detection, and polish &amp; packaging). <strong>Phase 12 (Licensing &amp; Distribution)</strong> is also complete: server-backed per-device activation, re-activation on every version upgrade, a private developer channel with server-issued keys, and auto-update against the GitHub release feed.</p>
+      <p style="margin-top: 8px;"><strong>Remaining optional follow-ups:</strong> a signed/notarized macOS build (Developer ID), a Windows CI build station, and encrypted-database-at-rest (<code>sqlcipher</code>). None are required for distribution.</p>
+      <p style="margin-top: 8px;">Current release: <strong>v1.2.27</strong> (Windows + macOS).</p>
     </div>
   </div>
 </body>
