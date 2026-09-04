@@ -99,9 +99,10 @@ function isConfigured() {
 }
 
 // Can this machine reach the developer bootstrap (Ctrl/⌘+Shift+D)? The hidden
-// gesture must only open on a machine that is already licensed (activation done)
+// gesture may only open on a machine that is already licensed (activation done)
 // or already has a developer account. A fresh, unactivated user machine must
-// NOT be able to claim developer status to bypass activation.
+// NOT be able to self-register a developer account (which would bypass
+// activation), so the bootstrap is locked to licensed/dev machines only.
 function canAccessDeveloperBootstrap() {
   return !!(db.getConfig('license_code')) || hasDeveloper();
 }
