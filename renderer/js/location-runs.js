@@ -4,6 +4,10 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isAdmin = session && (session.role === 'admin' || session.role === 'developer');
   const isLocCoord = session && session.role === 'location_coordinator';
+  // Any coordinator can author run packs for elections they own (the backend
+  // guards by ownership); admins/developers see everything. Result-pack
+  // import + aggregate compilation stay admin/developer-only.
+  const canAuthorPacks = isAdmin || (session && (session.role === 'coordinator' || session.role === 'location_coordinator'));
   const pvh = window.pvh;
   const ui = window.pvhUI;
   const modal = () => ui.openModal;
@@ -147,9 +151,9 @@
       compile.hidden = true;
       packs.hidden = true;
     }
-    $('page-actions').innerHTML = isAdmin
+    $('page-actions').innerHTML = canAuthorPacks
       ? `<button class="btn btn-primary" id="btn-new-runpack"><span class="icon btn-icon" data-icon="plus"></span>Create run pack</button>
-         <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>`
+         ${isAdmin ? `<button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>` : ''}`
       : `<button class="btn btn-primary" id="btn-import-run"><span class="icon btn-icon" data-icon="download"></span>Import run pack</button>`;
     bindPageActions();
     const nb = $('btn-new-runpack');
@@ -318,7 +322,7 @@
 
   (async function init() {
     const rolePanel = $('role-panel');
-    rolePanel.innerHTML = isAdmin
+    rolePanel.innerHTML = canAuthorPacks
       ? `<div class="card-title">Main coordinator</div>
          <p class="text-muted hint">You own the overall election. Hand each location a run pack, then import their sealed result packs and compile the aggregate tally.</p>`
       : `<div class="card-title">Location coordinator</div>
@@ -329,12 +333,12 @@
       paw.innerHTML = '';
       return;
     }
-    if (isAdmin) {
+    if (canAuthorPacks) {
       paw.innerHTML = `
         <button class="btn btn-primary" id="btn-new-runpack"><span class="icon btn-icon" data-icon="plus"></span>Create run pack</button>
-        <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>`;
+        ${isAdmin ? `<button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>` : ''}`;
       $('btn-new-runpack').addEventListener('click', createRunPackForLocation);
-      $('btn-import-results').addEventListener('click', importResultPacks);
+      if (isAdmin) $('btn-import-results').addEventListener('click', importResultPacks);
     } else if (isLocCoord && elections.length === 0) {
       paw.innerHTML = `<button class="btn btn-primary" id="btn-import-run"><span class="icon btn-icon" data-icon="download"></span>Import run pack</button>`;
       bindPageActions();
