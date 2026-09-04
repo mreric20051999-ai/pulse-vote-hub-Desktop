@@ -1667,7 +1667,7 @@ ipcMain.handle('location:create-result', async (_e, electionId, officerId) => {
 // for compilation.
 ipcMain.handle('location:pick-result', async (_e, officerId) => {
   const actor = resolveActor(officerId, _e.sender.id);
-  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Only the main coordinator can import result packs.' };
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer' && actor.role !== 'coordinator')) return { ok: false, error: 'Only the main coordinator can import result packs.' };
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose result pack(s) from locations',
     properties: ['openFile', 'multiSelections'],
@@ -1695,7 +1695,7 @@ ipcMain.handle('location:pick-result', async (_e, officerId) => {
 // Main coordinator: compile verified result packs into the aggregate result.
 ipcMain.handle('location:compile', (_e, { packs }, officerId) => {
   const actor = resolveActor(officerId, _e.sender.id);
-  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer')) return { ok: false, error: 'Only the main coordinator can compile results.' };
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer' && actor.role !== 'coordinator')) return { ok: false, error: 'Only the main coordinator can compile results.' };
   const valid = (Array.isArray(packs) ? packs : [])
     .map((p) => (p && p.pack) || p)
     .filter((p) => p && p.payload);

@@ -4,10 +4,10 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const isAdmin = session && (session.role === 'admin' || session.role === 'developer');
   const isLocCoord = session && session.role === 'location_coordinator';
-  // Any coordinator can author run packs for elections they own (the backend
-  // guards by ownership); admins/developers see everything. Result-pack
-  // import + aggregate compilation stay admin/developer-only.
-  const canAuthorPacks = isAdmin || (session && (session.role === 'coordinator' || session.role === 'location_coordinator'));
+  // The main coordinator owns/oversees the whole election: they author run
+  // packs, import the sealed result packs back, and compile the aggregate.
+  // Admin/developer/coordinator all qualify; ownership is enforced backend-side.
+  const isMainCoordinator = isAdmin || (session && session.role === 'coordinator');
   const pvh = window.pvh;
   const ui = window.pvhUI;
   const modal = () => ui.openModal;
@@ -140,7 +140,7 @@
         <div class="text-muted">Type: ${esc(e.type || 'station')} &middot; ${e.voter_count != null ? e.voter_count + ' registered voters' : ''}</div>
       </div>`;
     // Role-specific actions
-    if (isAdmin) {
+    if (isMainCoordinator) {
       await loadLocations(e.id);
       actions.hidden = true;
       compile.hidden = incomingPacks.length ? false : true;
@@ -151,9 +151,9 @@
       compile.hidden = true;
       packs.hidden = true;
     }
-    $('page-actions').innerHTML = canAuthorPacks
+    $('page-actions').innerHTML = isMainCoordinator
       ? `<button class="btn btn-primary" id="btn-new-runpack"><span class="icon btn-icon" data-icon="plus"></span>Create run pack</button>
-         ${isAdmin ? `<button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>` : ''}`
+         <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>`
       : `<button class="btn btn-primary" id="btn-import-run"><span class="icon btn-icon" data-icon="download"></span>Import run pack</button>`;
     bindPageActions();
     const nb = $('btn-new-runpack');
@@ -322,7 +322,7 @@
 
   (async function init() {
     const rolePanel = $('role-panel');
-    rolePanel.innerHTML = canAuthorPacks
+    rolePanel.innerHTML = isMainCoordinator
       ? `<div class="card-title">Main coordinator</div>
          <p class="text-muted hint">You own the overall election. Hand each location a run pack, then import their sealed result packs and compile the aggregate tally.</p>`
       : `<div class="card-title">Location coordinator</div>
@@ -333,12 +333,12 @@
       paw.innerHTML = '';
       return;
     }
-    if (canAuthorPacks) {
+    if (isMainCoordinator) {
       paw.innerHTML = `
         <button class="btn btn-primary" id="btn-new-runpack"><span class="icon btn-icon" data-icon="plus"></span>Create run pack</button>
-        ${isAdmin ? `<button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>` : ''}`;
+        <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>`;
       $('btn-new-runpack').addEventListener('click', createRunPackForLocation);
-      if (isAdmin) $('btn-import-results').addEventListener('click', importResultPacks);
+      $('btn-import-results').addEventListener('click', importResultPacks);
     } else if (isLocCoord && elections.length === 0) {
       paw.innerHTML = `<button class="btn btn-primary" id="btn-import-run"><span class="icon btn-icon" data-icon="download"></span>Import run pack</button>`;
       bindPageActions();
