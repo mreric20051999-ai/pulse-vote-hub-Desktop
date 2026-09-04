@@ -397,9 +397,9 @@ ipcMain.handle('auth:recover-password', (_e, { officerId, recoveryCode, newPassw
   }
 });
 
-ipcMain.handle('auth:setup-developer', (_e, { name, officerId, password, devKey, confirmDevKey }) => {
+ipcMain.handle('auth:setup-developer', async (_e, { name, officerId, password, devKey }) => {
   try {
-    return auth.setupDeveloper(name, officerId, password, devKey, confirmDevKey);
+    return await auth.setupDeveloper(name, officerId, password, devKey);
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -623,6 +623,15 @@ ipcMain.handle('lic:revoke', async (e, id, token) => {
 });
 ipcMain.handle('lic:redeem', async (_e, payload) => {
   try { return await auth.redeemLicense(payload || {}); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Mint a single-use developer bootstrap key (developer-only). The returned key
+// (DVK-...) is what a machine presents in the developer setup to claim the
+// developer account. Minted only with the admin token on the license server.
+ipcMain.handle('lic:devkey', async (e, token) => {
+  const r = requireDeveloper(token, e);
+  if (!r.ok) return r;
+  try { return await auth.mintDevKey(); } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // Read/write the license server config (developer-only). The URL points at the

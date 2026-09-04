@@ -286,6 +286,18 @@
         <button class="btn btn-primary" id="lic-server-save-btn"><span class="icon btn-icon" data-icon="save"></span>Save</button>
       </div>
       <p class="auth-error" id="lic-server-msg"></p>
+
+      <div class="inline-form" style="margin-top: 14px;">
+        <p class="text-muted" style="flex: 1 1 auto; align-self: center; margin: 0;">
+          Developer channel: mint a one-time key a machine uses to claim the developer account.
+          The key is consumed server-side, so a fresh install cannot self-register.
+        </p>
+        <button class="btn btn-ghost" id="lic-devkey-btn"><span class="icon btn-icon" data-icon="key"></span>Issue developer key</button>
+      </div>
+      <div class="devkey-box" id="lic-devkey-box" hidden>
+        <code id="lic-devkey-value"></code>
+        <p class="auth-error" id="lic-devkey-msg"></p>
+      </div>
     </section>
 
     <!-- License activation -->

@@ -351,22 +351,23 @@ function verifyDevelopmentKey(code) {
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
-// Set up the initial developer account (gated by the developer key).
-function setupDeveloper(name, officerId, password, devKey, confirmDevKey) {
+// Set up the initial developer account (gated by a server-issued dev key).
+// The developer channel is private: a machine can ONLY claim developer status
+// by presenting a single-use developer key minted by the license server with
+// the admin token. A fresh installer cannot choose its own key, and a cloned
+// install cannot reuse a key (it is redeemed server-side).
+async function setupDeveloper(name, officerId, password, devKey) {
   if (hasDeveloper()) return { ok: false, error: 'A developer account already exists' };
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
   if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
-  // First-time: the operator provisions and confirms the developer key.
-  // Subsequent: it must match the provisioned key.
-  if (!hasDevelopmentKey()) {
-    if (!devKey || !confirmDevKey || devKey !== confirmDevKey) {
-      return { ok: false, error: 'The developer key and its confirmation must match' };
-    }
-    db.setConfig(DEVELOPMENT_KEY, developmentKeyHash(devKey));
-  } else if (!verifyDevelopmentKey(devKey)) {
-    return { ok: false, error: 'Incorrect developer key for this machine' };
+  const key = String(devKey || '').trim();
+  if (!key) return { ok: false, error: 'A developer key issued by the license server is required to set up the developer account' };
+
+  const v = await lic.validateDevKey(key);
+  if (!v || !v.ok || !v.valid) {
+    return { ok: false, error: (v && v.error) || 'Invalid developer key. Ask the owner to mint a new one from the license server.' };
   }
 
   const officer = insertOfficer(name, officerId, password, 'developer');
@@ -498,6 +499,15 @@ async function listActivationCodes() {
   const res = await lic.listCodes();
   if (!res.ok) return { ok: false, error: res.error, codes: [] };
   return { ok: true, codes: res.codes || [] };
+}
+
+// Mint a single-use developer bootstrap key (developer-only, privileged). Uses
+// the license server's admin endpoint so only the owner can provision developer
+// accounts on a machine.
+async function mintDevKey() {
+  if (!lic.hasServer()) return { ok: false, error: 'License server not configured. Set it in the Developer console.' };
+  const res = await lic.mintDevKey();
+  return { ok: res.ok, key: res.key, id: res.id, error: res.error };
 }
 
 // Revoke a license (developer-only). The server marks it revoked, which
@@ -874,6 +884,7 @@ module.exports = {
   issueActivationCode,
   listActivationCodes,
   revokeActivationCode,
+  mintDevKey,
   redeemLicense,
   licenseStatus,
   hasRecoveryCode,

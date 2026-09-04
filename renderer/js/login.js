@@ -203,16 +203,8 @@
   $('developer-setup-back').addEventListener('click', devSetupBack);
   $('developer-login-back').addEventListener('click', devSetupBack);
 
-  // Explain the developer key: provisioned keys must be re-entered, while a
-  // fresh machine asks you to choose the key once.
-  const devKeyHint = $('dev-setup-key-hint');
-  window.pvh.hasDeveloperKey().then((keyExists) => {
-    if (devKeyHint) {
-      devKeyHint.textContent = keyExists
-        ? 'Enter the developer key provisioned for this machine to claim the developer account.'
-        : 'Choose a developer key to lock down the developer account on this machine. Keep it safe — it cannot be changed later and cannot be issued by an access code.';
-    }
-  }).catch(() => {});
+  // The developer key is issued server-side (private channel); no per-machine
+  // provisioning hint is needed any more.
 
   // ---- Access-code redemption (one-time code issued by an admin) ----
   function openRedeem() {
@@ -537,7 +529,6 @@
       officerId: $('dev-setup-id').value,
       password: $('dev-setup-pass').value,
       devKey: $('dev-setup-key').value,
-      confirmDevKey: $('dev-setup-key-confirm').value,
     });
 
     if (res.ok) {

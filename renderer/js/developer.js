@@ -771,6 +771,24 @@
       window.pvhUI.toast('License server updated.', 'success');
     });
 
+    $('lic-devkey-btn').addEventListener('click', async () => {
+      const box = $('lic-devkey-box');
+      const val = $('lic-devkey-value');
+      const dmsg = $('lic-devkey-msg');
+      box.hidden = true;
+      dmsg.textContent = '';
+      const res = await window.pvh.mintDeveloperKey();
+      if (!res || !res.ok || !res.key) {
+        box.hidden = false;
+        dmsg.textContent = (res && res.error) || 'Could not mint a developer key. Is the server reachable and the admin token set?';
+        return;
+      }
+      val.textContent = res.key;
+      dmsg.textContent = 'One-time developer key. Use it in the developer setup; it is consumed after use.';
+      box.hidden = false;
+      window.pvhUI.toast('Developer key issued.', 'success');
+    });
+
     load();
   }
 

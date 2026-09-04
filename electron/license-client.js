@@ -78,6 +78,19 @@ function revokeCode(id) {
   return request('POST', '/revoke', { body: { id } });
 }
 
+// Issue a single-use developer bootstrap key (admin). Used to provision the
+// developer account on a machine; minted with the admin token.
+function mintDevKey() {
+  return request('POST', '/devkey');
+}
+
+// Validate + consume a developer bootstrap key for this machine. Called by the
+// developer bootstrap so a machine can only claim developer status with a key
+// issued by the license server (the private dev channel).
+function validateDevKey(key) {
+  return request('POST', '/devkey/ok', { body: { key, machine_id: machineId() } });
+}
+
 // --- Public (redeem / status): the code is the credential ---
 
 function machineId() {
@@ -95,4 +108,4 @@ function licenseStatus(code) {
   return request('GET', '/status', { query: { code: code || '' } });
 }
 
-module.exports = { serverConfig, hasServer, mintCode, listCodes, revokeCode, redeemLicense, licenseStatus, machineId };
+module.exports = { serverConfig, hasServer, mintCode, listCodes, revokeCode, mintDevKey, validateDevKey, redeemLicense, licenseStatus, machineId };

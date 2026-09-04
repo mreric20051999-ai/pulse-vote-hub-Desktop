@@ -18,15 +18,23 @@
 // but now verified server-side so a code minted by you works on ANY device
 // without shipping database files.
 //
+// Developer keys: the developer bootstrap (the hidden Ctrl/⌘+Shift+D gesture)
+// is a private channel, so the ONLY way to become a developer is to present a
+// developer key issued by THIS server (minted with your admin token). A fresh
+// installer cannot choose its own key; a cloned install cannot reuse a key
+// because the key is stored as a SHA-256 and redeemed once server-side.
+//
 // Run:
 //   PORT=8080 PVH_ADMIN_TOKEN=<your-secret> node server/license-server.js
 //
 // Endpoints (all JSON):
-//   POST /mint   { admin_token, site_name }              -> { ok, code, site_name }
-//   GET  /codes  ?admin_token=                           -> { ok, codes: [...] }
-//   POST /revoke { admin_token, id }                     -> { ok, revoked }
-//   POST /redeem { code, machine_id }                    -> { ok, licensed, ... }
-//   GET  /status ?code=                                  -> { ok, licensed, site, revoked, machine_id }
+//   POST /mint        { admin_token, site_name }      -> { ok, code, site_name }
+//   GET  /codes       ?admin_token=                   -> { ok, codes: [...] }
+//   POST /revoke      { admin_token, id }             -> { ok, revoked }
+//   POST /redeem      { code, machine_id }            -> { ok, licensed, ... }
+//   GET  /status      ?code=                          -> { ok, licensed, site, revoked, machine_id }
+//   POST /devkey      { admin_token }                 -> { ok, key }  (single-use dev bootstrap key)
+//   POST /devkey/ok   { key, machine_id }             -> { ok, valid } (validate+consume a dev key)
 //
 // All lookups use the raw code normalized the same way the app normalizes it
 // (strip separators, uppercase). The server stores a SHA-256 of the code so a
@@ -60,6 +68,14 @@ db.exec(`
     redeemed_machine TEXT,
     revoked_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS devkeys (
+    id TEXT PRIMARY KEY,
+    key_hash TEXT NOT NULL,
+    created_at INTEGER,
+    redeemed_at INTEGER,
+    redeemed_machine TEXT,
+    revoked_at INTEGER
+  );
 `);
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -68,6 +84,14 @@ function generateCode() {
   let raw = '';
   for (let i = 0; i < 8; i++) raw += ALPHABET[crypto.randomInt(ALPHABET.length)];
   return `PVH-${raw.slice(0, 4)}-${raw.slice(4)}`;
+}
+
+// Developer bootstrap key: DVK-XXXX-XXXX-XXXX (16 chars, 32-char alphabet = 80
+// bits). Single-use and revocable; minted only with the admin token.
+function generateDevKey() {
+  let raw = '';
+  for (let i = 0; i < 16; i++) raw += ALPHABET[crypto.randomInt(ALPHABET.length)];
+  return `DVK-${raw.slice(0, 4)}-${raw.slice(4, 8)}-${raw.slice(8, 12)}-${raw.slice(12)}`;
 }
 
 // Normalize exactly as the app does so codes typed by customers match.
@@ -160,6 +184,38 @@ const server = http.createServer(async (req, res) => {
       db.prepare('UPDATE licenses SET redeemed_at = ?, redeemed_machine = ? WHERE id = ?')
         .run(Date.now(), machine, row.id);
       return json(res, 200, { ok: true, licensed: true, site: row.site_name, machine });
+    }
+
+    if (req.method === 'POST' && route === '/devkey') {
+      const body = await readBody(req);
+      if (!isAdmin(body, req.headers)) return json(res, 403, { ok: false, error: 'Forbidden: bad admin token' });
+      const key = generateDevKey();
+      db.prepare('INSERT INTO devkeys (id, key_hash, created_at) VALUES (?,?,?)')
+        .run(uuidv4(), hash(key), Date.now());
+      return json(res, 200, { ok: true, key });
+    }
+
+    if (req.method === 'POST' && route === '/devkey/ok') {
+      const body = await readBody(req);
+      const raw = normalize(body.key);
+      const machine = String(body.machine_id || '').trim();
+      if (!raw) return json(res, 400, { ok: false, error: 'A developer key is required' });
+      if (!machine) return json(res, 400, { ok: false, error: 'machine_id is required' });
+
+      const row = db.prepare('SELECT * FROM devkeys WHERE key_hash = ?').get(hash(raw));
+      if (!row) return json(res, 200, { ok: false, valid: false, error: 'Invalid developer key' });
+      if (row.revoked_at) return json(res, 200, { ok: false, valid: false, error: 'This developer key has been revoked' });
+      if (row.redeemed_at) {
+        // Allow re-validating only on the machine that already consumed it (so a
+        // reinstalled dev box keeps working), but block a different machine.
+        if (row.redeemed_machine === machine) {
+          return json(res, 200, { ok: true, valid: true, machine });
+        }
+        return json(res, 200, { ok: false, valid: false, error: 'This developer key is already in use on another machine' });
+      }
+      db.prepare('UPDATE devkeys SET redeemed_at = ?, redeemed_machine = ? WHERE id = ?')
+        .run(Date.now(), machine, row.id);
+      return json(res, 200, { ok: true, valid: true, machine });
     }
 
     if (req.method === 'GET' && route === '/status') {

@@ -135,6 +135,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   revokeLicense: (id) => ipcRenderer.invoke('lic:revoke', id, oid()),
   getLicenseServerConfig: () => ipcRenderer.invoke('lic:server-config', oid()),
   setLicenseServerConfig: (payload) => ipcRenderer.invoke('lic:server-config-set', payload, oid()),
+  mintDeveloperKey: () => ipcRenderer.invoke('lic:devkey', oid()),
   listDeployments: () => ipcRenderer.invoke('dist:list', oid()),
   addDeployment: (fields) => ipcRenderer.invoke('dist:add', fields, oid()),
   removeDeployment: (id) => ipcRenderer.invoke('dist:remove', id, oid()),
