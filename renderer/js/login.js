@@ -115,18 +115,25 @@
   });
 
   // Officer-mode entry. An already-configured machine signs straight in; a
-  // fresh machine must first activate its license before first-run setup.
-  window.pvh.setupCheck().then((configured) => {
-    if (configured) {
-      show('login');
-      focus('login');
-      return;
+  // fresh machine must first activate its license before first-run setup. The
+  // license check ALWAYS runs first: it clears the stored license on a version
+  // upgrade, forcing re-activation for real users on every release regardless of
+  // whether the machine is already configured. Only once licensed do we decide
+  // between setup (fresh) and sign-in (configured).
+  const proceedToSetup = () => { show('setup'); focus('setup'); };
+  window.pvh.licenseStatus().then((lic) => {
+    if (!lic || !lic.licensed) {
+      show('license'); focus('license'); return;
     }
-    const proceedToSetup = () => { show('setup'); focus('setup'); };
-    window.pvh.licenseStatus().then((lic) => {
-      if (lic && lic.licensed) proceedToSetup();
-      else { show('license'); focus('license'); }
-    }).catch(() => proceedToSetup());
+    return window.pvh.setupCheck().then((configured) => {
+      if (configured) { show('login'); focus('login'); }
+      else proceedToSetup();
+    });
+  }).catch(() => {
+    window.pvh.setupCheck().then((configured) => {
+      if (configured) { show('login'); focus('login'); }
+      else proceedToSetup();
+    });
   });
 
   // ---- License activation submit (first-run gate) ----
