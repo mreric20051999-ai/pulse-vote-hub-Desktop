@@ -27,8 +27,9 @@ function hasServer() {
   return true; // a default server is always available; only the URL may change
 }
 
-function request(method, path, { body, token, query } = {}) {
-  const { url, token: cfgToken } = serverConfig();
+function request(method, path, { body, token, query, url: urlOverride } = {}) {
+  const { url: cfgUrl, token: cfgToken } = serverConfig();
+  const url = (urlOverride || cfgUrl || '').replace(/\/+$/, '');
   if (!url) return Promise.resolve({ ok: false, error: 'License server not configured. Set it in the Developer console.' });
 
   let target;
@@ -108,4 +109,4 @@ function licenseStatus(code) {
   return request('GET', '/status', { query: { code: code || '' } });
 }
 
-module.exports = { serverConfig, hasServer, mintCode, listCodes, revokeCode, mintDevKey, validateDevKey, redeemLicense, licenseStatus, machineId };
+module.exports = { serverConfig, hasServer, request, mintCode, listCodes, revokeCode, mintDevKey, validateDevKey, redeemLicense, licenseStatus, machineId };

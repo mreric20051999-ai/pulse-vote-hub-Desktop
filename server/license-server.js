@@ -76,6 +76,19 @@ db.exec(`
     redeemed_machine TEXT,
     revoked_at INTEGER
   );
+  CREATE TABLE IF NOT EXISTS relay_blobs (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    kind TEXT,
+    title TEXT,
+    location TEXT,
+    fingerprint TEXT,
+    device TEXT,
+    created_at INTEGER,
+    expires_at INTEGER,
+    fetched_at INTEGER,
+    ciphertext TEXT NOT NULL
+  );
 `);
 
 const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -232,13 +245,82 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // ---- Sealed-pack relay (over-the-internet distance hand-off) ----
+    // Stores ONLY the AES-GCM ciphertext of a sealed result pack, keyed by a
+    // high-entropy transfer code (the code is the credential, like activation
+    // codes). The receiver claims it once (one-time), and envelopes expire after
+    // TTL_DAYS. The passphrase is never sent to the server, so the relay holds
+    // nothing decryptable even if fully compromised.
+    if (req.method === 'POST' && route === '/relay/put') {
+      const body = await readBody(req);
+      const code = normalize(body.code);
+      if (!code) return json(res, 400, { ok: false, error: 'A transfer code is required' });
+      if (code.length < 16) return json(res, 400, { ok: false, error: 'Transfer code is too weak' });
+      const ciphertext = String(body.ciphertext || '');
+      if (!ciphertext) return json(res, 400, { ok: false, error: 'ciphertext is required' });
+      if (ciphertext.length > 4e6) return json(res, 413, { ok: false, error: 'Envelope too large' });
+      const exists = db.prepare('SELECT id FROM relay_blobs WHERE code_hash = ?').get(hash(code));
+      if (exists) return json(res, 409, { ok: false, error: 'That transfer code is already in use' });
+      const ttlDays = Math.max(1, Math.min(30, Number(body.ttl_days) || 7));
+      const now = Date.now();
+      const id = uuidv4();
+      db.prepare(`INSERT INTO relay_blobs
+        (id, code_hash, kind, title, location, fingerprint, device, created_at, expires_at, ciphertext)
+        VALUES (?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, hash(code), String(body.kind || 'result').slice(0, 16),
+          String(body.title || '').slice(0, 200), String(body.location || '').slice(0, 200),
+          String(body.fingerprint || '').slice(0, 64), String(body.device || '').slice(0, 120),
+          now, now + ttlDays * 86400e3, ciphertext);
+      return json(res, 200, { ok: true, id, expires_at: now + ttlDays * 86400e3, ttl_days: ttlDays });
+    }
+
+    if (req.method === 'GET' && route === '/relay/get') {
+      const code = normalize(url.searchParams.get('code'));
+      if (!code) return json(res, 400, { ok: false, error: 'A transfer code is required' });
+      const row = db.prepare('SELECT * FROM relay_blobs WHERE code_hash = ?').get(hash(code));
+      if (!row) return json(res, 200, { ok: false, error: 'Unknown or expired transfer code', code: 'notfound' });
+      if (Date.now() > row.expires_at) {
+        db.prepare('DELETE FROM relay_blobs WHERE id = ?').run(row.id);
+        return json(res, 200, { ok: false, error: 'This transfer has expired', code: 'expired' });
+      }
+      // Idempotent: the envelope may be pulled repeatedly. It is only removed
+      // when the receiver ACKs success (POST /relay/ack) or it expires, so a
+      // wrong passphrase never burns the transfer. Ciphertext alone is useless
+      // without the sender-shared passphrase, so multiple pulls are harmless.
+      return json(res, 200, {
+        ok: true,
+        kind: row.kind,
+        title: row.title,
+        location: row.location,
+        fingerprint: row.fingerprint,
+        device: row.device,
+        created_at: row.created_at,
+        expires_at: row.expires_at,
+        ciphertext: row.ciphertext,
+      });
+    }
+
+    if (req.method === 'POST' && route === '/relay/ack') {
+      const body = await readBody(req);
+      const code = normalize(body.code);
+      if (!code) return json(res, 400, { ok: false, error: 'A transfer code is required' });
+      const row = db.prepare('SELECT * FROM relay_blobs WHERE code_hash = ?').get(hash(code));
+      if (!row) return json(res, 200, { ok: true, removed: false });
+      db.prepare('DELETE FROM relay_blobs WHERE id = ?').run(row.id);
+      return json(res, 200, { ok: true, removed: true });
+    }
+
     return json(res, 404, { ok: false, error: 'Not found' });
   } catch (err) {
     return json(res, 500, { ok: false, error: err.message });
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Pulse Vote Hub license server listening on http://0.0.0.0:${PORT}`);
-  console.log(`DB: ${DB_PATH}`);
-});
+module.exports = { server, db, normalize, hash, generateCode, generateDevKey };
+
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Pulse Vote Hub license server listening on http://0.0.0.0:${PORT}`);
+    console.log(`DB: ${DB_PATH}`);
+  });
+}

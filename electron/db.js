@@ -248,6 +248,38 @@ CREATE TABLE IF NOT EXISTS result_packs (
   summary TEXT
 );
 
+CREATE TABLE IF NOT EXISTS pack_receipts (
+  id TEXT PRIMARY KEY,
+  election_id TEXT NOT NULL,
+  pack_id TEXT,
+  kind TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  shortcode TEXT,
+  qr TEXT,
+  summary_json TEXT,
+  location_name TEXT,
+  election_title TEXT,
+  created_at INTEGER,
+  officer_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS pack_exchanges (
+  id TEXT PRIMARY KEY,
+  kind TEXT,
+  election_id TEXT,
+  pack_id TEXT,
+  pack_hash TEXT,
+  location_name TEXT,
+  election_title TEXT,
+  direction TEXT,
+  action TEXT,
+  status TEXT,
+  officer_id TEXT,
+  officer_name TEXT,
+  created_at INTEGER,
+  details TEXT
+);
+
 CREATE TABLE IF NOT EXISTS setup_codes (
   id TEXT PRIMARY KEY,
   code_hash TEXT NOT NULL,

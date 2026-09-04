@@ -169,6 +169,16 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   pickResultPacks: () => ipcRenderer.invoke('location:pick-result', oid()),
   compileResultPacks: (packs) => ipcRenderer.invoke('location:compile', { packs }, oid()),
 
+  // Offline result-pack verification (distance hand-off)
+  createPackReceipt: (electionId) => ipcRenderer.invoke('exchange:create-receipt', electionId, oid()),
+  verifyPackReceipt: (receipt) => ipcRenderer.invoke('exchange:verify-receipt', { receipt }, oid()),
+  listPackExchanges: (electionId) => ipcRenderer.invoke('exchange:list', electionId, oid()),
+  listPackReceipts: (electionId) => ipcRenderer.invoke('exchange:receipts', electionId, oid()),
+
+  // Over-the-internet sealed-pack relay
+  sendPackOverInternet: (electionId, passphrase) => ipcRenderer.invoke('relay:send', electionId, passphrase, oid()),
+  receivePackOverInternet: (code, passphrase) => ipcRenderer.invoke('relay:receive', { code, passphrase }, oid()),
+
   // Multi-location merge
   pickMergeFiles: () => ipcRenderer.invoke('merge:pick-files'),
   exportJson: (content, defaultName) => ipcRenderer.invoke('merge:export-json', { content, defaultName }),

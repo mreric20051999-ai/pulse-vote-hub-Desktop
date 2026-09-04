@@ -338,21 +338,21 @@ function buildResultPackInput(electionId, d) {
   return { ok: true, election: e, stations, votes, voters, auditTail, location };
 }
 
-function createResultPack(electionId) {
+// Build the result pack payload for a sealed election (deterministic content:
+// no pack_id / created_at so two exports of the same sealed state produce the
+// identical fingerprint). Returns { ok, payload } or { ok:false, error }.
+function buildResultPayload(electionId) {
   const d = db.get();
   const input = buildResultPackInput(electionId, d);
   if (!input.ok) return input;
   const e = input.election;
   const location = input.location || null;
   const locationName = (location && location.name) || 'Unknown location';
-  const packId = uuidv4();
   const posTitle = new Map(d.prepare('SELECT id, title FROM positions WHERE election_id = ?').all(electionId).map((p) => [p.id, p.title]));
   const candName = new Map(d.prepare('SELECT id, name FROM candidates WHERE election_id = ?').all(electionId).map((c) => [c.id, c.name]));
   const payload = {
     schema: RESULT_SCHEMA,
     schema_version: SCHEMA_VERSION,
-    pack_id: packId,
-    created_at: Date.now(),
     location: location ? { id: location.id, name: location.name, code: location.code } : { name: locationName },
     election: { id: e.id, title: e.title, type: e.type, election_date: e.election_date, start_date: e.start_date, end_date: e.end_date },
     stations: input.stations.map((s) => ({
@@ -372,6 +372,14 @@ function createResultPack(electionId) {
     voters: input.voters,
     auditTail: input.auditTail,
   };
+  return { ok: true, payload };
+}
+
+function createResultPack(electionId) {
+  const built = buildResultPayload(electionId);
+  if (!built.ok) return built;
+  const d = db.get();
+  const payload = { ...built.payload, pack_id: uuidv4(), created_at: Date.now() };
   const raw = JSON.stringify(payload).replace(/"signature":"[^"]*","locationPublicKey":"[^"]*"/, '');
   const verifyRaw = JSON.stringify({ ...payload, signature: null, locationPublicKey: null });
   const locationSignature = signature.signRaw(d, verifyRaw);
@@ -380,13 +388,107 @@ function createResultPack(electionId) {
   const pack = {
     schema: RESULT_SCHEMA,
     schema_version: SCHEMA_VERSION,
-    pack_id: packId,
+    pack_id: payload.pack_id,
     payload,
     signature: locationSignature,
     locationPublicKey,
     locationFingerprint,
   };
   return { ok: true, pack };
+}
+
+// ---- Long-distance verification receipts (offline sealed-pack transfer) ----
+
+// Deterministic integrity digest over the sealed result content. Computed only
+// from the payload fields that live in both the exported pack file and the
+// location machine's sealed DB state, so a receipt made later still matches the
+// file that was carried across distance.
+function resultPackFingerprint(payload) {
+  const canon = {
+    voteChain: (payload.votes || []).map((v) => ({
+      position_id: (v && v.position_id) || null,
+      candidate_id: (v && v.candidate_id) || null,
+      voter_id: (v && v.voter_id) || null,
+      station_id: (v && v.station_id) || null,
+      timestamp: (v && v.timestamp) || null,
+      prev_hash: (v && v.prev_hash) || null,
+    })),
+    voters: (payload.voters || []).map((v) => ({
+      voter_id: (v && v.voter_id) || null,
+      name: (v && v.name) || null,
+      assigned_station: (v && v.assigned_station) || null,
+      checked_in: (v && v.checked_in) || null,
+      ballot_cast: (v && v.ballot_cast) || null,
+    })),
+    stations: (payload.stations || []).map((s) => ({
+      id: (s && s.id) || null,
+      name: (s && s.name) || null,
+      code: (s && s.code) || null,
+      status: (s && s.status) || null,
+      figures: (s && s.figures) || null,
+    })),
+    audit: (payload.auditTail || []).map((a) => ({
+      action: (a && a.action) || null,
+      details: (a && a.details) || null,
+      timestamp: (a && a.timestamp) || null,
+      prev_hash: (a && a.prev_hash) || null,
+      entry_hash: (a && a.entry_hash) || null,
+    })),
+    election: payload.election ? { id: payload.election.id, title: payload.election.title } : null,
+    location: payload.location ? { name: payload.location.name, code: payload.location.code || null } : null,
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(canon)).digest('hex');
+}
+
+// Human-typable code derived from the fingerprint, e.g. "8F31-2AC0-1B7D".
+function packShortcode(fp) {
+  return fp.slice(0, 12).toUpperCase().replace(/(.{4})(?=.)/g, '$1-');
+}
+
+// Build a slim verification receipt for a sealed election (location side).
+// Carries only the fingerprint plus headline counts -- safe to send by phone /
+// email across any distance. The full encrypted result pack can then travel by
+// any trusted WAN path and be verified against this receipt.
+function buildReceiptForElection(electionId) {
+  const built = buildResultPayload(electionId);
+  if (!built.ok) return built;
+  const payload = built.payload;
+  const stations = Array.isArray(payload.stations) ? payload.stations : [];
+  const votes = Array.isArray(payload.votes) ? payload.votes : [];
+  const voters = Array.isArray(payload.voters) ? payload.voters : [];
+  const fp = resultPackFingerprint(payload);
+  const receipt = {
+    v: 1,
+    kind: 'result',
+    fingerprint: fp,
+    shortcode: packShortcode(fp),
+    election: { id: payload.election.id, title: payload.election.title },
+    location: { name: (payload.location && payload.location.name) || 'Unknown location', code: (payload.location && payload.location.code) || null },
+    votes: votes.length,
+    voters: voters.length,
+    stations: stations.length,
+    sealed: stations.filter((s) => s.status === 'submitted').length,
+    created: Date.now(),
+  };
+  return { ok: true, receipt, qr: JSON.stringify(receipt) };
+}
+
+// Verify an imported result pack against a receipt (main coordinator side).
+// Full structural verification must pass AND the recomputed fingerprint must
+// equal the receipt's fingerprint for the pack to be accepted.
+function verifyPackAgainstReceipt(pack, receipt) {
+  const out = { ok: false, match: false, report: null, errors: [], warns: [] };
+  if (!receipt || !receipt.fingerprint) { out.errors.push('The receipt is missing its fingerprint.'); return out; }
+  if (!pack || pack.schema !== RESULT_SCHEMA) { out.errors.push('Not a valid result pack.'); return out; }
+  const report = verifyResultPack(pack);
+  out.report = report;
+  out.warns = report.warns || [];
+  if (!report.ok) { out.errors.push(...(report.errors || [])); return out; }
+  const fp = resultPackFingerprint(pack.payload || {});
+  out.match = (fp === receipt.fingerprint);
+  if (!out.match) { out.errors.push('The pack does not match the receipt fingerprint.'); return out; }
+  out.ok = true;
+  return out;
 }
 
 // ---- Result pack verification + compilation (main coordinator) ----
@@ -542,5 +644,6 @@ module.exports = {
   RUN_SCHEMA, RESULT_SCHEMA,
   createRunPackBody, importRunPack, createResultPack,
   verifyResultPack, compileResult,
+  resultPackFingerprint, packShortcode, buildReceiptForElection, verifyPackAgainstReceipt,
   sha256,
 };

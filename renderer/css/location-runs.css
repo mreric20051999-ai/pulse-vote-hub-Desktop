@@ -45,6 +45,34 @@
   min-width: 0;
 }
 
+/* Distance verification receipts + hand-off ledger */
+.receipt-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-align: center;
+  padding: 10px;
+  margin: 4px 0 12px;
+  background: var(--surface-2, #283549);
+  border: 1px dashed var(--border, #334155);
+  border-radius: 8px;
+}
+.ledger-block {
+  margin-top: 18px;
+  border-top: 1px solid var(--border, #334155);
+  padding-top: 12px;
+}
+.ledger-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border, #334155);
+}
+.ledger-row span:nth-child(2) { flex: 1; min-width: 0; }
+
 /* Compiled result table */
 .table-wrap {
   overflow-x: auto;

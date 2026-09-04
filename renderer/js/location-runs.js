@@ -152,17 +152,66 @@
     }
     $('page-actions').innerHTML = isMainCoordinator
       ? `<button class="btn btn-primary" id="btn-new-runpack"><span class="icon btn-icon" data-icon="plus"></span>Create run pack</button>
-         <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>`
+         <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>
+         <button class="btn btn-secondary" id="btn-verify-receipt"><span class="icon btn-icon" data-icon="check"></span>Verify with receipt</button>
+         <button class="btn btn-secondary" id="btn-receive-relay"><span class="icon btn-icon" data-icon="download"></span>Receive over the internet</button>`
       : `<button class="btn btn-primary" id="btn-import-run"><span class="icon btn-icon" data-icon="download"></span>Import run pack</button>`;
     bindPageActions();
     const nb = $('btn-new-runpack');
     if (nb) nb.addEventListener('click', createRunPackForLocation);
+    const vr = $('btn-verify-receipt');
+    if (vr) vr.addEventListener('click', verifyPackWithReceipt);
+    const rr = $('btn-receive-relay');
+    if (rr) rr.addEventListener('click', receivePackOverInternet);
   }
 
   async function loadLocations(electionId) {
     const res = await pvh.listLocations(electionId);
     selectedLocations = (res && res.ok && res.locations) || [];
     renderPacksPanel();
+  }
+
+  // Verify a result pack (received over any distance) against a slim receipt.
+  async function verifyPackWithReceipt() {
+    ui.openModal({
+      title: 'Verify pack with receipt',
+      body: `
+        <p class="mb">Paste the <strong>receipt payload</strong> your location coordinator sent (phone/email), then choose the result pack file that travelled to you.</p>
+        <label class="field-label">Receipt payload</label>
+        <textarea id="receipt-paste" class="input" rows="6" placeholder='{"v":1,"kind":"result","fingerprint":"...","shortcode":"8F31-2AC0-1B7D",...}'></textarea>
+        <div class="mt"><button class="btn btn-primary btn-block" id="btn-receipt-go" style="margin-top:8px;">Choose result pack &amp; verify</button></div>`,
+    });
+    const go = $('btn-receipt-go');
+    if (go) go.addEventListener('click', async () => {
+      const paste = $('receipt-paste');
+      let receipt;
+      try { receipt = JSON.parse((paste && paste.value) || '{}'); }
+      catch { ui.toast('That receipt is not valid JSON', 'error'); return; }
+      if (!receipt.fingerprint) { ui.toast('That receipt has no fingerprint', 'error'); return; }
+      try {
+        const res = await pvh.verifyPackReceipt(receipt);
+        if (!res || res.ok === false) {
+          if (res && res.canceled) { return; }
+          ui.toast((res && (res.errors || []).join(' ') || res.error) || 'Verification failed', 'error');
+          if (res && res.errors && res.errors.length) {
+            ui.openModal({ title: 'Receipt verification failed', body: `<ul class="mb">${res.errors.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` });
+          }
+          return;
+        }
+        if (res.match) {
+          incomingPacks.push({ base: res.base, ok: true, report: res.report, pack: res.pack });
+          renderPacksPanel();
+          ui.openModal({
+            title: 'Pack verified against receipt',
+            body: `<p>Pack <strong>${esc(res.base)}</strong> matches the receipt fingerprint and passed full verification.</p><p class="text-muted">It is now in the compile list.</p>`,
+          });
+        } else {
+          ui.toast('Pack does not match the receipt', 'error');
+        }
+      } catch (e) {
+        ui.toast('Verification failed: ' + (e.message || e), 'error');
+      }
+    });
   }
 
   function renderPacksPanel() {
@@ -181,7 +230,12 @@
     packs.innerHTML = `
       <div class="card-title">Result packs from locations</div>
       <div class="pack-list">${body}</div>
-      ${incomingPacks.length ? `<button class="btn btn-primary" id="btn-compile"><span class="icon btn-icon" data-icon="merge"></span>Verify &amp; compile results</button>` : ''}`;
+      ${incomingPacks.length ? `<button class="btn btn-primary" id="btn-compile"><span class="icon btn-icon" data-icon="merge"></span>Verify &amp; compile results</button>` : ''}
+      <div class="ledger-block">
+        <div class="card-title">Distance hand-off ledger</div>
+        <div id="ledger-list" class="text-muted hint">Loading…</div>
+      </div>`;
+    renderLedger();
     packs.querySelectorAll('[data-remove-pack]').forEach((b) => {
       b.addEventListener('click', () => { incomingPacks.splice(Number(b.dataset.removePack), 1); renderPacksPanel(); });
     });
@@ -190,6 +244,35 @@
     const compile = $('compile-panel');
     compile.hidden = true;
     compiledResult = null;
+  }
+
+  async function renderLedger() {
+    const list = $('ledger-list');
+    if (!list || !selectedElection) { if (list) list.textContent = 'Select an election to see its hand-off trail.'; return; }
+    const [ex, rc] = await Promise.all([
+      pvh.listPackExchanges(selectedElection.id),
+      pvh.listPackReceipts(selectedElection.id),
+    ]);
+    const rows = [];
+    for (const r of ((rc && rc.receipts) || [])) {
+      rows.push({ created_at: r.created_at, text: `Receipt created — <strong>${esc(r.shortcode)}</strong> (${r.votes == null ? r.summary_json || '' : esc((JSON.parse(r.summary_json || '{}')).votes)} votes, ${esc(r.location_name)})`, status: 'sealed' });
+    }
+    for (const x of ((ex && ex.exchanges) || [])) {
+      const t = x.election_title ? `${esc(x.election_title)}` : '';
+      rows.push({
+        created_at: x.created_at,
+        text: `${esc(x.action || '')} — ${esc(x.details || '')} ${t}`,
+        status: x.status,
+      });
+    }
+    rows.sort((a, b) => (b.created_at - a.created_at));
+    if (!rows.length) { list.innerHTML = 'No hand-off records yet. Use <strong>Create verification receipt</strong> at the location and <strong>Verify with receipt</strong> here.'; return; }
+    list.innerHTML = rows.slice(0, 10).map((r) => `
+      <div class="ledger-row">
+        <span class="pill pill-${r.status === 'failed' ? 'danger' : (r.status === 'verified' || r.status === 'sealed' ? 'success' : 'info')}">${esc(r.status)}</span>
+        <span>${r.text}</span>
+        <span class="text-muted">${new Date(r.created_at).toLocaleTimeString()}</span>
+      </div>`).join('');
   }
 
   async function importResultPacks() {
@@ -252,9 +335,114 @@
         <a class="btn btn-secondary" href="stations.html"><span class="icon btn-icon" data-icon="officers"></span>Open stations</a>
         <a class="btn btn-secondary" href="results.html"><span class="icon btn-icon" data-icon="results"></span>View live results</a>
         <button class="btn btn-primary" id="btn-export-result"><span class="icon btn-icon" data-icon="upload"></span>Seal &amp; export result pack</button>
+        <button class="btn btn-secondary" id="btn-create-receipt"><span class="icon btn-icon" data-icon="check"></span>Create verification receipt</button>
+        <button class="btn btn-secondary" id="btn-send-relay"><span class="icon btn-icon" data-icon="upload"></span>Send over the internet</button>
       </div>
       <p class="auth-error" id="export-msg"></p>`;
     $('btn-export-result').addEventListener('click', () => exportResultPack(e));
+    $('btn-create-receipt').addEventListener('click', () => createPackReceipt(e));
+    $('btn-send-relay').addEventListener('click', () => sendPackOverInternet(e));
+  }
+
+  // Over-the-internet hand-off: push the sealed result pack (E2E-encrypted with
+  // the passphrase you set) to the relay, then share the transfer code +
+  // passphrase with the main coordinator over the phone. One-time + expiring.
+  function sendPackOverInternet(e) {
+    ui.openModal({
+      title: 'Send result pack over the internet',
+      body: `
+        <p class="mb">The sealed result pack will be <strong>encrypted on this machine</strong> with a passphrase you set, then pushed to the relay. Share the resulting <strong>transfer code</strong> + <strong>passphrase</strong> with your main coordinator by phone or any private channel. The relay only ever holds the encrypted bytes.</p>
+        <label class="field-label">Pack passphrase (min 8 characters)</label>
+        <input class="input" type="password" id="relay-pass" autocomplete="new-password" placeholder="Set a strong passphrase">
+        <p class="auth-error" id="relay-err"></p>
+        <button class="btn btn-primary btn-block" id="relay-send-go" style="margin-top:8px;">Encrypt &amp; push result pack</button>`,
+    });
+    const go = $('relay-send-go');
+    if (go) go.addEventListener('click', async () => {
+      const pass = $('relay-pass');
+      const err = $('relay-err');
+      if (!pass || pass.value.length < 8) { setMsg(err, 'Passphrase must be at least 8 characters.', 'error'); return; }
+      setMsg(err, 'Encrypting and pushing…');
+      const res = await pvh.sendPackOverInternet(e.id, pass.value);
+      if (!res || !res.ok) { setMsg(err, (res && res.error) || 'Send failed', 'error'); return; }
+      ui.openModal({
+        title: 'Result pack pushed to the relay',
+        body: `
+          <p class="mb">Give this <strong>transfer code</strong> and the <strong>passphrase</strong> you chose to your main coordinator:</p>
+          <div class="receipt-code">${esc(res.code)}</div>
+          <p class="text-muted hint">The envelope expires in ${res.ttl_days || 7} day(s) and can be received only once.</p>
+          <button class="btn btn-primary btn-block" id="btn-copy-code">Copy transfer code</button>`,
+      });
+      const cp = $('btn-copy-code');
+      if (cp) cp.addEventListener('click', () => {
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(res.code).then(() => ui.toast('Transfer code copied', 'success'));
+      });
+      ui.toast('Result pack pushed to relay', 'success');
+    });
+  }
+
+  // Main coordinator: claim a sealed result pack from the relay with the
+  // transfer code + passphrase sent by the location coordinator.
+  function receivePackOverInternet() {
+    ui.openModal({
+      title: 'Receive result pack over the internet',
+      body: `
+        <p class="mb">Enter the <strong>transfer code</strong> and <strong>passphrase</strong> your location coordinator sent you. The pack is pulled once, decrypted on this machine, and fully verified before it enters the compile list.</p>
+        <label class="field-label">Transfer code</label>
+        <input class="input" type="text" id="relay-code" placeholder="PK-XXXX-XXXX-XXXX-XXXX">
+        <label class="field-label">Passphrase</label>
+        <input class="input" type="password" id="relay-rpass" autocomplete="new-password">
+        <p class="auth-error" id="relay-rerr"></p>
+        <button class="btn btn-primary btn-block" id="relay-recv-go" style="margin-top:8px;">Claim &amp; verify result pack</button>`,
+    });
+    const go = $('relay-recv-go');
+    if (go) go.addEventListener('click', async () => {
+      const code = $('relay-code');
+      const pass = $('relay-rpass');
+      const err = $('relay-rerr');
+      if (!code || !code.value.trim()) { setMsg(err, 'Enter the transfer code.', 'error'); return; }
+      if (!pass || pass.value.length < 8) { setMsg(err, 'Passphrase must be at least 8 characters.', 'error'); return; }
+      setMsg(err, 'Claiming and verifying…');
+      const res = await pvh.receivePackOverInternet(code.value.trim(), pass.value);
+      if (!res || res.ok === false) {
+        setMsg(err, (res && (res.errors || []).join(' ') || res.error) || 'Receive failed', 'error');
+        return;
+      }
+      incomingPacks.push({ base: res.base, ok: true, report: res.report, pack: res.pack });
+      renderPacksPanel();
+      ui.openModal({
+        title: 'Result pack received &amp; verified',
+        body: `<p>Pack from <strong>${esc(res.report.summary.location || '—')}</strong> (<strong>${esc(res.report.summary.election || '—')}</strong>) claimed from the relay and fully verified.</p><p class="text-muted">It is now in the compile list.</p>`,
+      });
+    });
+  }
+
+  // Distance hand-off: share a slim receipt (fingerprint + headline counts) by
+  // phone/email so the main coordinator can verify the sealed pack that arrives
+  // through any WAN path. The full pack stays encrypted on the way.
+  async function createPackReceipt(e) {
+    const res = await pvh.createPackReceipt(e.id);
+    if (!res || !res.ok) { ui.toast((res && res.error) || 'Could not create receipt', 'error'); return; }
+    ui.openModal({
+      title: 'Verification receipt',
+      body: `
+        <p class="mb">Share this receipt with your main coordinator by phone, email or any channel. When they receive the exported <strong>result pack</strong>, they can verify it against this receipt before compiling.</p>
+        <div class="receipt-code">${esc(res.receipt.shortcode)}</div>
+        <label class="field-label">Receipt payload (copy &amp; send)</label>
+        <textarea id="receipt-payload" class="input" rows="7" readonly></textarea>
+        <div class="mt"><button class="btn btn-primary" id="btn-copy-receipt"><span class="icon btn-icon" data-icon="copy"></span>Copy payload</button></div>`,
+    });
+    const ta = $('receipt-payload');
+    if (ta) ta.value = res.qr;
+    const cp = $('btn-copy-receipt');
+    if (cp) cp.addEventListener('click', () => { pick(ta); });
+    function pick(el) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(el.value).then(() => ui.toast('Receipt copied', 'success'));
+      } else {
+        el.select(); document.execCommand('copy'); ui.toast('Receipt copied', 'success');
+      }
+    }
   }
 
   async function exportResultPack(e) {
@@ -335,9 +523,13 @@
     if (isMainCoordinator) {
       paw.innerHTML = `
         <button class="btn btn-primary" id="btn-new-runpack"><span class="icon btn-icon" data-icon="plus"></span>Create run pack</button>
-        <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>`;
+        <button class="btn btn-primary" id="btn-import-results"><span class="icon btn-icon" data-icon="download"></span>Import result packs</button>
+        <button class="btn btn-secondary" id="btn-verify-receipt"><span class="icon btn-icon" data-icon="check"></span>Verify with receipt</button>
+        <button class="btn btn-secondary" id="btn-receive-relay"><span class="icon btn-icon" data-icon="download"></span>Receive over the internet</button>`;
       $('btn-new-runpack').addEventListener('click', createRunPackForLocation);
       $('btn-import-results').addEventListener('click', importResultPacks);
+      $('btn-verify-receipt').addEventListener('click', verifyPackWithReceipt);
+      $('btn-receive-relay').addEventListener('click', receivePackOverInternet);
     } else if (isLocCoord && elections.length === 0) {
       paw.innerHTML = `<button class="btn btn-primary" id="btn-import-run"><span class="icon btn-icon" data-icon="download"></span>Import run pack</button>`;
       bindPageActions();

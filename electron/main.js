@@ -1702,6 +1702,215 @@ ipcMain.handle('location:compile', (_e, { packs }, officerId) => {
   return locationPack.compileResult(valid);
 });
 
+// ---------- Pack exchange ledger + offline verification receipts ----------
+// Distance-friendly sealed-result hand-off: a location coordinator shares a
+// slim receipt (fingerprint + headline counts) by phone/email while the full
+// encrypted pack travels over any trusted WAN path; the main coordinator
+// verifies the pack against that receipt. Every step is appended to a signed
+// audit ledger.
+
+function packExchangeActorName(officerId) {
+  if (!officerId) return null;
+  const row = db.get().prepare('SELECT name FROM officers WHERE id = ?').get(officerId);
+  return row ? row.name : null;
+}
+
+// Append a row to the pack exchange ledger (idempotent, signed by the actor).
+function logPackExchange(actor, entry) {
+  try {
+    const d = db.get();
+    return d.prepare(`INSERT INTO pack_exchanges
+      (id, kind, election_id, pack_id, pack_hash, location_name, election_title,
+       direction, action, status, officer_id, officer_name, created_at, details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        entry.id || uuidv4(),
+        entry.kind || 'result',
+        entry.election_id || null,
+        entry.pack_id || null,
+        entry.pack_hash || null,
+        entry.location_name || null,
+        entry.election_title || null,
+        entry.direction || null,
+        entry.action || null,
+        entry.status || null,
+        actor ? actor.id : null,
+        actor ? packExchangeActorName(actor.id) : null,
+        entry.created_at || Date.now(),
+        entry.details || null
+      );
+  } catch (e) { return { ok: false, error: e.message }; }
+  return { ok: true };
+}
+
+// Location coordinator (or main): create a verification receipt for a sealed
+// election. Any signed-in admin/coordinator who owns the election may create
+// one (the location coordinator owns the imported run).
+ipcMain.handle('exchange:create-receipt', (_e, electionId, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor) return { ok: false, error: 'Not authorized' };
+  const okRoles = ['admin', 'developer', 'coordinator', 'location_coordinator'];
+  if (okRoles.indexOf(actor.role) === -1) return { ok: false, error: 'Only admins and coordinators can create verification receipts.' };
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  try {
+    const r = locationPack.buildReceiptForElection(electionId);
+    if (!r.ok) return r;
+    const id = uuidv4();
+    db.get().prepare(`INSERT INTO pack_receipts
+      (id, election_id, pack_id, kind, fingerprint, shortcode, qr, summary_json,
+       location_name, election_title, created_at, officer_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, electionId, null, 'result', r.receipt.fingerprint, r.receipt.shortcode, r.qr,
+        JSON.stringify({ votes: r.receipt.votes, voters: r.receipt.voters, stations: r.receipt.stations, sealed: r.receipt.sealed }),
+        r.receipt.location.name, r.receipt.election.title, Date.now(), actor.id);
+    logPackExchange(actor, {
+      kind: 'result', election_id: electionId, pack_hash: r.receipt.fingerprint,
+      location_name: r.receipt.location.name, election_title: r.receipt.election.title,
+      direction: 'sent', action: 'receipt', status: 'sealed',
+      details: 'Verification receipt created for distance hand-off',
+    });
+    return { ok: true, receipt: r.receipt, qr: r.qr };
+  } catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Main coordinator: verify an imported result pack against a receipt.
+ipcMain.handle('exchange:verify-receipt', async (_e, { receipt }, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || (actor.role !== 'admin' && actor.role !== 'developer' && actor.role !== 'coordinator')) return { ok: false, error: 'Only the main coordinator can verify a pack with a receipt.' };
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose the result pack to verify against the receipt',
+    properties: ['openFile'],
+    filters: [{ name: 'Result Pack (JSON)', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePaths || !res.filePaths.length) return { ok: false, error: 'Pick cancelled', canceled: true };
+  let parsed;
+  try { parsed = JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8')); }
+  catch (e) { return { ok: false, error: 'Could not read that file as regular JSON.' }; }
+  const out = locationPack.verifyPackAgainstReceipt(parsed, receipt || {});
+  if (out.ok && out.report && out.report.summary) {
+    logPackExchange(actor, {
+      kind: 'result', pack_hash: out.report.fingerprint || (receipt && receipt.fingerprint),
+      pack_id: parsed.pack_id || null,
+      location_name: out.report.summary.location,
+      election_title: out.report.summary.election,
+      direction: 'received', action: 'verify', status: 'verified',
+      details: 'Verified against distance receipt',
+    });
+  } else if (out && out.report) {
+    logPackExchange(actor, {
+      kind: 'result',
+      location_name: (out.report.summary && out.report.summary.location) || null,
+      election_title: (out.report.summary && out.report.summary.election) || null,
+      direction: 'received', action: 'verify', status: 'failed',
+      details: 'Verification against receipt FAILED: ' + ((out.errors || []).join(' ')),
+    });
+  }
+  return { ...out, base: path.basename(res.filePaths[0]), pack: out.ok ? parsed : null, canceled: false };
+});
+
+// Ledger read: main coordinators see their elections' exchanges; admins see all.
+ipcMain.handle('exchange:list', (_e, electionId, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor) return { ok: false, error: 'Not authorized' };
+  const d = db.get();
+  let rows;
+  if (electionId) {
+    const acc = election.getElectionOrError(electionId, actor);
+    if (!acc.ok) return acc;
+    rows = (actor.role === 'admin' || actor.role === 'developer')
+      ? d.prepare('SELECT * FROM pack_exchanges ORDER BY created_at DESC').all()
+      : d.prepare('SELECT * FROM pack_exchanges WHERE election_id = ? ORDER BY created_at DESC').all(electionId);
+  } else {
+    rows = (actor.role === 'admin' || actor.role === 'developer')
+      ? d.prepare('SELECT * FROM pack_exchanges ORDER BY created_at DESC').all()
+      : d.prepare('SELECT * FROM pack_exchanges WHERE election_id = ? ORDER BY created_at DESC').all(null);
+  }
+  return { ok: true, exchanges: rows || [] };
+});
+
+// Read the verification receipts created on this machine for an election.
+ipcMain.handle('exchange:receipts', (_e, electionId, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor) return { ok: false, error: 'Not authorized' };
+  const okRoles = ['admin', 'developer', 'coordinator', 'location_coordinator'];
+  if (okRoles.indexOf(actor.role) === -1) return { ok: false, error: 'Not authorized' };
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  const rows = db.get().prepare('SELECT * FROM pack_receipts WHERE election_id = ? ORDER BY created_at DESC').all(electionId);
+  return { ok: true, receipts: rows || [] };
+});
+
+// ---------- Over-the-internet sealed-pack relay ----------
+// Push/pull the sealed result pack through the existing license/relay server.
+// End-to-end encrypted with a sender-set passphrase; the transfer code is the
+// claim credential; envelopes are one-time + auto-expiring.
+
+const relay = require('./relay-client');
+
+const MAIN_ROLES = ['admin', 'developer', 'coordinator'];
+
+ipcMain.handle('relay:send', async (_e, electionId, passphrase, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor) return { ok: false, error: 'Not authorized' };
+  if (!MAIN_ROLES.includes(actor.role) && actor.role !== 'location_coordinator') {
+    return { ok: false, error: 'Only admins and coordinators can send a pack.' };
+  }
+  const acc = election.getElectionOrError(electionId, actor);
+  if (!acc.ok) return acc;
+  try {
+    const created = locationPack.createResultPack(electionId);
+    if (!created.ok) return created;
+    const payload = created.pack.payload || {};
+    const fp = locationPack.resultPackFingerprint(payload);
+    const meta = {
+      title: (payload.election && payload.election.title) || '',
+      location: (payload.location && payload.location.name) || '',
+      fingerprint: fp,
+    };
+    const res = await relay.sendPack({ passphrase, pack: created.pack, meta });
+    if (!res.ok) return { ok: false, error: res.error };
+    logPackExchange(actor, {
+      kind: 'result', election_id: electionId, pack_hash: fp,
+      location_name: meta.location, election_title: meta.title,
+      direction: 'sent', action: 'relay', status: 'sealed',
+      details: `Pushed sealed result pack to relay (code ${res.code})`,
+    });
+    return { ok: true, code: res.code, expires_at: res.expires_at, ttl_days: res.ttl_days, fingerprint: fp };
+  } catch (e) { return { ok: false, error: 'Could not send pack: ' + e.message }; }
+});
+
+ipcMain.handle('relay:receive', async (_e, { code: transferCode, passphrase }, officerId) => {
+  const actor = resolveActor(officerId, _e.sender.id);
+  if (!actor || MAIN_ROLES.indexOf(actor.role) === -1) return { ok: false, error: 'Only the main coordinator can receive a pack.' };
+  try {
+    const got = await relay.receivePack({ code: transferCode, passphrase });
+    if (!got.ok) return { ok: false, error: got.error };
+    const pack = got.pack;
+    const report = locationPack.verifyResultPack(pack);
+    const fp = locationPack.resultPackFingerprint((pack && pack.payload) || {});
+    const relayMatch = !got.meta.fingerprint || (got.meta.fingerprint === fp);
+    const ok = report.ok && relayMatch;
+    logPackExchange(actor, {
+      kind: 'result', pack_id: pack.pack_id || null, pack_hash: fp,
+      location_name: (report.summary && report.summary.location) || got.meta.location,
+      election_title: (report.summary && report.summary.election) || got.meta.title,
+      direction: 'received', action: 'relay', status: ok ? 'verified' : 'failed',
+      details: ok ? 'Received + verified sealed result pack via relay' : 'Relay pack failed verification: ' + (report.errors || []).join(' '),
+    });
+    return {
+      ok,
+      match: relayMatch,
+      report,
+      errors: ok ? [] : report.errors,
+      pack: ok ? pack : null,
+      base: 'relay-' + (got.meta.location || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.json',
+      meta: got.meta,
+      canceled: false,
+    };
+  } catch (e) { return { ok: false, error: 'Could not receive pack: ' + e.message }; }
+});
+
 // ---------- LAN Networking (Phase 2) ----------
 // LAN control is available to any signed-in officer (the Browser-ballot kiosk
 // is a core coordination feature), but every handler requires a VALID session:
