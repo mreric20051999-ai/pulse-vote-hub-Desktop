@@ -12,14 +12,19 @@ const https = require('https');
 const http = require('http');
 const db = require('./db');
 
+// Default license server bundled into the app so a brand-new device can redeem
+// a code without any per-device configuration. The Developer console override
+// (lic_server config key) takes precedence when it is set.
+const DEFAULT_LICENSE_SERVER = 'https://pulse-vote-hub-license.onrender.com';
+
 function serverConfig() {
-  const url = String(db.getConfig('lic_server') || '').trim();
-  const token = String(db.getConfig('lic_server_token') || '').trim();
-  return { url: url.replace(/\/+$/, ''), token };
+  const url = (String(db.getConfig('lic_server') || '').trim() || DEFAULT_LICENSE_SERVER).replace(/\/+$/, '');
+  const token = (String(db.getConfig('lic_server_token') || '').trim()) || '';
+  return { url, token };
 }
 
 function hasServer() {
-  return !!serverConfig().url;
+  return true; // a default server is always available; only the URL may change
 }
 
 function request(method, path, { body, token, query } = {}) {
