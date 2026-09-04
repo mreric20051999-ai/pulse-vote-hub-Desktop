@@ -1,0 +1,16 @@
+# Render deploy config for the Pulse Vote Hub license server.
+# Point Render at this repo and it will run the standalone activation server.
+# Set a strong PVH_ADMIN_TOKEN on the service/environment.
+services:
+  - type: web
+    name: pulse-vote-hub-license
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node license-server.js
+    envVars:
+      - key: PVH_ADMIN_TOKEN
+        sync: false
+      - key: NODE_ENV
+        value: production

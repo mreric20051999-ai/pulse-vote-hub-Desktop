@@ -1,0 +1,17 @@
+{
+  "name": "pulse-vote-hub-license-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hostable activation server for Pulse Vote Hub. Validates per-device, revocable license codes minted by the developer.",
+  "main": "license-server.js",
+  "scripts": {
+    "start": "node license-server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "uuid": "^14.0.2"
+  }
+}
