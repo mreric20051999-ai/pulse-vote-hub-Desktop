@@ -6,6 +6,14 @@ const lic = require('./license-client');
 
 const SCRYPT_OPTS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
+// Current app version. Used to force re-activation whenever the app is upgraded
+// (the license is bound to the version it was activated under), so a user must
+// enter their code again on each new release — verifying they are a real user.
+function currentVersion() {
+  try { return (require('electron').app.getVersion() || '').trim(); }
+  catch (e) { return ''; }
+}
+
 // Brute-force protection: N failed logins within a window freezes the account
 // for LOCKOUT_MS. Failures are tracked per attempted officer ID (persisted in
 // the config table so restarting the app does not bypass the lockout).
@@ -542,13 +550,30 @@ async function redeemLicense({ code }) {
   db.setConfig('license_site', res.site || '');
   db.setConfig('license_activated_at', String(Date.now()));
   db.setConfig('license_machine', machine);
+  db.setConfig('license_activated_version', currentVersion());
   return { ok: true, site: res.site || '', machine };
 }
 
 // Current license state for this device. Re-checks the server so a remote
 // revocation takes effect. Falls back to the locally stored license if the
 // server is unreachable (see syncStatusForKnownCode below).
-async function licenseStatus() {
+async function licenseStatus(runtimeVersion) {
+  // Re-activation on version change: the license is bound to the version it was
+  // activated under. If the app was upgraded (or the version isn't recorded yet
+  // from older releases), clear the stored license so the user must enter their
+  // activation code again — verifying a real user on each release. Only enforced
+  // when the current app version is actually known.
+  const currentVer = (runtimeVersion || '').trim() || currentVersion();
+  const activatedVer = db.getConfig('license_activated_version');
+  const hasCode = !!db.getConfig('license_code');
+  if (currentVer && hasCode && activatedVer !== currentVer) {
+    db.setConfig('license_code', '');
+    db.setConfig('license_site', '');
+    db.setConfig('license_activated_at', '');
+    db.setConfig('license_machine', '');
+    db.setConfig('license_activated_version', '');
+  }
+
   const code = db.getConfig('license_code');
   const site = db.getConfig('license_site');
   const activatedAtRaw = db.getConfig('license_activated_at');

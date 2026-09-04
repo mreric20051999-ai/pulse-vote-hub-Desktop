@@ -604,7 +604,7 @@ ipcMain.handle('auth:redeem-developer-code', (_e, payload) => {
 // License state is public (any window can ask). Issuing/listing/revoking are
 // developer-only. Redemption is public — the code is the credential.
 ipcMain.handle('lic:status', async () => {
-  try { return await auth.licenseStatus(); } catch (err) { return { ok: false, error: err.message }; }
+  try { return await auth.licenseStatus(app.getVersion()); } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('lic:issue', async (e, siteName, token) => {
   const r = requireDeveloper(token, e);
