@@ -28,8 +28,24 @@
   if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
   function show(name) {
+    if (!(name in views)) return;
     Object.entries(views).forEach(([k, el]) => { el.hidden = (k !== name); });
   }
+
+  // Simple navigation history so every "Back" returns the user to the exact
+  // screen they came from instead of dumping them onto Sign-in or Setup.
+  const navStack = [];
+  const fallbackView = () => 'login';
+  function navigate(name) {
+    const prev = Object.entries(views).find(([, el]) => !el.hidden);
+    if (prev && prev[0] !== name) navStack.push(prev[0]);
+    show(name);
+  }
+  function goBack() {
+    const prev = navStack.length ? navStack.pop() : null;
+    show(prev || fallbackView());
+  }
+  function clearNav() { navStack.length = 0; }
 
   // ---- Password visibility toggle (eye) ----
   // Wrap a password input in a .password-wrap with an eye toggle button.
@@ -147,7 +163,7 @@
     const res = await window.pvh.activateLicense($('license-code').value);
 
     if (res.ok) {
-      show('setup');
+      navigate('setup');
       focus('setup');
     } else {
       errors.license.textContent = res.error || 'Could not activate this license.';
@@ -164,17 +180,17 @@
   function openAdminSetupOrLogin() {
     window.pvh.hasAdmin().then((adminExists) => {
       if (adminExists) {
-        show('login');
+        navigate('login');
         focus('login');
       } else {
-        show('adminSetup');
+        navigate('adminSetup');
         focus('adminSetup');
       }
     });
   }
 
   $('setup-admin-link').addEventListener('click', openAdminSetupOrLogin);
-  $('admin-setup-back').addEventListener('click', () => { show('setup'); focus('setup'); });
+  $('admin-setup-back').addEventListener('click', goBack);
 
   // ---- Developer bootstrap (root role, dedicated key) ----
   // After the main developer exists, the hidden gesture opens the compact
@@ -182,17 +198,15 @@
   function openDeveloperSetupOrLogin() {
     window.pvh.hasDeveloper().then((devExists) => {
       if (devExists) {
-        show('developerLogin');
+        navigate('developerLogin');
         focus('developerLogin');
       } else {
-        show('developerSetup');
+        navigate('developerSetup');
         focus('developerSetup');
       }
     });
   }
-  const devSetupBack = () => {
-    window.pvh.setupCheck().then((configured) => { show(configured ? 'login' : 'setup'); focus(configured ? 'login' : 'setup'); });
-  };
+  const devSetupBack = () => { goBack(); };
   // Developer bootstrap is deliberately hidden from the public first-run flow.
   // The only entry point is the hidden keyboard shortcut (Ctrl/⌘+Shift+D) so
   // installers and end users never see a developer option.
@@ -218,10 +232,8 @@
     show('redeem');
     focus('redeem');
   }
-  $('login-redeem-link').addEventListener('click', openRedeem);
-  $('redeem-back').addEventListener('click', () => {
-    window.pvh.setupCheck().then((configured) => { show(configured ? 'login' : 'setup'); focus(configured ? 'login' : 'setup'); });
-  });
+  $('login-redeem-link').addEventListener('click', () => { navigate('redeem'); focus('redeem'); });
+  $('redeem-back').addEventListener('click', goBack);
 
   // ---- Break-glass password recovery (admin/developer) ----
   const forgotLink = $('login-forgot-link');
@@ -234,10 +246,10 @@
   }).catch(() => {});
 
   if (forgotLink) {
-    forgotLink.addEventListener('click', () => { show('recovery'); focus('recovery'); });
+    forgotLink.addEventListener('click', () => { navigate('recovery'); focus('recovery'); });
   }
   if (recoveryBack) {
-    recoveryBack.addEventListener('click', () => { show('login'); focus('login'); });
+    recoveryBack.addEventListener('click', goBack);
   }
 
   $('recovery-save-copy').addEventListener('click', async () => {
@@ -461,6 +473,8 @@
   });
 
   // ---- Coordinator setup ----
+  const setupBack = $('setup-back');
+  if (setupBack) setupBack.addEventListener('click', goBack);
   $('setup-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     errors.setup.textContent = '';
@@ -616,6 +630,7 @@
 
   // ---- Officer login (routes by role) ----
   function completeLogin(officer, token) {
+    clearNav();
     const session = Object.assign({}, officer, token ? { token } : {});
     window.localStorage.setItem('pvh_session', JSON.stringify(session));
     // A station officer (assistant assigned to a station) lands directly on
