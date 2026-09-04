@@ -363,6 +363,7 @@ ipcMain.handle('db:active-elections', (_e, officerId) => {
 ipcMain.handle('auth:setup-check', () => auth.isConfigured());
 ipcMain.handle('auth:has-admin', () => auth.hasAdmin());
 ipcMain.handle('auth:has-developer', () => auth.hasDeveloper());
+ipcMain.handle('auth:can-developer-bootstrap', () => auth.canAccessDeveloperBootstrap());
 ipcMain.handle('auth:has-dev-key', () => auth.hasDevelopmentKey());
 
 ipcMain.handle('auth:setup', (_e, { name, officerId, password }) => {

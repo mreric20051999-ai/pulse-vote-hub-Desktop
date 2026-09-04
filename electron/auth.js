@@ -98,6 +98,14 @@ function isConfigured() {
   return row.c > 0;
 }
 
+// Can this machine reach the developer bootstrap (Ctrl/⌘+Shift+D)? The hidden
+// gesture must only open on a machine that is already licensed (activation done)
+// or already has a developer account. A fresh, unactivated user machine must
+// NOT be able to claim developer status to bypass activation.
+function canAccessDeveloperBootstrap() {
+  return !!(db.getConfig('license_code')) || hasDeveloper();
+}
+
 // Is there at least one superuser (admin) account?
 function hasAdmin() {
   const row = db.get()
@@ -833,6 +841,7 @@ module.exports = {
   isConfigured,
   hasAdmin,
   hasDeveloper,
+  canAccessDeveloperBootstrap,
   hasSetupCode,
   setupAdmin,
   setupCoordinator,

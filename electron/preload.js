@@ -105,6 +105,7 @@ if (!window.location.host) contextBridge.exposeInMainWorld('pvh', {
   // Admin / superuser
   hasAdmin: () => ipcRenderer.invoke('auth:has-admin'),
   hasDeveloper: () => ipcRenderer.invoke('auth:has-developer'),
+  canDeveloperBootstrap: () => ipcRenderer.invoke('auth:can-developer-bootstrap'),
   hasDeveloperKey: () => ipcRenderer.invoke('auth:has-dev-key'),
   hasSetupCode: () => ipcRenderer.invoke('auth:has-setup-code'),
   hasRecoveryCode: () => ipcRenderer.invoke('auth:has-recovery-code'),

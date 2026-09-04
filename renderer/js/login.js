@@ -192,7 +192,12 @@
   document.addEventListener('keydown', (ev) => {
     if ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && (ev.key === 'D' || ev.key === 'd')) {
       ev.preventDefault();
-      openDeveloperSetupOrLogin();
+      // The developer bootstrap must only open on a machine that is already
+      // licensed or already has a developer account. On a fresh, unactivated
+      // user machine this gesture is ignored so activation cannot be bypassed.
+      window.pvh.canDeveloperBootstrap().then((allowed) => {
+        if (allowed) openDeveloperSetupOrLogin();
+      }).catch(() => {});
     }
   });
   $('developer-setup-back').addEventListener('click', devSetupBack);
