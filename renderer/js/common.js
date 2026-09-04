@@ -282,7 +282,7 @@
     }
   }
 
-  window.pvhUI = { toast, busy, inboxBadge: null, speakBadge: null, refreshInboxBadge, refreshSpeakBadge };
+  window.pvhUI = { toast, busy, inboxBadge: null, speakBadge: null, refreshInboxBadge, refreshSpeakBadge, openModal };
 
   // ---------- Shared modal ----------
 

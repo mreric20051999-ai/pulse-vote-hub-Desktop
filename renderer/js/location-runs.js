@@ -200,7 +200,7 @@
     incomingPacks = incomingPacks.concat(res.results);
     renderPacksPanel();
     if (bad.length) {
-      openModal({
+      ui.openModal({
         title: 'Invalid result pack',
         body: `<p>One or more packs failed verification:</p><ul class="mb">${bad.map((b) => `<li><strong>${esc(b.base)}</strong>${b.report && b.report.errors ? ': ' + esc(b.report.errors.join('; ')) : ''}</li>`).join('')}</ul><p>The valid packs were kept. You can compile only the verified ones.</p>`,
       });
@@ -273,7 +273,7 @@
 
   async function importRunPack() {
     if (!pvh || !pvh.importRunPack) { ui.toast('Import is not available in this build', 'error'); return; }
-    openModal({
+    ui.openModal({
       title: 'Import a Run Pack',
       width: '520px',
       body: `
@@ -349,7 +349,7 @@
 
   async function createRunPackForLocation() {
     if (!elections.length) { ui.toast('Create an election first', 'error'); return; }
-    openModal({
+    ui.openModal({
       title: 'Create a run pack for a location',
       width: '520px',
       body: `
