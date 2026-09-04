@@ -163,8 +163,13 @@
     const res = await window.pvh.activateLicense($('license-code').value);
 
     if (res.ok) {
-      navigate('setup');
-      focus('setup');
+      // Distinguish an existing user from a fresh install: if this machine
+      // already has an officer account, activation should lead to Sign-in, not
+      // the first-run profile setup (which is only for new installs).
+      window.pvh.setupCheck().then((configured) => {
+        if (configured) { navigate('login'); focus('login'); }
+        else { navigate('setup'); focus('setup'); }
+      }).catch(() => { navigate('setup'); focus('setup'); });
     } else {
       errors.license.textContent = res.error || 'Could not activate this license.';
       btn.disabled = false;
