@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const os = require('os');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
+const lic = require('./license-client');
 
 const SCRYPT_OPTS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
@@ -457,128 +458,113 @@ function redeemDeveloperCode({ code, officerId, password, confirmPassword }) {
   return { ok: true, officer: publicOfficer(officer) };
 }
 
-// ---- Software licensing (per-site activation codes) ----
+// ---- Software licensing (per-site activation via the license server) ----
 // Commercial licensing: the developer issues a one-time, revocable activation
-// code for a paid site. An ordinary user redeems it on a fresh install to
-// unlock first-run setup. Codes are stored hashed, and redemption is recorded
-// against the machine, matching the "one site per license" model.
-
-// Generate an 8-char, unambiguous base32 code with a PVH- prefix:
-// e.g. PVH-8X2K-L7QN. No 0/O/1/I/L, easy to read and type.
-function genActivationCode() {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  let raw = '';
-  for (let i = 0; i < 8; i++) raw += alphabet[crypto.randomInt(alphabet.length)];
-  return `PVH-${raw.slice(0, 4)}-${raw.slice(4)}`;
-}
+// code for a paid site. Codes are validated against the self-hosted license
+// server (see server/license-server.js) so a code works on ANY new device and
+// can be revoked remotely after redemption. Redemption is recorded locally too
+// so the device is licensed even if the server is briefly unreachable.
 
 // Normalize a typed code: strip separators/spaces, uppercase (PVH-8X2K-L7QN).
 function normalizeActivationCode(code) {
   return String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
-// Issue an activation code for a paid site (developer-only).
-function issueActivationCode(actingOfficerId, siteName) {
+// Issue an activation code for a paid site (developer-only). Delegates to the
+// license server so the code can be redeemed on other devices.
+async function issueActivationCode(actingOfficerId, siteName) {
   const actor = findById(actingOfficerId);
   if (!actor || actor.role !== 'developer') return { ok: false, error: 'Not authorized' };
   const site = String(siteName || '').trim();
   if (!site) return { ok: false, error: 'A customer / site name is required' };
-
-  const code = genActivationCode();
-  const salt = generateSalt();
-  const record = {
-    id: uuidv4(),
-    code_hash: encodeHash(salt, hashPassword(normalizeActivationCode(code), salt)),
-    site_name: site,
-    created_by: actor.id,
-    created_at: Date.now(),
-  };
-  db.get().prepare(`
-    INSERT INTO activation_codes (id, code_hash, site_name, created_by, created_at, redeemed_at, redeemed_machine, revoked_at)
-    VALUES (@id, @code_hash, @site_name, @created_by, @created_at, NULL, NULL, NULL)
-  `).run(record);
-  return { ok: true, code, id: record.id, site_name: site };
+  if (!lic.hasServer()) return { ok: false, error: 'License server not configured. Set it in the Developer console.' };
+  const res = await lic.mintCode(site);
+  return { ok: res.ok, code: res.code, id: res.id, site_name: res.site_name, error: res.error };
 }
 
-// List issued activation codes with usage status (developer-only). Revoked
-// codes are deleted on revoke (legacy revoked rows are hidden and cleaned).
-function listActivationCodes() {
-  return db.get().prepare(`
-    SELECT id, site_name, created_by, created_at, redeemed_at, redeemed_machine, revoked_at
-    FROM activation_codes WHERE revoked_at IS NULL ORDER BY created_at DESC
-  `).all().map((c) => ({
-    ...c,
-    status: c.redeemed_at ? 'used' : 'active',
-  }));
+// List issued activation codes with usage status (developer-only). Live view
+// from the server so you always see which sites are activated/revoked.
+async function listActivationCodes() {
+  if (!lic.hasServer()) return { ok: false, error: 'License server not configured. Set it in the Developer console.', codes: [] };
+  const res = await lic.listCodes();
+  if (!res.ok) return { ok: false, error: res.error, codes: [] };
+  return { ok: true, codes: res.codes || [] };
 }
 
-// Revoke an unused activation code (developer-only). Revoking deletes the code
-// entirely, so it can never be redeemed and no longer appears anywhere.
-// A redeemed license is perpetual and cannot be revoked after redemption.
-function revokeActivationCode(actingOfficerId, codeId) {
+// Revoke a license (developer-only). The server marks it revoked, which
+// propagates to the device on its next status check. Works on redeemed and
+// unredeemed licenses alike (unlike the old local model).
+async function revokeActivationCode(actingOfficerId, codeId) {
   const actor = findById(actingOfficerId);
   if (!actor || actor.role !== 'developer') return { ok: false, error: 'Not authorized' };
-  const row = db.get().prepare('SELECT * FROM activation_codes WHERE id = ?').get(codeId);
-  if (!row) return { ok: false, error: 'Activation code not found' };
-  if (row.redeemed_at) return { ok: false, error: 'Already used by a site — a redeemed license cannot be revoked' };
-  // Delete the code even if a legacy revoke already marked it — revoking must
-  // leave no trace.
-  db.get().prepare('DELETE FROM activation_codes WHERE id = ?').run(codeId);
-  return { ok: true, deleted: true };
+  if (!lic.hasServer()) return { ok: false, error: 'License server not configured. Set it in the Developer console.' };
+  const res = await lic.revokeCode(codeId);
+  return { ok: res.ok, id: res.id, revoked: res.revoked, error: res.error };
 }
 
 // Redeem an activation code. Public (the code is the credential), like access
 // and developer-code redemption. On success the device is licensed for good.
-function redeemLicense({ code }) {
+async function redeemLicense({ code }) {
   const raw = normalizeActivationCode(code);
   if (!raw) return { ok: false, error: 'An activation code is required' };
 
   // A device is only activated once.
   if (db.getConfig('license_code')) return { ok: false, error: 'This device is already activated.' };
 
-  // Bounded, timing-safe scan over still-usable codes.
-  const candidates = db.get().prepare(
-    'SELECT * FROM activation_codes WHERE redeemed_at IS NULL AND revoked_at IS NULL'
-  ).all();
-  let match = null;
-  for (const row of candidates) {
-    const decoded = decodeHash(row.code_hash);
-    if (!decoded) continue;
-    const expected = Buffer.from(decoded.hash, 'hex');
-    const actual = Buffer.from(hashPassword(raw, decoded.salt), 'hex');
-    if (actual.length === expected.length && crypto.timingSafeEqual(actual, expected)) {
-      match = row;
-      break;
-    }
-  }
-  if (!match) return { ok: false, error: 'Invalid or revoked activation code' };
+  if (!lic.hasServer()) return { ok: false, error: 'License server not configured. Set it in the Developer console.' };
 
-  const machine = os.hostname();
-  db.get().prepare('UPDATE activation_codes SET redeemed_at = ?, redeemed_machine = ? WHERE id = ?')
-    .run(Date.now(), machine, match.id);
+  const res = await lic.redeemLicense({ code });
+  if (!res.ok || !res.licensed) {
+    return { ok: false, error: res.error || 'Invalid or already-in-use activation code' };
+  }
+
+  const machine = lic.machineId();
   db.setConfig('license_code', raw);
-  db.setConfig('license_site', match.site_name);
+  db.setConfig('license_site', res.site || '');
   db.setConfig('license_activated_at', String(Date.now()));
   db.setConfig('license_machine', machine);
-  return { ok: true, site: match.site_name, machine };
+  return { ok: true, site: res.site || '', machine };
 }
 
-// Current license state for this device. A maintainer's own machine (one that
-// has a developer account) is implicitly licensed.
-function licenseStatus() {
+// Current license state for this device. Re-checks the server so a remote
+// revocation takes effect. Falls back to the locally stored license if the
+// server is unreachable (see syncStatusForKnownCode below).
+async function licenseStatus() {
   const code = db.getConfig('license_code');
   const site = db.getConfig('license_site');
   const activatedAtRaw = db.getConfig('license_activated_at');
   const activatedAt = activatedAtRaw ? Number(activatedAtRaw) : null;
   const developerAuthed = hasDeveloper();
+  const machine = db.getConfig('license_machine') || lic.machineId();
+  const stored = !!code;
+
+  if (!stored && !developerAuthed) {
+    return { ok: true, licensed: false, activated: false, developerAuthed, site: null, activatedAt: null, machine };
+  }
+
+  // If we hold a code, confirm it is not revoked. Best-effort: on network
+  // failure we keep the local state (offline device stays licensed) and mark
+  // `confirmed` so the UI can note the check didn't complete.
+  let confirmed = false;
+  if (code) {
+    try {
+      const st = await lic.licenseStatus(code);
+      if (st && st.ok && typeof st.licensed === 'boolean') {
+        confirmed = true;
+        if (st.revoked) return { ok: true, licensed: false, activated: false, revoked: true, developerAuthed, site, activatedAt, machine };
+      }
+    } catch (e) { /* offline — keep local state */ }
+  }
+
   return {
     ok: true,
-    licensed: !!code || developerAuthed,
-    activated: !!code,
+    licensed: true,
+    activated: true,
     developerAuthed,
     site: site || null,
     activatedAt,
-    machine: db.getConfig('license_machine') || null,
+    machine,
+    confirmed,
   };
 }
 

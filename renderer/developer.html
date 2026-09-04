@@ -52,6 +52,7 @@
       <a href="#accounts" class="sub-link" data-target="accounts"><span class="icon" data-icon="admin"></span>Officer accounts</a>
       <a href="#access-codes" class="sub-link" data-target="access-codes"><span class="icon" data-icon="key"></span>Access codes</a>
       <a href="#license" class="sub-link" data-target="license"><span class="icon" data-icon="lock"></span>License activation</a>
+      <a href="#license-server" class="sub-link" data-target="license-server"><span class="icon" data-icon="server"></span>License server</a>
       <a href="#dev-codes" class="sub-link" data-target="dev-codes"><span class="icon" data-icon="code"></span>Developer codes</a>
       <a href="#login-audit" class="sub-link" data-target="login-audit"><span class="icon" data-icon="calendar"></span>Login activity</a>
       <a href="#distribution" class="sub-link" data-target="distribution"><span class="icon" data-icon="download"></span>Distribution</a>
@@ -264,12 +265,35 @@
       </div>
     </section>
 
+    <!-- License server config -->
+    <section class="card panel ofc-section" id="license-server">
+      <div class="panel-head">
+        <div>
+          <div class="card-title panel-title">License server</div>
+          <p class="text-muted panel-sub">Where the app talks to activate devices and manage per-site licenses. Run <code>server/license-server.js</code> somewhere reachable, then point the app at it. The admin token authorizes issuing/revoking codes.</p>
+        </div>
+      </div>
+
+      <div class="inline-form">
+        <div class="field" style="flex: 1 1 320px; min-width: 300px;">
+          <label class="label" for="lic-server-url">Server URL <b>*</b></label>
+          <input class="input" id="lic-server-url" type="text" placeholder="https://my-license-server.example.com" maxlength="200">
+        </div>
+        <div class="field" style="flex: 1 1 240px; min-width: 220px;">
+          <label class="label" for="lic-server-token">Admin token <b>*</b></label>
+          <input class="input" id="lic-server-token" type="password" placeholder="The PVH_ADMIN_TOKEN you chose" maxlength="200">
+        </div>
+        <button class="btn btn-primary" id="lic-server-save-btn"><span class="icon btn-icon" data-icon="save"></span>Save</button>
+      </div>
+      <p class="auth-error" id="lic-server-msg"></p>
+    </section>
+
     <!-- License activation -->
     <section class="card panel ofc-section" id="license">
       <div class="panel-head">
         <div>
           <div class="card-title panel-title">License activation</div>
-          <p class="text-muted panel-sub">Issue per-site activation codes to customers who have purchased the software. A code is single-use and can be revoked any time before it is redeemed.</p>
+          <p class="text-muted panel-sub">Issue per-site activation codes to customers (sent over the configured license server, so they work on any new device). A code is single-use and can be revoked at any time.</p>
         </div>
       </div>
 

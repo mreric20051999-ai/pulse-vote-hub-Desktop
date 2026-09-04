@@ -741,6 +741,39 @@
     refresh();
   }
 
+  // ---------- License server config ----------
+  function bindLicenseServer() {
+    const urlEl = $('lic-server-url');
+    const tokenEl = $('lic-server-token');
+    const msg = $('lic-server-msg');
+
+    async function load() {
+      const res = await window.pvh.getLicenseServerConfig();
+      if (res && res.ok) {
+        urlEl.value = res.url || '';
+        tokenEl.value = '';
+      }
+    }
+
+    $('lic-server-save-btn').addEventListener('click', async () => {
+      msg.textContent = '';
+      const url = urlEl.value.trim();
+      if (!url) { msg.textContent = 'Enter the license server URL.'; msg.className = 'auth-error'; urlEl.focus(); return; }
+      const res = await window.pvh.setLicenseServerConfig({ url, adminToken: tokenEl.value.trim() });
+      if (!res || !res.ok) {
+        msg.textContent = (res && res.error) || 'Could not save server config.';
+        msg.className = 'auth-error';
+        return;
+      }
+      msg.textContent = 'License server saved. You can now issue activation codes from the License activation panel.';
+      msg.className = 'notice-ok';
+      tokenEl.value = '';
+      window.pvhUI.toast('License server updated.', 'success');
+    });
+
+    load();
+  }
+
   // ---------- Login activity (audit log) ----------
   function bindLoginAudit() {
     const body = $('audit-body');
@@ -828,6 +861,7 @@
   bindPassword();
   bindAccessCodes();
   bindLicense();
+  bindLicenseServer();
   bindDevCodes();
   bindLoginAudit();
   bindSafety();

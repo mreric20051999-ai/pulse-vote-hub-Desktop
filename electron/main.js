@@ -602,26 +602,43 @@ ipcMain.handle('auth:redeem-developer-code', (_e, payload) => {
 // ---- Software licensing (per-site activation codes) ----
 // License state is public (any window can ask). Issuing/listing/revoking are
 // developer-only. Redemption is public — the code is the credential.
-ipcMain.handle('lic:status', () => {
-  try { return auth.licenseStatus(); } catch (err) { return { ok: false, error: err.message }; }
+ipcMain.handle('lic:status', async () => {
+  try { return await auth.licenseStatus(); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('lic:issue', (e, siteName, token) => {
+ipcMain.handle('lic:issue', async (e, siteName, token) => {
   const r = requireDeveloper(token, e);
   if (!r.ok) return r;
-  try { return auth.issueActivationCode(r.actor.id, siteName); } catch (err) { return { ok: false, error: err.message }; }
+  try { return await auth.issueActivationCode(r.actor.id, siteName); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('lic:list', (e, token) => {
+ipcMain.handle('lic:list', async (e, token) => {
   const r = requireDeveloper(token, e);
   if (!r.ok) return r;
-  try { return { ok: true, codes: auth.listActivationCodes() }; } catch (err) { return { ok: false, error: err.message }; }
+  try { return await auth.listActivationCodes(); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('lic:revoke', (e, id, token) => {
+ipcMain.handle('lic:revoke', async (e, id, token) => {
   const r = requireDeveloper(token, e);
   if (!r.ok) return r;
-  try { return auth.revokeActivationCode(r.actor.id, id); } catch (err) { return { ok: false, error: err.message }; }
+  try { return await auth.revokeActivationCode(r.actor.id, id); } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('lic:redeem', (_e, payload) => {
-  try { return auth.redeemLicense(payload || {}); } catch (err) { return { ok: false, error: err.message }; }
+ipcMain.handle('lic:redeem', async (_e, payload) => {
+  try { return await auth.redeemLicense(payload || {}); } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// Read/write the license server config (developer-only). The URL points at the
+// self-hosted server; the token authorizes mint/list/revoke on it.
+ipcMain.handle('lic:server-config', (e, token) => {
+  const auth2 = requireDeveloper(token, e);
+  if (!auth2.ok) return auth2;
+  const cfg = require('./license-client').serverConfig();
+  return { ok: true, url: cfg.url, hasToken: !!cfg.token };
+});
+ipcMain.handle('lic:server-config-set', (e, payload, token) => {
+  const auth2 = requireDeveloper(token, e);
+  if (!auth2.ok) return auth2;
+  const { url, adminToken } = payload || {};
+  db.setConfig('lic_server', String(url || '').trim());
+  db.setConfig('lic_server_token', String(adminToken || '').trim());
+  return { ok: true };
 });
 
 // ---- Safety kill-switch (developer only) ----
