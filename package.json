@@ -1,6 +1,6 @@
 {
   "name": "pulse-vote-hub-desktop",
-  "version": "1.2.18",
+  "version": "1.2.19",
   "description": "Offline Desktop Election App — School & Station Elections",
   "main": "electron/main.js",
   "scripts": {
