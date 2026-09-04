@@ -7,6 +7,7 @@ const { computedStatus } = require('./election');
 const station = require('./station');
 const sig = require('./signature');
 const vault = require('./vault');
+const { requiredString, optionalString, MAX_IMPORT_ROWS, LIMITS } = require('./validate');
 
 // ---- Voter management ----
 
@@ -28,10 +29,22 @@ function getVoter(electionId, voterId) {
 function addVoter({ electionId, name, voterId, assignedStation, password, phone }) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
 
+  const vName = optionalString(name, 'Name', { max: LIMITS.voterName });
+  if (!vName.ok) return vName;
+
   const finalVoterId = (voterId && String(voterId).trim()) ? String(voterId).trim().toUpperCase() : generateVoterId();
+  if (finalVoterId.length > LIMITS.voterId) return { ok: false, error: `Voter ID must be ${LIMITS.voterId} characters or fewer` };
+
   const finalPassword = password ? String(password) : generatePassword();
+  if (!String(finalPassword).trim()) return { ok: false, error: 'Password cannot be empty' };
+  if (finalPassword.length > 128) return { ok: false, error: 'Password must be 128 characters or fewer' };
 
   if (getVoter(electionId, finalVoterId)) return { ok: false, error: 'Voter ID already exists' };
+
+  const stName = optionalString(assignedStation, 'Station', { max: LIMITS.stationName });
+  if (!stName.ok) return stName;
+  const ph = optionalString(phone, 'Phone', { max: LIMITS.phone });
+  if (!ph.ok) return ph;
 
   const d = db.get();
   d.prepare(`
@@ -65,6 +78,10 @@ function importCsv(electionId, csvText) {
     return { ok: false, error: 'Could not parse CSV: ' + e.message };
   }
 
+  if (records.length > MAX_IMPORT_ROWS) {
+    return { ok: false, error: `CSV has ${records.length} rows; the maximum allowed per import is ${MAX_IMPORT_ROWS}` };
+  }
+
   const d = db.get();
   const insert = d.prepare(`
     INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, plain_password, phone, assigned_station, has_voted)
@@ -76,18 +93,24 @@ function importCsv(electionId, csvText) {
     for (const row of rows) {
       const voterId = (row.voter_id || row.voterID || row.id || '').toString().trim().toUpperCase();
       if (!voterId) { skipped++; continue; }
+      if (voterId.length > LIMITS.voterId) { skipped++; continue; }
       if (getVoter(electionId, voterId)) { skipped++; continue; }
       const password = row.password ? String(row.password) : generatePassword();
+      if (!password.trim() || password.length > 128) { skipped++; continue; }
+      const name = (row.name || row.full_name || row.fullname || '').trim() || null;
+      if (name && name.length > LIMITS.voterName) { skipped++; continue; }
+      const phone = (row.phone || row.phone_number || row.phoneNumber || '').trim() || null;
+      if (phone && phone.length > LIMITS.phone) { skipped++; continue; }
       insert.run({
         id: uuidv4(),
         election_id: electionId,
         voter_id: voterId,
-        name: (row.name || row.full_name || row.fullname || '').trim() || null,
+        name,
         password_hash: auth.hashPassword(password, fallbackSalt()),
         password_salt: '',
         plain_password: vault.encrypt(password),
-        phone: (row.phone || row.phone_number || row.phoneNumber || '').trim() || null,
-        assigned_station: (row.assigned_station || '').trim() || null,
+        phone,
+        assigned_station: (row.assigned_station || '').trim().slice(0, LIMITS.stationName) || null,
       });
       added++;
     }
@@ -106,6 +129,7 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
   if (!['name-index', 'index-only', 'index-phone', 'range'].includes(scheme)) {
     return { ok: false, error: 'Invalid generation scheme' };
   }
+  count = Math.min(5000, Math.max(0, Number(count) || 0));
   list = String(list || '');
 
   // Parse the pasted list into rows.

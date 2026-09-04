@@ -646,6 +646,18 @@ ipcMain.handle('lic:server-config-set', (e, payload, token) => {
   const auth2 = requireDeveloper(token, e);
   if (!auth2.ok) return auth2;
   const { url, adminToken } = payload || {};
+  if (url !== undefined && url !== null && String(url || '').trim()) {
+    try {
+      const u = new URL(String(url).trim());
+      if (!['https:', 'http:'].includes(u.protocol)) return { ok: false, error: 'License server URL must start with http(s)://' };
+    } catch (err) {
+      return { ok: false, error: 'License server URL is invalid' };
+    }
+    if (String(url).trim().length > 500) return { ok: false, error: 'License server URL is too long' };
+  }
+  if (adminToken !== undefined && adminToken !== null && String(adminToken).length > 500) {
+    return { ok: false, error: 'Admin token is too long' };
+  }
   db.setConfig('lic_server', String(url || '').trim());
   db.setConfig('lic_server_token', String(adminToken || '').trim());
   return { ok: true };

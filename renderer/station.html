@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://kit.fontawesome.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com https://kit.fontawesome.com; connect-src 'self' ws: wss: http: https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' ws: wss: http: https:;">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Station &middot; Pulse Vote Hub</title>
@@ -52,7 +52,7 @@
         <div class="station-banner card">
           <div>
             <div class="st-banner-title" id="election-tag">Station Election</div>
-            <div class="st-banner-meta"><i class="fa-solid fa-location-dot"></i> <span id="station-name">Unnamed Station</span> <code id="station-code"></code></div>
+            <div class="st-banner-meta"><span class="icon" data-icon="mapPin"></span> <span id="station-name">Unnamed Station</span> <code id="station-code"></code></div>
           </div>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
             <button class="btn btn-secondary" id="btnOpenBallot">Launch this station's ballot</button>
@@ -120,7 +120,6 @@
     <div class="modal" id="modal-box" style="max-width:520px;"></div>
   </div>
 
-  <script src="https://kit.fontawesome.com/ab2dfc59d2.js" crossorigin="anonymous"></script>
   <script src="js/icons.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/common.js"></script>

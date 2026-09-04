@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
+const { requiredString, optionalString, intInRange, LIMITS } = require('./validate');
 
 const ELECTION_TYPES = ['school', 'station'];
 const ELECTION_STATUSES = ['draft', 'upcoming', 'active', 'closed'];
@@ -30,7 +31,8 @@ function computedStatus(e, now = Date.now()) {
 // ---- Elections ----
 
 function createElection({ title, type, election_date, start_date, end_date, station_mode, close_grace_minutes, max_close_grace_minutes }, actor) {
-  if (!title || !String(title).trim()) return { ok: false, error: 'Title is required' };
+  const t = requiredString(title, 'Title', { max: LIMITS.electionTitle });
+  if (!t.ok) return t;
   if (!ELECTION_TYPES.includes(type)) return { ok: false, error: 'Invalid election type' };
   if (!actor || !actor.id) return { ok: false, error: 'Authentication required' };
 
@@ -47,8 +49,8 @@ function createElection({ title, type, election_date, start_date, end_date, stat
     start_date: start,
     end_date: end,
     station_mode: type === 'station' ? (station_mode ? 1 : 0) : 0,
-    close_grace_minutes: type === 'station' ? Math.max(0, Number(close_grace_minutes) || 30) : 30,
-    max_close_grace_minutes: type === 'station' ? Math.max(1, Number(max_close_grace_minutes) || 120) : 120,
+    close_grace_minutes: type === 'station' ? Math.min(600, Math.max(0, Number(close_grace_minutes) || 30)) : 30,
+    max_close_grace_minutes: type === 'station' ? Math.min(1440, Math.max(1, Number(max_close_grace_minutes) || 120)) : 120,
     created_at: now,
     closed_at: null,
   };
@@ -129,6 +131,7 @@ function updateElection(id, { title, type, election_date, start_date, end_date, 
   const acc = canAccessElection(exists, actor);
   if (!acc.ok) return acc;
   if (title && !String(title).trim()) return { ok: false, error: 'Title is required' };
+  if (title && String(title).trim().length > LIMITS.electionTitle) return { ok: false, error: `Title must be ${LIMITS.electionTitle} characters or fewer` };
   if (type && !ELECTION_TYPES.includes(type)) return { ok: false, error: 'Invalid election type' };
 
   const newTitle = title ? String(title).trim() : exists.title;
@@ -138,8 +141,8 @@ function updateElection(id, { title, type, election_date, start_date, end_date, 
     : (election_date !== undefined ? (election_date ? Number(election_date) : null) : exists.start_date);
   const newEnd = end_date !== undefined ? (end_date ? Number(end_date) : null) : exists.end_date;
   const newStationMode = station_mode !== undefined ? (station_mode ? 1 : 0) : exists.station_mode;
-  const newGrace = close_grace_minutes !== undefined ? Math.max(0, Number(close_grace_minutes) || 0) : exists.close_grace_minutes;
-  const newMaxGrace = max_close_grace_minutes !== undefined ? Math.max(1, Number(max_close_grace_minutes) || 1) : exists.max_close_grace_minutes;
+  const newGrace = close_grace_minutes !== undefined ? Math.min(600, Math.max(0, Number(close_grace_minutes) || 0)) : exists.close_grace_minutes;
+  const newMaxGrace = max_close_grace_minutes !== undefined ? Math.min(1440, Math.max(1, Number(max_close_grace_minutes) || 1)) : exists.max_close_grace_minutes;
 
   // Only block when an editable field actually differs (status-only saves pass).
   const wasChanged = newTitle !== exists.title || newType !== exists.type
@@ -482,8 +485,11 @@ function addPosition(electionId, title, maxVotes = 1, actor) {
   const acc = canAccessElection(e, actor);
   if (!acc.ok) return acc;
   if (isLocked(e.status)) return lockedError();
-  if (!title || !String(title).trim()) return { ok: false, error: 'Position title is required' };
-  maxVotes = Math.max(1, Number(maxVotes) || 1);
+  const pTitle = requiredString(title, 'Position title', { max: LIMITS.positionTitle });
+  if (!pTitle.ok) return pTitle;
+  const mV = intInRange(maxVotes, 'Max votes', { min: 1, max: 999 });
+  if (!mV.ok) return mV;
+  maxVotes = Number(maxVotes) | 0;
 
   const position = {
     id: uuidv4(),
@@ -531,7 +537,9 @@ function setPositionMax(id, maxVotes, actor) {
   const acc = e ? canAccessElection(e, actor) : { ok: false, error: 'Election not found' };
   if (!acc.ok) return acc;
   if (isLocked(e.status)) return lockedError();
-  maxVotes = Math.max(1, Math.floor(Number(maxVotes) || 1));
+  const mV = intInRange(maxVotes, 'Max votes', { min: 1, max: 999 });
+  if (!mV.ok) return mV;
+  maxVotes = Math.floor(Number(maxVotes) || 1);
   db.get().prepare('UPDATE positions SET max_votes = ? WHERE id = ?').run(maxVotes, id);
   audit('elections', `Updated max votes for position "${pos.title}" to ${maxVotes}`);
   return { ok: true, position: { ...pos, max_votes: maxVotes } };
@@ -545,7 +553,10 @@ function addCandidate({ electionId, positionId, name, photo_path }, actor) {
   const acc = canAccessElection(e, actor);
   if (!acc.ok) return acc;
   if (isLocked(e.status)) return lockedError();
-  if (!name || !String(name).trim()) return { ok: false, error: 'Candidate name is required' };
+  const cName = requiredString(name, 'Candidate name', { max: LIMITS.candidateName });
+  if (!cName.ok) return cName;
+  const pPath = optionalString(photo_path, 'Photo', { max: 1000 });
+  if (!pPath.ok) return pPath;
 
   const position = db.get().prepare('SELECT * FROM positions WHERE id = ? AND election_id = ?').get(positionId, electionId);
   if (!position) return { ok: false, error: 'Position not found in election' };

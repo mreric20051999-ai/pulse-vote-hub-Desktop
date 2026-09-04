@@ -3,6 +3,7 @@ const os = require('os');
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const lic = require('./license-client');
+const { LIMITS } = require('./validate');
 
 const SCRYPT_OPTS = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 };
 
@@ -80,7 +81,23 @@ function attemptLogin(officerId, password) {
 }
 
 function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 64, SCRYPT_OPTS).toString('hex');
+  // Hard guard: never run scrypt on an unbounded input (CPU/memory DoS). The
+  // caller-facing validators enforce the same 128 cap with a friendly message.
+  const pw = String(password || '');
+  if (pw.length > 128) throw new Error('Password exceeds maximum length');
+  return crypto.scryptSync(pw, salt, 64, SCRYPT_OPTS).toString('hex');
+}
+
+// Shared password policy used by every create/change path: at least 6 chars,
+// at most 128 chars, and not blank/whitespace-only.
+const PW_MIN = 6;
+const PW_MAX = 128;
+function validatePassword(password) {
+  const pw = password === undefined || password === null ? '' : String(password);
+  if (pw.length < PW_MIN) return { ok: false, code: 'weak', error: `Password must be at least ${PW_MIN} characters` };
+  if (pw.length > PW_MAX) return { ok: false, code: 'weak', error: `Password must be ${PW_MAX} characters or fewer` };
+  if (!pw.trim()) return { ok: false, code: 'weak', error: 'Password cannot be blank' };
+  return { ok: true };
 }
 
 function generateSalt() {
@@ -219,7 +236,9 @@ function setupAdmin(name, officerId, password, setupCode, confirmSetupCode) {
   if (hasAdmin()) return { ok: false, error: 'An admin account already exists' };
   if (!setupCode) return { ok: false, error: 'The setup code is required to create the administrator' };
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (String(name).trim().length > LIMITS.officerName) return { ok: false, error: `Name must be ${LIMITS.officerName} characters or fewer` };
+  if (String(officerId).trim().length > LIMITS.officerId) return { ok: false, error: `Officer ID must be ${LIMITS.officerId} characters or fewer` };
+  const pwCheck = validatePassword(password); if (!pwCheck.ok) return pwCheck;
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
   // First-time provision: the operator sets and confirms the code (owner claim).
@@ -298,7 +317,7 @@ function verifyRecoveryCode(code) {
 // assistant (lower privilege) cannot be escalated via recovery.
 function resetPasswordByRecovery(officerId, recoveryCode, newPassword) {
   if (!officerId || !recoveryCode) return { ok: false, error: 'Officer ID and recovery code are required' };
-  if (String(newPassword).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const pwCheck = validatePassword(newPassword); if (!pwCheck.ok) return pwCheck;
   if (!verifyRecoveryCode(recoveryCode)) return { ok: false, error: 'Incorrect recovery code' };
 
   const officer = findByOfficerId(officerId);
@@ -317,7 +336,9 @@ function resetPasswordByRecovery(officerId, recoveryCode, newPassword) {
 function setupCoordinator(name, officerId, password) {
   if (isConfigured()) return { ok: false, error: 'Coordinator already configured' };
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (String(name).trim().length > LIMITS.officerName) return { ok: false, error: `Name must be ${LIMITS.officerName} characters or fewer` };
+  if (String(officerId).trim().length > LIMITS.officerId) return { ok: false, error: `Officer ID must be ${LIMITS.officerId} characters or fewer` };
+  const pwCheck = validatePassword(password); if (!pwCheck.ok) return pwCheck;
   const officer = insertOfficer(name, officerId, password, 'coordinator');
   db.setConfig('initialized_at', String(Date.now()));
   return { ok: true, officer: publicOfficer(officer) };
@@ -367,7 +388,9 @@ function verifyDevelopmentKey(code) {
 async function setupDeveloper(name, officerId, password, devKey) {
   if (hasDeveloper()) return { ok: false, error: 'A developer account already exists' };
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (String(name).trim().length > LIMITS.officerName) return { ok: false, error: `Name must be ${LIMITS.officerName} characters or fewer` };
+  if (String(officerId).trim().length > LIMITS.officerId) return { ok: false, error: `Officer ID must be ${LIMITS.officerId} characters or fewer` };
+  const pwCheck = validatePassword(password); if (!pwCheck.ok) return pwCheck;
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
   const key = String(devKey || '').trim();
@@ -449,7 +472,7 @@ function redeemDeveloperCode({ code, officerId, password, confirmPassword }) {
   const raw = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
   if (!raw) return { ok: false, error: 'A developer short code is required' };
   if (!officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const pwCheck = validatePassword(password); if (!pwCheck.ok) return pwCheck;
   if (password !== confirmPassword) return { ok: false, error: 'Password confirmation does not match' };
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
@@ -701,7 +724,7 @@ function redeemSetupCode({ code, name, officerId, password, confirmPassword }) {
   const raw = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
   if (!raw) return { ok: false, error: 'An access code is required' };
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const pwCheck = validatePassword(password); if (!pwCheck.ok) return pwCheck;
   if (password !== confirmPassword) return { ok: false, error: 'Password confirmation does not match' };
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
@@ -765,7 +788,9 @@ function listOfficers() {
 // Admin creates a coordinator or assistant account
 function addOfficer({ name, officerId, password, role = 'coordinator' }) {
   if (!name || !officerId || !password) return { ok: false, error: 'All fields are required' };
-  if (String(password).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  if (String(name).trim().length > LIMITS.officerName) return { ok: false, error: `Name must be ${LIMITS.officerName} characters or fewer` };
+  if (String(officerId).trim().length > LIMITS.officerId) return { ok: false, error: `Officer ID must be ${LIMITS.officerId} characters or fewer` };
+  const pwCheck = validatePassword(password); if (!pwCheck.ok) return pwCheck;
   if (!['coordinator', 'assistant'].includes(role)) role = 'coordinator';
   if (findByOfficerId(officerId)) return { ok: false, error: 'Officer ID already in use' };
 
@@ -796,7 +821,7 @@ function setSuspended(id, suspended) {
 
 // Change an officer's password (admin for others, or any officer for themselves)
 function changePassword(id, newPassword) {
-  if (String(newPassword).length < 6) return { ok: false, error: 'Password must be at least 6 characters' };
+  const pwCheck = validatePassword(newPassword); if (!pwCheck.ok) return pwCheck;
   const salt = generateSalt();
   const stored = encodeHash(salt, hashPassword(String(newPassword), salt));
   db.get().prepare('UPDATE officers SET password = ? WHERE id = ?').run(stored, id);

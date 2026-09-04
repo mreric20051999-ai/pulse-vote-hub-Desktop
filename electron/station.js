@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
 const electionMod = require('./election');
+const { requiredString, optionalString, LIMITS } = require('./validate');
 
 const STATION_STATUSES = ['not_opened', 'open', 'queuing', 'counted', 'submitted'];
 
@@ -38,7 +39,10 @@ function addStation({ electionId, name, location, code }) {
   if (!e) return { ok: false, error: 'Election not found' };
   if (e.type !== 'station') return { ok: false, error: 'This election does not use polling stations' };
   if (electionMod.isLocked(e.status)) return electionMod.lockedError();
-  if (!name || !String(name).trim()) return { ok: false, error: 'Station name is required' };
+  const sName = requiredString(name, 'Station name', { max: LIMITS.stationName });
+  if (!sName.ok) return sName;
+  const loc = optionalString(location, 'Location', { max: LIMITS.stationLocation });
+  if (!loc.ok) return loc;
 
   const requestedId = (code && String(code).trim()) ? String(code).trim() : null;
   let id = requestedId || uuidv4();
@@ -57,6 +61,8 @@ function updateStation(id, { name, location, code }) {
   const s = getStation(id);
   if (!s) return { ok: false, error: 'Station not found' };
   if (name !== undefined && !String(name).trim()) return { ok: false, error: 'Station name is required' };
+  if (name !== undefined && String(name).trim().length > LIMITS.stationName) return { ok: false, error: `Station name must be ${LIMITS.stationName} characters or fewer` };
+  if (location !== undefined && location !== null && String(location).length > LIMITS.stationLocation) return { ok: false, error: `Location must be ${LIMITS.stationLocation} characters or fewer` };
   if (s.status === 'submitted') return { ok: false, error: 'This station has already submitted its results and is locked.' };
   db.get().prepare('UPDATE stations SET name = ?, location = ?, code = ? WHERE id = ?')
     .run(name !== undefined ? String(name).trim() : s.name, location !== undefined ? location : s.location, code !== undefined ? String(code).trim() : s.code, id);

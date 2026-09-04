@@ -21,7 +21,9 @@
 }
 
 .st-banner-title { font-family: var(--font-heading); font-weight: var(--fw-semibold); font-size: 1.35rem; }
-.st-banner-meta { color: var(--text-muted); font-size: var(--fs-sm); margin-top: 6px; }
+.st-banner-meta { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--fs-sm); margin-top: 6px; flex-wrap: wrap; }
+.st-banner-meta .icon { display: inline-flex; }
+.st-banner-meta .icon svg { width: 15px; height: 15px; }
 .st-banner-meta code { background: var(--surface-2); padding: 2px 7px; border-radius: var(--radius-sm); font-size: 11px; }
 
 /* Station status pill (mirrors web st-* classes) */
@@ -45,12 +47,12 @@
 /* Polls control + countdowns */
 .poll-actions { display: flex; flex-direction: column; gap: 12px; }
 .btn-block { width: 100%; justify-content: center; }
-.btn-green { background: var(--success); color: #04120b; border-color: transparent; }
-.btn-green:hover { background: #34d399; }
-.btn-amber { background: var(--warning); color: #1a1204; border-color: transparent; }
-.btn-amber:hover { background: #fbbf24; }
-.btn-purple { background: var(--info); color: #0a1526; border-color: transparent; }
-.btn-purple:hover { background: #93c5fd; }
+.btn-green { background: var(--success); color: #ffffff; border-color: transparent; }
+.btn-green:hover { filter: brightness(1.06); }
+.btn-amber { background: var(--warning); color: #ffffff; border-color: transparent; }
+.btn-amber:hover { filter: brightness(1.06); }
+.btn-purple { background: var(--info); color: #ffffff; border-color: transparent; }
+.btn-purple:hover { filter: brightness(1.06); }
 
 .countdown {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
