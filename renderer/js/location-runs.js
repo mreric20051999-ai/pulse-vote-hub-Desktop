@@ -347,37 +347,78 @@
   // Over-the-internet hand-off: push the sealed result pack (E2E-encrypted with
   // the passphrase you set) to the relay, then share the transfer code +
   // passphrase with the main coordinator over the phone. One-time + expiring.
+  const EYE_SVG =
+    '<svg class="eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>' +
+    '<svg class="eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  function wirePassToggle(inputId, btnId) {
+    const input = $(inputId);
+    const toggle = $(btnId);
+    if (!input || !toggle) return;
+    toggle.addEventListener('click', () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      toggle.setAttribute('aria-pressed', String(show));
+      toggle.setAttribute('aria-label', show ? 'Hide passphrase' : 'Show passphrase');
+    });
+  }
+  function wireCodeInputNorm(inputId) {
+    const input = $(inputId);
+    if (!input) return;
+    input.addEventListener('input', () => { input.value = input.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); });
+  }
+
+  // Location coordinator: push the sealed result pack to the internet relay.
   function sendPackOverInternet(e) {
     ui.openModal({
       title: 'Send result pack over the internet',
+      width: '26rem',
       body: `
-        <p class="mb">The sealed result pack will be <strong>encrypted on this machine</strong> with a passphrase you set, then pushed to the relay. Share the resulting <strong>transfer code</strong> + <strong>passphrase</strong> with your main coordinator by phone or any private channel. The relay only ever holds the encrypted bytes.</p>
-        <label class="field-label">Pack passphrase (min 8 characters)</label>
-        <input class="input" type="password" id="relay-pass" autocomplete="new-password" placeholder="Set a strong passphrase">
+        <p class="modal-lead">Encrypt your sealed result pack on this machine, push it to the relay, then share the code + passphrase with your main coordinator.</p>
+        <div class="relay-steps">
+          <div class="relay-step"><span class="relay-step-n">1</span><span>Encrypted on this machine</span></div>
+          <div class="relay-step"><span class="relay-step-n">2</span><span>Pushed to the relay</span></div>
+          <div class="relay-step"><span class="relay-step-n">3</span><span>Share code &amp; passphrase</span></div>
+        </div>
+        <label class="field-label" for="relay-pass">Pack passphrase</label>
+        <div class="password-wrap">
+          <input class="input" type="password" id="relay-pass" autocomplete="new-password" placeholder="e.g. 7 blue cables tonight" minlength="8">
+          ${EYE_SVG ? '<button type="button" class="password-toggle" id="relay-pass-toggle" aria-label="Show passphrase" aria-pressed="false">' + EYE_SVG + '</button>' : ''}
+        </div>
+        <p class="field-hint">Min 8 characters. The relay never stores it — only the encrypted pack.</p>
         <p class="auth-error" id="relay-err"></p>
-        <button class="btn btn-primary btn-block" id="relay-send-go" style="margin-top:8px;">Encrypt &amp; push result pack</button>`,
+        <button class="btn btn-primary btn-block" id="relay-send-go">Encrypt &amp; push result pack</button>`,
     });
+    wirePassToggle('relay-pass', 'relay-pass-toggle');
     const go = $('relay-send-go');
     if (go) go.addEventListener('click', async () => {
       const pass = $('relay-pass');
       const err = $('relay-err');
       if (!pass || pass.value.length < 8) { setMsg(err, 'Passphrase must be at least 8 characters.', 'error'); return; }
-      setMsg(err, 'Encrypting and pushing…');
-      const res = await pvh.sendPackOverInternet(e.id, pass.value);
-      if (!res || !res.ok) { setMsg(err, (res && res.error) || 'Send failed', 'error'); return; }
-      ui.openModal({
-        title: 'Result pack pushed to the relay',
-        body: `
-          <p class="mb">Give this <strong>transfer code</strong> and the <strong>passphrase</strong> you chose to your main coordinator:</p>
-          <div class="receipt-code">${esc(res.code)}</div>
-          <p class="text-muted hint">The envelope expires in ${res.ttl_days || 7} day(s) and can be received only once.</p>
-          <button class="btn btn-primary btn-block" id="btn-copy-code">Copy transfer code</button>`,
+      setMsg(err, '');
+      await ui.busy(go, 'Encrypting &amp; pushing…', async () => {
+        const res = await pvh.sendPackOverInternet(e.id, pass.value);
+        if (!res || !res.ok) { setMsg(err, (res && res.error) || 'Send failed', 'error'); return; }
+        const modal = ui.openModal({
+          title: 'Result pack pushed to the relay',
+          width: '26rem',
+          body: `
+            <div class="verify-badge ok"><span class="status-dot success"></span>Result pack pushed</div>
+            <p class="mb">Give this <strong>transfer code</strong> and the <strong>passphrase</strong> you chose to your main coordinator:</p>
+            <div class="receipt-code">${esc(res.code)}</div>
+            <p class="field-hint">The relay holds only encrypted bytes and forgets this envelope once received or after ${res.ttl_days || 7} days.</p>
+            <div class="modal-actions">
+              <button class="btn btn-primary" id="btn-copy-code">Copy transfer code</button>
+              <button class="btn btn-secondary" id="btn-done-send">Done</button>
+            </div>`,
+        });
+        const cp = $('btn-copy-code');
+        if (cp) cp.addEventListener('click', () => {
+          if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(res.code).then(() => ui.toast('Transfer code copied', 'success'));
+        });
+        const done = $('btn-done-send');
+        if (done) done.addEventListener('click', modal.close);
+        ui.toast('Result pack pushed to relay', 'success');
       });
-      const cp = $('btn-copy-code');
-      if (cp) cp.addEventListener('click', () => {
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(res.code).then(() => ui.toast('Transfer code copied', 'success'));
-      });
-      ui.toast('Result pack pushed to relay', 'success');
     });
   }
 
@@ -386,15 +427,28 @@
   function receivePackOverInternet() {
     ui.openModal({
       title: 'Receive result pack over the internet',
+      width: '26rem',
       body: `
-        <p class="mb">Enter the <strong>transfer code</strong> and <strong>passphrase</strong> your location coordinator sent you. The pack is pulled once, decrypted on this machine, and fully verified before it enters the compile list.</p>
-        <label class="field-label">Transfer code</label>
-        <input class="input" type="text" id="relay-code" placeholder="PK-XXXX-XXXX-XXXX-XXXX">
-        <label class="field-label">Passphrase</label>
-        <input class="input" type="password" id="relay-rpass" autocomplete="new-password">
+        <p class="modal-lead">Claim the sealed result pack your location coordinator sent. It is decrypted and fully verified on this machine before it enters the compile list.</p>
+        <div class="relay-steps">
+          <div class="relay-step"><span class="relay-step-n">1</span><span>Enter code &amp; passphrase</span></div>
+          <div class="relay-step"><span class="relay-step-n">2</span><span>Decrypted on this machine</span></div>
+          <div class="relay-step"><span class="relay-step-n">3</span><span>Verified, then compiled</span></div>
+        </div>
+        <label class="field-label" for="relay-code">Transfer code</label>
+        <input class="input input-code" type="text" id="relay-code" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="PK-XXXX-XXXX-XXXX-XXXX">
+        <p class="field-hint">Sent to you by your location coordinator over a private channel.</p>
+        <label class="field-label" for="relay-rpass">Passphrase</label>
+        <div class="password-wrap">
+          <input class="input" type="password" id="relay-rpass" autocomplete="new-password" placeholder="Passphrase from your coordinator" minlength="8">
+          <button type="button" class="password-toggle" id="relay-rpass-toggle" aria-label="Show passphrase" aria-pressed="false">${EYE_SVG}</button>
+        </div>
+        <p class="field-hint">Exactly as your coordinator chose it — it cannot be recovered if mistyped.</p>
         <p class="auth-error" id="relay-rerr"></p>
-        <button class="btn btn-primary btn-block" id="relay-recv-go" style="margin-top:8px;">Claim &amp; verify result pack</button>`,
+        <button class="btn btn-primary btn-block" id="relay-recv-go">Claim &amp; verify result pack</button>`,
     });
+    wirePassToggle('relay-rpass', 'relay-rpass-toggle');
+    wireCodeInputNorm('relay-code');
     const go = $('relay-recv-go');
     if (go) go.addEventListener('click', async () => {
       const code = $('relay-code');
@@ -402,17 +456,31 @@
       const err = $('relay-rerr');
       if (!code || !code.value.trim()) { setMsg(err, 'Enter the transfer code.', 'error'); return; }
       if (!pass || pass.value.length < 8) { setMsg(err, 'Passphrase must be at least 8 characters.', 'error'); return; }
-      setMsg(err, 'Claiming and verifying…');
-      const res = await pvh.receivePackOverInternet(code.value.trim(), pass.value);
-      if (!res || res.ok === false) {
-        setMsg(err, (res && (res.errors || []).join(' ') || res.error) || 'Receive failed', 'error');
-        return;
-      }
-      incomingPacks.push({ base: res.base, ok: true, report: res.report, pack: res.pack });
-      renderPacksPanel();
-      ui.openModal({
-        title: 'Result pack received &amp; verified',
-        body: `<p>Pack from <strong>${esc(res.report.summary.location || '—')}</strong> (<strong>${esc(res.report.summary.election || '—')}</strong>) claimed from the relay and fully verified.</p><p class="text-muted">It is now in the compile list.</p>`,
+      setMsg(err, '');
+      await ui.busy(go, 'Claiming &amp; verifying…', async () => {
+        const res = await pvh.receivePackOverInternet(code.value.trim(), pass.value);
+        if (!res || res.ok === false) {
+          setMsg(err, (res && (res.errors || []).join(' ') || res.error) || 'Receive failed', 'error');
+          return;
+        }
+        incomingPacks.push({ base: res.base, ok: true, report: res.report, pack: res.pack });
+        renderPacksPanel();
+        const fp = (res.meta && res.meta.fingerprint) || '';
+        const fpShort = fp.replace(/[^a-f0-9]/gi, '').slice(0, 12).toUpperCase().replace(/(.{4})(?=.)/g, '$1-');
+        const modal = ui.openModal({
+          title: 'Result pack received &amp; verified',
+          width: '26rem',
+          body: `
+            <div class="verify-badge ok"><span class="status-dot success"></span>Received &amp; verified</div>
+            <p class="mb">Pack from <strong>${esc(res.report.summary.location || '—')}</strong> — <strong>${esc(res.report.summary.election || '—')}</strong> claimed from the relay and fully verified. It is now in the compile list.</p>
+            ${fpShort ? `<div class="receipt-code" style="font-size:16px;margin-bottom:4px">${esc(fpShort)}</div>` : ''}
+            <div class="modal-actions">
+              <button class="btn btn-primary" id="btn-done-recv">Done</button>
+            </div>`,
+        });
+        const done = $('btn-done-recv');
+        if (done) done.addEventListener('click', modal.close);
+        ui.toast('Result pack received & verified', 'success');
       });
     });
   }
