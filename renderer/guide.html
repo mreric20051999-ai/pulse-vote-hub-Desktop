@@ -474,20 +474,6 @@
   </main>
 
   <script src="js/icons.js"></script>
-  <script>
-    (function () {
-      function backOrSignIn() {
-        try {
-          const s = JSON.parse(window.localStorage.getItem('pvh_session') || 'null');
-          window.location.assign(s && s.id ? 'dashboard.html' : 'index.html');
-        } catch (e) {
-          window.location.assign('index.html');
-        }
-      }
-      window.pvhIcons && window.pvhIcons.inject('.icon');
-      document.getElementById('guide-open-app').addEventListener('click', backOrSignIn);
-      document.getElementById('guide-print').addEventListener('click', () => window.print());
-    })();
-  </script>
+  <script src="js/guide.js"></script>
 </body>
 </html>
