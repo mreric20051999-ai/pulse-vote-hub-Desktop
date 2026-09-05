@@ -282,7 +282,138 @@
     }
   }
 
-  window.pvhUI = { toast, busy, inboxBadge: null, speakBadge: null, refreshInboxBadge, refreshSpeakBadge, openModal };
+  window.pvhUI = { toast, busy, inboxBadge: null, speakBadge: null, refreshInboxBadge, refreshSpeakBadge, openModal, tooltip };
+
+  // ---------- Tooltips (data-tooltip + collapsed sidebar labels) ----------
+  // Any element can opt in with data-tooltip="Label" (data-tooltip-pos = top|right).
+  // Sidebar nav items and the profile avatar get automatic tooltips when the
+  // sidebar is collapsed to the icon rail, and the collapse toggle always shows
+  // its current action via tooltip/title. Bubbles are plain DOM, so they work
+  // inside the CSP and never rely on native tooltip delays.
+
+  let tipTimer = null;
+  let tipEl = null;
+  let tipTarget = null;
+
+  const TOOLTIP_SELECTOR = '[data-tooltip], .sidebar-toggle';
+  const AUTO_RAIL_SELECTOR = '.nav-item, .profile-trigger';
+
+  function sidebarCollapsed() {
+    return document.body.classList.contains('sidebar-collapsed') ||
+      document.documentElement.classList.contains('sidebar-collapsed-bp');
+  }
+
+  function tipLabel(el) {
+    if (!(el && el.dataset)) return '';
+    if (el.dataset.tooltip) return String(el.dataset.tooltip).trim();
+    if (el.classList && el.classList.contains('sidebar-toggle')) return (el.title && el.title.trim()) || 'Toggle sidebar';
+    if (el.classList && el.classList.contains('nav-item') && sidebarCollapsed()) {
+      return String(el.textContent || '').replace(/\s+/g, ' ').trim() || el.title || '';
+    }
+    if (el.classList && el.classList.contains('profile-trigger') && sidebarCollapsed()) {
+      return (session && session.name) || 'Account';
+    }
+    return '';
+  }
+
+  function hideTip() {
+    if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
+    tipTarget = null;
+    if (tipEl) { tipEl.remove(); tipEl = null; }
+  }
+
+  function positionTip() {
+    if (!tipEl || !tipTarget) return;
+    const tr = tipTarget.getBoundingClientRect();
+    const posRight = tipEl.classList.contains('pos-right');
+    tipEl.style.visibility = 'hidden';
+    const tw = tipEl.offsetWidth, th = tipEl.offsetHeight;
+    let x, y;
+    if (posRight) {
+      x = tr.right + 10;
+      y = tr.top + tr.height / 2 - th / 2;
+    } else {
+      x = tr.left + tr.width / 2 - tw / 2;
+      y = tr.top - th - 8;
+    }
+    x = Math.max(8, Math.min(x, window.innerWidth - tw - 8));
+    if (y < 8) y = tr.bottom + 10;
+    y = Math.max(8, Math.min(y, window.innerHeight - th - 8));
+    tipEl.style.left = x + 'px';
+    tipEl.style.top = y + 'px';
+    tipEl.style.visibility = 'visible';
+  }
+
+  function showTip(el) {
+    const text = tipLabel(el);
+    if (!text || tipTarget === el) return;
+    hideTip();
+    tipTarget = el;
+    tipEl = document.createElement('div');
+    tipEl.className = 'pvh-tooltip';
+    tipEl.setAttribute('role', 'tooltip');
+    tipEl.textContent = text;
+    const right = (el.classList && el.classList.contains('nav-item')) ||
+      (el.classList && el.classList.contains('profile-trigger')) ||
+      (el.dataset && el.dataset.tooltipPos === 'right');
+    tipEl.classList.add(right ? 'pos-right' : 'pos-top');
+    document.body.appendChild(tipEl);
+    positionTip();
+  }
+
+  function armShow(el) {
+    if (!el) return;
+    hideTip();
+    tipTimer = setTimeout(() => showTip(el), 260);
+  }
+
+  function ownsTip(t) {
+    return !!(t && t.closest && t.closest(TOOLTIP_SELECTOR + ', ' + AUTO_RAIL_SELECTOR));
+  }
+
+  document.addEventListener('pointerover', (e) => {
+    const t = e.target && e.target.closest ? e.target.closest(TOOLTIP_SELECTOR + ', ' + AUTO_RAIL_SELECTOR) : null;
+    if (!t || tipTarget === t) return;
+    if (!tipLabel(t)) return;
+    if (tipTimer) clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => showTip(t), 260);
+  }, true);
+
+  document.addEventListener('pointerout', (e) => {
+    if (!tipTarget || !e.target) return;
+    const related = e.relatedTarget;
+    const leaving = !(related && tipTarget.contains(related));
+    if (leaving) hideTip();
+  }, true);
+
+  document.addEventListener('focusin', (e) => {
+    const t = e.target && e.target.closest ? e.target.closest(TOOLTIP_SELECTOR + ', ' + AUTO_RAIL_SELECTOR) : null;
+    if (!t) return;
+    if (!tipLabel(t)) return;
+    if (tipTimer) clearTimeout(tipTimer);
+    tipTimer = setTimeout(() => showTip(t), 260);
+  });
+
+  document.addEventListener('focusout', hideTip, true);
+  document.addEventListener('click', hideTip, true);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideTip(); }, true);
+  // Programmatic opt-in: pvhUI.tooltip(el, 'Label', 'top'|'right') — the
+  // delegated handlers pick it up immediately, no manual wiring.
+  function tooltip(el, label, pos) {
+    if (!el) return el;
+    if (label === null || label === '') { delete el.dataset.tooltip; return el; }
+    el.setAttribute('data-tooltip', String(label));
+    if (pos) el.setAttribute('data-tooltip-pos', pos);
+    return el;
+  }
+
+  // Window-level dismissals (pure DOM browsers + harness mocks are both fine).
+  const onWindow = (type, fn, capture) => {
+    if (typeof window.addEventListener === 'function') window.addEventListener(type, fn, capture);
+  };
+  onWindow('scroll', hideTip, true);
+  onWindow('resize', hideTip);
+  onWindow('blur', hideTip);
 
   // ---------- Shared modal ----------
 

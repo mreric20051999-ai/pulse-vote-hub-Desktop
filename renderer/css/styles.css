@@ -1132,6 +1132,57 @@ html.sidebar-collapsed-bp .profile-menu {
 }
 .nav-badge[hidden] { display: none; }
 
+/* ---------- Shared tooltips ---------- */
+
+.pvh-tooltip {
+  position: fixed;
+  z-index: 1200;
+  max-width: 260px;
+  padding: 7px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--text);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: var(--fw-semibold);
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: tip-in 0.13s ease;
+}
+[data-theme="light"] .pvh-tooltip {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+[data-theme="light"] .pvh-tooltip::after {
+  background: var(--bg-elevated);
+}
+.pvh-tooltip::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+}
+.pvh-tooltip.pos-right::after {
+  left: -4px;
+  top: 50%;
+  margin-top: -4px;
+  clip-path: polygon(0 0, 0 100%, 100% 0);
+}
+.pvh-tooltip.pos-top::after {
+  bottom: -4px;
+  left: 50%;
+  margin-left: -4px;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+@keyframes tip-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ---------- Shared modals (FAQ / privacy / preferences / speak) ---------- */
 
 .pvh-modal-overlay {
