@@ -371,7 +371,7 @@
   function sendPackOverInternet(e) {
     ui.openModal({
       title: 'Send result pack over the internet',
-      width: '26rem',
+      width: '24rem',
       body: `
         <p class="modal-lead">Encrypt your sealed result pack on this machine, push it to the relay, then share the code + passphrase with your main coordinator.</p>
         <div class="relay-steps">
@@ -400,7 +400,7 @@
         if (!res || !res.ok) { setMsg(err, (res && res.error) || 'Send failed', 'error'); return; }
         const modal = ui.openModal({
           title: 'Result pack pushed to the relay',
-          width: '26rem',
+          width: '24rem',
           body: `
             <div class="verify-badge ok"><span class="status-dot success"></span>Result pack pushed</div>
             <p class="mb">Give this <strong>transfer code</strong> and the <strong>passphrase</strong> you chose to your main coordinator:</p>
@@ -427,7 +427,7 @@
   function receivePackOverInternet() {
     ui.openModal({
       title: 'Receive result pack over the internet',
-      width: '26rem',
+      width: '24rem',
       body: `
         <p class="modal-lead">Claim the sealed result pack your location coordinator sent. It is decrypted and fully verified on this machine before it enters the compile list.</p>
         <div class="relay-steps">
@@ -469,7 +469,7 @@
         const fpShort = fp.replace(/[^a-f0-9]/gi, '').slice(0, 12).toUpperCase().replace(/(.{4})(?=.)/g, '$1-');
         const modal = ui.openModal({
           title: 'Result pack received &amp; verified',
-          width: '26rem',
+          width: '24rem',
           body: `
             <div class="verify-badge ok"><span class="status-dot success"></span>Received &amp; verified</div>
             <p class="mb">Pack from <strong>${esc(res.report.summary.location || '—')}</strong> — <strong>${esc(res.report.summary.election || '—')}</strong> claimed from the relay and fully verified. It is now in the compile list.</p>
