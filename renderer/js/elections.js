@@ -291,10 +291,12 @@
         const catDD = buildSelectDropdown(el.querySelector('#cand-edit-pos'), (value) => {
           const target = currentElection.positions.find((o) => o.id === value);
           if (!target) return;
-          const taken = currentElection.candidates
+          const taken = new Set(currentElection.candidates
             .filter((x) => x.id !== c.id && x.position_id === value)
-            .map((x) => Number(x.ballot_number) || 0);
-          numInput.value = Math.max(0, ...taken) + 1;
+            .map((x) => Number(x.ballot_number) || 0));
+          let next = 1;
+          while (taken.has(next)) next++;
+          numInput.value = next;
         });
         catDD.set(c.position_id);
         const save = async () => {

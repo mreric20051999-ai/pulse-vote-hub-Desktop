@@ -571,6 +571,15 @@ function updatePosition(id, title, actor) {
 
 // ---- Candidates ----
 
+// Smallest positive ballot number not already used in a category, so holes left
+// by renumbering/removing candidates get refilled instead of counting upward.
+function nextFreeBallotNumber(d, positionId) {
+  const used = new Set(d.prepare('SELECT ballot_number FROM candidates WHERE position_id = ?').all(positionId).map((r) => r.ballot_number));
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
+}
+
 function addCandidate({ electionId, positionId, name, photo_path, ballot_number }, actor) {
   const e = getElection(electionId);
   if (!e) return { ok: false, error: 'Election not found' };
@@ -590,15 +599,18 @@ function addCandidate({ electionId, positionId, name, photo_path, ballot_number 
 
   const d = db.get();
   const sortOrder = d.prepare('SELECT COUNT(*) AS c FROM candidates WHERE position_id = ?').get(positionId).c;
-  const finalBallot = hasExplicitNumber ? Number(ballot_number) : ((d.prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(positionId).m || 0) + 1);
+  const finalBallot = hasExplicitNumber ? Number(ballot_number) : nextFreeBallotNumber(d, positionId);
   if (finalBallot > LIMITS.ballotNumber) return { ok: false, error: `Ballot number must be ${LIMITS.ballotNumber} or fewer` };
-  // Free the chosen number (or auto number) so it stays unique in this category.
-  const bump = d.transaction(() => {
-    for (const r of d.prepare('SELECT id FROM candidates WHERE position_id = ? AND ballot_number >= ? ORDER BY ballot_number DESC').all(positionId, finalBallot)) {
-      d.prepare('UPDATE candidates SET ballot_number = ballot_number + 1 WHERE id = ?').run(r.id);
-    }
-  });
-  bump();
+  // Free an explicitly-chosen number so it stays unique in this category. An
+  // auto number is already the lowest free one, so nothing needs shifting.
+  if (hasExplicitNumber) {
+    const bump = d.transaction(() => {
+      for (const r of d.prepare('SELECT id FROM candidates WHERE position_id = ? AND ballot_number >= ? ORDER BY ballot_number DESC').all(positionId, finalBallot)) {
+        d.prepare('UPDATE candidates SET ballot_number = ballot_number + 1 WHERE id = ?').run(r.id);
+      }
+    });
+    bump();
+  }
 
   const candidate = {
     id: uuidv4(),
@@ -660,7 +672,7 @@ function updateCandidate({ id, name, position_id, photo_path, ballot_number }, a
   if (explicitNumber.ok && ballot_number !== undefined && ballot_number !== null && ballot_number !== '') {
     ballotNumber = Number(ballot_number);
   } else if (moved) {
-    ballotNumber = (d.prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(targetPositionId).m || 0) + 1;
+    ballotNumber = nextFreeBallotNumber(d, targetPositionId);
   } else {
     ballotNumber = cand.ballot_number;
   }
