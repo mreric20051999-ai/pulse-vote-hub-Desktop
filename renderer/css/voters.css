@@ -124,6 +124,97 @@
   line-height: var(--lh-normal);
 }
 
+/* Sub-panels inside the Import & generate card */
+.panel-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.panel-block-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.panel-block-head > div {
+  min-width: 0;
+}
+.sub-ic {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.sub-ic svg {
+  width: 17px;
+  height: 17px;
+}
+.sub-desc {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+
+/* CSV paste box — column chips + mono textarea + status */
+.csv-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.csv-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.csv-col {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+.csv-col.is-optional {
+  color: var(--text-dim);
+}
+.csv-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+.csv-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.import-status {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+}
+.import-status.is-success {
+  color: var(--success);
+  background: var(--success-soft);
+}
+.import-status.is-error {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.btn-block {
+  width: 100%;
+  justify-content: center;
+}
+
 /* Two-column add-voter fields */
 .two-add {
   display: grid;

@@ -25,6 +25,17 @@
 
   if (window.pvhIcons) window.pvhIcons.inject('.icon');
 
+  function setImportStatus(message, kind) {
+    const el = $('import-status');
+    if (!el) return;
+    if (!message) { el.hidden = true; el.textContent = ''; el.className = 'import-status'; return; }
+    el.hidden = false;
+    el.textContent = message;
+    el.className = kind
+      ? 'import-status is-' + kind
+      : 'import-status';
+  }
+
   // ---- Reusable custom dropdown (opens downward, beneath the box) ----
   function buildSelectDropdown(select, onChange) {
     const opts = [...select.options].map((o) => ({ value: o.value, label: o.textContent.trim() }));
@@ -254,11 +265,14 @@
   });
 
   $('import-btn').addEventListener('click', async () => {
+    setImportStatus('');
     await window.pvhUI.busy($('import-btn'), 'Importing…', async () => {
       const csv = $('csv-input').value;
       const res = await window.pvh.importVoters(currentElectionId, csv);
-      if (!res.ok) { window.pvhUI.toast(res.error || 'Import failed', 'error'); return; }
+      if (!res.ok) { setImportStatus(res.error || 'Import failed', 'error'); window.pvhUI.toast(res.error || 'Import failed', 'error'); return; }
       $('csv-input').value = '';
+      const msg = `Added ${res.added} voter${res.added === 1 ? '' : 's'}` + (res.skipped ? `, skipped ${res.skipped}` : '');
+      setImportStatus(msg, res.added ? 'success' : 'error');
       window.pvhUI.toast(`Imported ${res.added} voter(s), skipped ${res.skipped}`, 'success');
       refresh();
     });
@@ -266,15 +280,21 @@
 
   // Import voters by opening a CSV from the officer's device.
   $('import-file-btn').addEventListener('click', async () => {
+    setImportStatus('');
     await window.pvhUI.busy($('import-file-btn'), 'Importing…', async () => {
       const res = await window.pvh.importVotersFile(currentElectionId);
       if (!res) return;
-      if (res.canceled) return;
-      if (!res.ok) { window.pvhUI.toast(res.error || 'Import failed', 'error'); return; }
+      if (res.canceled) { setImportStatus(''); return; }
+      if (!res.ok) { setImportStatus(res.error || 'Import failed', 'error'); window.pvhUI.toast(res.error || 'Import failed', 'error'); return; }
+      const msg = `Added ${res.added} voter${res.added === 1 ? '' : 's'}` + (res.skipped ? `, skipped ${res.skipped}` : '');
+      setImportStatus(msg, res.added ? 'success' : 'error');
       window.pvhUI.toast(`Imported ${res.added} voter(s), skipped ${res.skipped} from file`, 'success');
       refresh();
     });
   });
+
+  // Clear the inline status as soon as the pasted CSV changes.
+  $('csv-input').addEventListener('input', () => setImportStatus(''));
 
   // Auto-generate scheme label updates
   const schemeLabels = {

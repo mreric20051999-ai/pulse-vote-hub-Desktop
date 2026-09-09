@@ -132,22 +132,49 @@
               <span class="icon card-ic" data-icon="upload"></span>
               <div>
                 <h3 class="card-head-title">Import &amp; generate</h3>
-                <p class="card-head-sub">Import from CSV or auto-generate voters in bulk.</p>
+                <p class="card-head-sub">Bring in voters from a CSV file, or create a batch in bulk.</p>
               </div>
             </header>
 
-            <label class="label">CSV (columns: voter_id, name, assigned_station)</label>
-            <textarea class="textarea" id="csv-input" rows="4" placeholder="voter_id,name,assigned_station&#10;V0001,John Doe,Station A"></textarea>
-            <button class="btn btn-secondary btn-block" id="import-btn">Import CSV</button>
-            <button class="btn btn-secondary btn-block" id="import-file-btn"><span class="icon" data-icon="upload"></span> Import CSV from file…</button>
+            <!-- Import from CSV -->
+            <div class="panel-block">
+              <div class="panel-block-head">
+                <span class="icon sub-ic" data-icon="fileText"></span>
+                <div>
+                  <span class="sub-head">Import from CSV</span>
+                  <p class="sub-desc">Paste the rows below, or choose a .csv file on this device. Rows with a duplicate voter ID are skipped.</p>
+                </div>
+              </div>
+
+              <div class="csv-box">
+                <div class="csv-cols" aria-hidden="true">
+                  <span class="csv-col" title="Required — unique voter ID">voter_id</span>
+                  <span class="csv-col" title="Required — display name">name</span>
+                  <span class="csv-col is-optional" title="Optional — station the voter is assigned to">assigned_station</span>
+                </div>
+                <textarea class="textarea csv-input" id="csv-input" rows="4" spellcheck="false" placeholder="voter_id,name,assigned_station&#10;V0001,John Doe,Station A"></textarea>
+                <p class="import-status" id="import-status" role="status" hidden></p>
+              </div>
+
+              <div class="csv-actions">
+                <button class="btn btn-primary btn-block" id="import-btn">Import CSV</button>
+                <button class="btn btn-secondary btn-block" id="import-file-btn"><span class="icon" data-icon="upload"></span> Import from a .csv file…</button>
+              </div>
+            </div>
 
             <hr class="divider">
 
+            <!-- Auto-generate -->
             <div class="autogen">
-              <div class="autogen-label">
-                <span class="sub-head">Auto-generate voters</span>
-                <p class="field-desc">Generate a batch of voters with random voting passwords.</p>
+              <div class="panel-block-head">
+                <span class="icon sub-ic" data-icon="sparkles"></span>
+                <div>
+                  <span class="sub-head">Generate voters in bulk</span>
+                  <p class="sub-desc">Create a batch of voters with random voting passwords.</p>
+                </div>
               </div>
+
+              <label class="label" for="autogen-scheme">Scheme</label>
               <div class="row">
                 <select class="select" id="autogen-scheme">
                   <option value="name-index">Name + Index</option>
@@ -157,13 +184,15 @@
                 </select>
                 <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
               </div>
+
               <div class="field" style="margin: var(--space-3) 0 var(--space-1);">
-                <label class="label hint">Assign to station <span class="text-dim">(optional)</span></label>
+                <label class="label" for="autogen-station">Assign to station <span class="text-dim">(optional)</span></label>
                 <select class="select" id="autogen-station">
                   <option value="">-- No station --</option>
                 </select>
                 <p class="hint" style="margin:4px 0 0;">Generated voters are grouped under this station.</p>
               </div>
+
               <div class="row range-row" id="autogen-range" hidden>
                 <div class="field" style="flex:1;margin:0;">
                   <label class="label hint">From</label>
@@ -174,9 +203,11 @@
                   <input class="input" id="autogen-to" type="number" min="1" value="50">
                 </div>
               </div>
+
               <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index,phone)</label>
               <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
-              <button class="btn btn-secondary btn-block" id="autogen-btn">Auto-generate</button>
+
+              <button class="btn btn-primary btn-block" id="autogen-btn"><span class="icon" data-icon="sparkles"></span> Auto-generate</button>
             </div>
           </section>
 
