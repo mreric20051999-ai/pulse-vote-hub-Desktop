@@ -1091,6 +1091,11 @@ ipcMain.handle('election:position-update-max', (_e, id, maxVotes, officerId) => 
   if (!pos) return { ok: false, error: 'Position not found' };
   return guardElection(pos.election_id, officerId, (actor) => election.setPositionMax(id, maxVotes, actor), _e.sender.id);
 });
+ipcMain.handle('election:position-update', (_e, id, title, officerId) => {
+  const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
+  if (!pos) return { ok: false, error: 'Position not found' };
+  return guardElection(pos.election_id, officerId, (actor) => election.updatePosition(id, title, actor), _e.sender.id);
+});
 
 ipcMain.handle('election:candidates', (_e, electionId, officerId) => guardElection(electionId, officerId, (actor) => election.listCandidates(electionId, actor), _e.sender.id));
 ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) => {
@@ -1101,6 +1106,10 @@ ipcMain.handle('election:candidates-by-position', (_e, positionId, officerId) =>
 ipcMain.handle('election:candidate-add', (_e, payload, officerId) => {
   if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
   return election.addCandidate(payload, resolveActor(officerId, _e.sender.id));
+});
+ipcMain.handle('election:candidate-update', (_e, payload, officerId) => {
+  if (!senderIsApp(_e)) return { ok: false, error: 'Unauthorized source', code: 'forbidden' };
+  return election.updateCandidate(payload, resolveActor(officerId, _e.sender.id));
 });
 ipcMain.handle('election:candidate-remove', (_e, id, officerId) => {
   const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
@@ -1129,8 +1138,13 @@ ipcMain.handle('candidate:pick-photo', async () => {
 // to the app's own candidate-photos directory.
 ipcMain.handle('candidate:photo-url', (_e, storedPath) => {
   if (!storedPath) return null;
-  const photosDir = path.resolve(path.join(db.getDataDir(), 'candidate-photos'));
-  const abs = path.isAbsolute(storedPath) ? path.normalize(storedPath) : path.resolve(path.join(photosDir, storedPath));
+  const dataDir = db.getDataDir();
+  const photosDir = path.resolve(path.join(dataDir, 'candidate-photos'));
+  // Stored paths are "candidate-photos/<file>" (relative to the data dir), but
+  // some older rows hold just "<file>" (relative to the photos dir). Resolve
+  // against the correct root and verify the result stays inside photosDir.
+  const root = String(storedPath).split(/[\\/]/)[0] === 'candidate-photos' ? dataDir : photosDir;
+  const abs = path.resolve(path.join(root, storedPath));
   const rel = path.relative(photosDir, abs);
   if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') return null;
   if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) return null;
@@ -1151,6 +1165,23 @@ ipcMain.handle('voter:get', (_e, electionId, voterId, officerId) => guardElectio
 }, _e.sender.id));
 ipcMain.handle('voter:add', (_e, payload, officerId) => guardElection(payload.electionId, officerId, () => voter.addVoter(payload), _e.sender.id));
 ipcMain.handle('voter:import', (_e, electionId, csvText, officerId) => guardElection(electionId, officerId, () => voter.importCsv(electionId, csvText), _e.sender.id));
+// Open a native file picker for a CSV on the officer's device, read it, and
+// import it like paste-import.
+ipcMain.handle('voter:import-file', async (_e, electionId, officerId) => {
+  const chosen = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import voters from CSV',
+    properties: ['openFile'],
+    filters: [{ name: 'CSV files', extensions: ['csv'] }, { name: 'All files', extensions: ['*'] }],
+  });
+  if (chosen.canceled || !chosen.filePaths || !chosen.filePaths[0]) return { ok: false, canceled: true };
+  let text;
+  try {
+    text = fs.readFileSync(chosen.filePaths[0], 'utf8');
+  } catch (err) {
+    return { ok: false, error: 'Could not read the selected file.' };
+  }
+  return guardElection(electionId, officerId, () => voter.importCsv(electionId, text), _e.sender.id);
+});
 ipcMain.handle('voter:autogen', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.autoGenerate(electionId, opts || {}), _e.sender.id));
 ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.deleteVoter(electionId, voterId), _e.sender.id));
 ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId), _e.sender.id));

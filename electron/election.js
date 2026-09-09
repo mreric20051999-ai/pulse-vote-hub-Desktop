@@ -555,6 +555,20 @@ function setPositionMax(id, maxVotes, actor) {
   return { ok: true, position: { ...pos, max_votes: maxVotes } };
 }
 
+function updatePosition(id, title, actor) {
+  const pos = db.get().prepare('SELECT * FROM positions WHERE id = ?').get(id);
+  if (!pos) return { ok: false, error: 'Position not found' };
+  const e = getElection(pos.election_id);
+  const acc = e ? canAccessElection(e, actor) : { ok: false, error: 'Election not found' };
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
+  const pTitle = requiredString(title, 'Position title', { max: LIMITS.positionTitle });
+  if (!pTitle.ok) return pTitle;
+  db.get().prepare('UPDATE positions SET title = ? WHERE id = ?').run(String(title).trim(), id);
+  audit('elections', `Renamed position "${pos.title}" to "${String(title).trim()}"`);
+  return { ok: true, position: { ...pos, title: String(title).trim() } };
+}
+
 // ---- Candidates ----
 
 function addCandidate({ electionId, positionId, name, photo_path }, actor) {
@@ -605,6 +619,44 @@ function listCandidates(electionId, actor) {
 
 function listCandidatesByPosition(positionId) {
   return db.get().prepare('SELECT * FROM candidates WHERE position_id = ? ORDER BY sort_order').all(positionId);
+}
+
+function updateCandidate({ id, name, position_id, photo_path }, actor) {
+  const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
+  if (!cand) return { ok: false, error: 'Candidate not found' };
+  const e = getElection(cand.election_id);
+  const acc = e ? canAccessElection(e, actor) : { ok: false, error: 'Election not found' };
+  if (!acc.ok) return acc;
+  if (isLocked(e.status)) return lockedError();
+  const cName = requiredString(name, 'Candidate name', { max: LIMITS.candidateName });
+  if (!cName.ok) return cName;
+  const pPath = optionalString(photo_path, 'Photo', { max: 1000 });
+  if (!pPath.ok) return pPath;
+
+  const targetPositionId = position_id || cand.position_id;
+  const position = db.get().prepare('SELECT * FROM positions WHERE id = ? AND election_id = ?').get(targetPositionId, cand.election_id);
+  if (!position) return { ok: false, error: 'Position not found in election' };
+
+  const moved = String(targetPositionId) !== String(cand.position_id);
+  // Keep the candidate's ballot number when it stays in its category; when it
+  // moves, assign the next free number so numbers stay unique per category.
+  let ballotNumber = cand.ballot_number;
+  if (moved) {
+    ballotNumber = (db.get().prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(targetPositionId).m || 0) + 1;
+  }
+  db.get().prepare('UPDATE candidates SET name = ?, position_id = ?, photo_path = ?, ballot_number = ? WHERE id = ?')
+    .run(String(name).trim(), targetPositionId, photo_path || null, ballotNumber, id);
+  audit('elections', `Updated candidate "${cand.name}"${moved ? ' (moved to "' + position.title + '")' : ''}`);
+  return {
+    ok: true,
+    candidate: {
+      ...cand,
+      name: String(name).trim(),
+      position_id: targetPositionId,
+      photo_path: photo_path || null,
+      ballot_number: ballotNumber,
+    },
+  };
 }
 
 function removeCandidate(id, actor) {
@@ -666,8 +718,10 @@ module.exports = {
   listPositions,
   removePosition,
   setPositionMax,
+  updatePosition,
   addCandidate,
   listCandidates,
   listCandidatesByPosition,
+  updateCandidate,
   removeCandidate,
 };

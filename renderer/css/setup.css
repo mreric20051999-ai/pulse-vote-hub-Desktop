@@ -178,6 +178,55 @@
   font-size: var(--fs-sm);
   margin-left: var(--space-2);
 }
+.pos-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+.cand-actions {
+  display: inline-flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin-left: var(--space-3);
+}
+.cand-edit-photo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.cand-edit-photo-preview {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+.form-field {
+  margin-bottom: var(--space-4);
+}
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+  margin: 14px 0 6px;
+}
+.modal-actions {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  justify-content: flex-end;
+}
+.modal-actions .btn {
+  justify-content: center;
+}
+.pvh-modal-body .field-label:first-child {
+  margin-top: 0;
+}
+.input.is-invalid {
+  border-color: var(--danger, #ef4444);
+}
 .candidate-row {
   display: flex;
   align-items: center;

@@ -264,6 +264,18 @@
     });
   });
 
+  // Import voters by opening a CSV from the officer's device.
+  $('import-file-btn').addEventListener('click', async () => {
+    await window.pvhUI.busy($('import-file-btn'), 'Importing…', async () => {
+      const res = await window.pvh.importVotersFile(currentElectionId);
+      if (!res) return;
+      if (res.canceled) return;
+      if (!res.ok) { window.pvhUI.toast(res.error || 'Import failed', 'error'); return; }
+      window.pvhUI.toast(`Imported ${res.added} voter(s), skipped ${res.skipped} from file`, 'success');
+      refresh();
+    });
+  });
+
   // Auto-generate scheme label updates
   const schemeLabels = {
     'name-index': 'Paste names — one per line (or CSV: name,index)',

@@ -198,6 +198,115 @@
     applyLock();
   }
 
+  // Rename an existing position (category) via a small modal.
+  function openEditPosition(p) {
+    let closeModal = null;
+    window.pvhUI.openModal({
+      title: 'Edit category',
+      width: '380px',
+      body: `
+        <div class="form-field">
+          <label class="field-label" for="pos-edit-title">Category name</label>
+          <input class="input" id="pos-edit-title" value="${esc(p.title)}">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="pos-edit-save">Save changes</button>
+        </div>`,
+      onMount: (el, close) => {
+        closeModal = close;
+        const input = el.querySelector('#pos-edit-title');
+        input.focus();
+        input.select();
+        const save = () => {
+          const title = input.value.trim();
+          if (!title) { input.classList.add('is-invalid'); return; }
+          window.pvhUI.busy(el.querySelector('#pos-edit-save'), 'Saving…', async () => {
+            const res = await window.pvh.updatePosition(p.id, title);
+            if (!res || res.ok === false) {
+              window.pvhUI.toast((res && res.error) || 'Could not save. The election may be locked.', 'error');
+              return;
+            }
+            close();
+            currentElection.positions = await window.pvh.listPositions(currentElection.id);
+            renderPositions();
+            window.pvhUI.toast('Category renamed.', 'success');
+          });
+        };
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+        el.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        el.querySelector('#pos-edit-save').addEventListener('click', save);
+      },
+    });
+  }
+
+  // Edit a candidate's name, photo and category (position) via a modal.
+  function openEditCandidate(c) {
+    window.pvhUI.openModal({
+      title: `Edit candidate · ballot #${c.ballot_number}`,
+      width: '420px',
+      body: `
+        <div class="form-field">
+          <label class="field-label" for="cand-edit-name">Candidate name</label>
+          <input class="input" id="cand-edit-name" value="${esc(c.name)}">
+        </div>
+        <div class="form-field">
+          <label class="field-label" for="cand-edit-pos">Category</label>
+          <select class="input" id="cand-edit-pos">
+            ${currentElection.positions.map((o) => `<option value="${o.id}" ${o.id === c.position_id ? 'selected' : ''}>${esc(o.title)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="field-label">Photo</label>
+          <div class="cand-edit-photo-row">
+            <button type="button" class="btn btn-secondary btn-sm" id="cand-edit-photo-btn">${c.photo_path ? 'Change photo…' : 'Choose photo…'}</button>
+            <img class="cand-edit-photo-preview" id="cand-edit-photo-preview" alt="" ${c.photo_path ? '' : 'hidden'}>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" data-act="cancel">Cancel</button>
+          <button type="button" class="btn btn-primary" id="cand-edit-save">Save changes</button>
+        </div>`,
+      onMount: async (el, close) => {
+        let photoPath = c.photo_path || null;
+        const preview = el.querySelector('#cand-edit-photo-preview');
+        const setPreview = async (stored) => {
+          const url = await window.pvh.candidatePhotoUrl(stored);
+          if (url) { preview.src = url; preview.hidden = false; }
+        };
+        if (photoPath) setPreview(photoPath);
+        el.querySelector('#cand-edit-photo-btn').addEventListener('click', async () => {
+          const stored = await window.pvh.pickCandidatePhoto();
+          if (!stored) return;
+          photoPath = stored;
+          await setPreview(stored);
+        });
+        const nameInput = el.querySelector('#cand-edit-name');
+        nameInput.focus();
+        nameInput.select();
+        const save = async () => {
+          const name = nameInput.value.trim();
+          if (!name) { nameInput.classList.add('is-invalid'); return; }
+          const positionId = el.querySelector('#cand-edit-pos').value;
+          window.pvhUI.busy(el.querySelector('#cand-edit-save'), 'Saving…', async () => {
+            const res = await window.pvh.updateCandidate({ id: c.id, name, position_id: positionId, photo_path: photoPath });
+            if (!res || res.ok === false) {
+              window.pvhUI.toast((res && res.error) || 'Could not save change.', 'error');
+              return;
+            }
+            close();
+            currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
+            renderPositions();
+            window.pvhUI.toast('Candidate updated.', 'success');
+          });
+        };
+        nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+        el.querySelector('[data-act="cancel"]').addEventListener('click', close);
+        el.querySelector('#cand-edit-save').addEventListener('click', save);
+      },
+    });
+  }
+
   function renderPositions() {
     if (!currentElection) return;
     $('positions').innerHTML = '';
@@ -224,7 +333,11 @@
                  </label>`}
             <span class="position-count">· ${cands.length} candidate${cands.length === 1 ? '' : 's'}</span>
           </div>
-          ${locked ? '' : `<button class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove Category</button>`}
+          ${locked ? '' : `
+          <span class="pos-actions">
+            <button type="button" class="btn btn-secondary btn-sm pos-edit" data-id="${p.id}" title="Rename category">Edit</button>
+            <button type="button" class="btn btn-danger btn-sm rm-pos" data-id="${p.id}">Remove Category</button>
+          </span>`}
         </div>
         <div class="cand-list"></div>
         ${locked ? '' : `
@@ -250,7 +363,11 @@
                   <span class="cand-photo-thumb">${c.photo_path ? `<img src="#" data-photo="${esc(c.photo_path)}" alt="">` : ''}</span>
                   ${esc(c.name)}
                 </span>
-                ${locked ? '' : `<button class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>`}
+                ${locked ? '' : `
+                <span class="cand-actions">
+                  <button type="button" class="btn btn-secondary btn-sm edit-cand" data-id="${c.id}" title="Edit candidate">Edit</button>
+                  <button type="button" class="btn btn-danger btn-sm rm-cand" data-id="${c.id}" title="Remove candidate">Remove</button>
+                </span>`}
               </div>
             `).join('')
           : '<div class="candidate-row text-dim">No candidates in this category yet.</div>';
@@ -297,6 +414,12 @@
           renderPositions();
           window.pvhUI.toast('Candidate removed.', 'success');
         }));
+      candList.querySelectorAll('.edit-cand').forEach((b) =>
+        b.addEventListener('click', () => {
+          const cand = cands.find((c) => c.id === b.dataset.id);
+          if (cand) openEditCandidate(cand);
+        }));
+      block.querySelector('.pos-edit').addEventListener('click', () => openEditPosition(p));
       block.querySelector('.rm-pos').addEventListener('click', async () => {
         if (!confirm(`Remove category "${p.title}" and its candidates?`)) return;
         await window.pvh.removePosition(p.id);
