@@ -174,23 +174,25 @@
                 </div>
               </div>
 
-              <label class="label" for="autogen-scheme">Scheme</label>
-              <div class="row">
-                <select class="select" id="autogen-scheme">
-                  <option value="name-index">Name + Index</option>
-                  <option value="index-only">Index only</option>
-                  <option value="index-phone">Index + Phone</option>
-                  <option value="range">Voter ID Range (V0001 → V0050)</option>
-                </select>
-                <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
+              <div class="gen-field">
+                <label class="label" for="autogen-scheme">Scheme</label>
+                <div class="row">
+                  <select class="select" id="autogen-scheme">
+                    <option value="name-index">Name + Index</option>
+                    <option value="index-only">Index only</option>
+                    <option value="index-phone">Index + Phone</option>
+                    <option value="range">Voter ID Range (V0001 → V0050)</option>
+                  </select>
+                  <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
+                </div>
               </div>
 
-              <div class="field" style="margin: var(--space-3) 0 var(--space-1);">
+              <div class="gen-field">
                 <label class="label" for="autogen-station">Assign to station <span class="text-dim">(optional)</span></label>
                 <select class="select" id="autogen-station">
                   <option value="">-- No station --</option>
                 </select>
-                <p class="hint" style="margin:4px 0 0;">Generated voters are grouped under this station.</p>
+                <p class="gen-hint">Generated voters are grouped under this station.</p>
               </div>
 
               <div class="row range-row" id="autogen-range" hidden>
@@ -204,8 +206,10 @@
                 </div>
               </div>
 
-              <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index,phone)</label>
-              <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
+              <div class="gen-field">
+                <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index)</label>
+                <textarea class="textarea" id="autogen-list" rows="4" placeholder="Alice Johnson&#10;Bob Smith"></textarea>
+              </div>
 
               <button class="btn btn-primary btn-block" id="autogen-btn"><span class="icon" data-icon="sparkles"></span> Auto-generate</button>
             </div>
