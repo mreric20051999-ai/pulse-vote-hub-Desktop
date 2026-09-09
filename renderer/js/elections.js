@@ -240,7 +240,7 @@
     });
   }
 
-  // Edit a candidate's name, photo and category (position) via a modal.
+  // Edit a candidate's name, photo, ballot number and category (position) via a modal.
   function openEditCandidate(c) {
     window.pvhUI.openModal({
       title: `Edit candidate · ballot #${c.ballot_number}`,
@@ -251,10 +251,15 @@
           <input class="input" id="cand-edit-name" value="${esc(c.name)}">
         </div>
         <div class="form-field">
-          <label class="field-label" for="cand-edit-pos">Category</label>
+          <label class="field-label">Category</label>
           <select class="input" id="cand-edit-pos">
             ${currentElection.positions.map((o) => `<option value="${o.id}" ${o.id === c.position_id ? 'selected' : ''}>${esc(o.title)}</option>`).join('')}
           </select>
+        </div>
+        <div class="form-field">
+          <label class="field-label" for="cand-edit-num">Ballot number</label>
+          <input class="input" id="cand-edit-num" type="number" min="1" max="9999" value="${c.ballot_number}">
+          <p class="field-hint">Number on the paper ballot in this category. Others in the category are shifted to make room if the number is taken.</p>
         </div>
         <div class="form-field">
           <label class="field-label">Photo</label>
@@ -282,14 +287,24 @@
           await setPreview(stored);
         });
         const nameInput = el.querySelector('#cand-edit-name');
-        nameInput.focus();
-        nameInput.select();
+        const numInput = el.querySelector('#cand-edit-num');
+        const catDD = buildSelectDropdown(el.querySelector('#cand-edit-pos'), (value) => {
+          const target = currentElection.positions.find((o) => o.id === value);
+          if (!target) return;
+          const taken = currentElection.candidates
+            .filter((x) => x.id !== c.id && x.position_id === value)
+            .map((x) => Number(x.ballot_number) || 0);
+          numInput.value = Math.max(0, ...taken) + 1;
+        });
+        catDD.set(c.position_id);
         const save = async () => {
           const name = nameInput.value.trim();
           if (!name) { nameInput.classList.add('is-invalid'); return; }
-          const positionId = el.querySelector('#cand-edit-pos').value;
+          const ballot = Math.floor(Number(numInput.value));
+          if (!ballot || ballot < 1) { numInput.classList.add('is-invalid'); return; }
+          const positionId = catDD.get();
           window.pvhUI.busy(el.querySelector('#cand-edit-save'), 'Saving…', async () => {
-            const res = await window.pvh.updateCandidate({ id: c.id, name, position_id: positionId, photo_path: photoPath });
+            const res = await window.pvh.updateCandidate({ id: c.id, name, position_id: positionId, photo_path: photoPath, ballot_number: ballot });
             if (!res || res.ok === false) {
               window.pvhUI.toast((res && res.error) || 'Could not save change.', 'error');
               return;
@@ -297,10 +312,13 @@
             close();
             currentElection.candidates = await window.pvh.listCandidates(currentElection.id);
             renderPositions();
-            window.pvhUI.toast('Candidate updated.', 'success');
+            window.pvhUI.toast(`Candidate updated · ballot #${res.candidate.ballot_number}.`, 'success');
           });
         };
+        nameInput.focus();
+        nameInput.select();
         nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+        numInput.addEventListener('input', () => numInput.classList.remove('is-invalid'));
         el.querySelector('[data-act="cancel"]').addEventListener('click', close);
         el.querySelector('#cand-edit-save').addEventListener('click', save);
       },

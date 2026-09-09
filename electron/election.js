@@ -1,6 +1,6 @@
 const { v4: uuidv4 } = require('uuid');
 const db = require('./db');
-const { requiredString, optionalString, intInRange, LIMITS } = require('./validate');
+const { requiredString, optionalString, intInRange, optionalIntInRange, LIMITS } = require('./validate');
 
 const ELECTION_TYPES = ['school', 'station'];
 const ELECTION_STATUSES = ['draft', 'upcoming', 'active', 'closed'];
@@ -571,7 +571,7 @@ function updatePosition(id, title, actor) {
 
 // ---- Candidates ----
 
-function addCandidate({ electionId, positionId, name, photo_path }, actor) {
+function addCandidate({ electionId, positionId, name, photo_path, ballot_number }, actor) {
   const e = getElection(electionId);
   if (!e) return { ok: false, error: 'Election not found' };
   const acc = canAccessElection(e, actor);
@@ -581,28 +581,39 @@ function addCandidate({ electionId, positionId, name, photo_path }, actor) {
   if (!cName.ok) return cName;
   const pPath = optionalString(photo_path, 'Photo', { max: 1000 });
   if (!pPath.ok) return pPath;
+  const explicitNumber = optionalIntInRange(ballot_number, 'Ballot number', { min: 1, max: LIMITS.ballotNumber });
+  if (!explicitNumber.ok) return explicitNumber;
+  const hasExplicitNumber = ballot_number !== undefined && ballot_number !== null && ballot_number !== '';
 
   const position = db.get().prepare('SELECT * FROM positions WHERE id = ? AND election_id = ?').get(positionId, electionId);
   if (!position) return { ok: false, error: 'Position not found in election' };
 
   const d = db.get();
   const sortOrder = d.prepare('SELECT COUNT(*) AS c FROM candidates WHERE position_id = ?').get(positionId).c;
-  // Auto-assign next ballot number within this category (never reused).
-  const ballotNumber = (d.prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(positionId).m || 0) + 1;
+  const finalBallot = hasExplicitNumber ? Number(ballot_number) : ((d.prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(positionId).m || 0) + 1);
+  if (finalBallot > LIMITS.ballotNumber) return { ok: false, error: `Ballot number must be ${LIMITS.ballotNumber} or fewer` };
+  // Free the chosen number (or auto number) so it stays unique in this category.
+  const bump = d.transaction(() => {
+    for (const r of d.prepare('SELECT id FROM candidates WHERE position_id = ? AND ballot_number >= ? ORDER BY ballot_number DESC').all(positionId, finalBallot)) {
+      d.prepare('UPDATE candidates SET ballot_number = ballot_number + 1 WHERE id = ?').run(r.id);
+    }
+  });
+  bump();
+
   const candidate = {
     id: uuidv4(),
     election_id: electionId,
     position_id: positionId,
     name: String(name).trim(),
     photo_path: photo_path || null,
-    ballot_number: ballotNumber,
+    ballot_number: finalBallot,
     sort_order: sortOrder,
   };
 
   d.prepare('INSERT INTO candidates (id, election_id, position_id, name, photo_path, ballot_number, sort_order) VALUES (@id, @election_id, @position_id, @name, @photo_path, @ballot_number, @sort_order)')
     .run(candidate);
 
-  audit('elections', `Added candidate "${candidate.name}" (ballot #${ballotNumber})`);
+  audit('elections', `Added candidate "${candidate.name}" (ballot #${finalBallot})`);
   return { ok: true, candidate };
 }
 
@@ -621,7 +632,7 @@ function listCandidatesByPosition(positionId) {
   return db.get().prepare('SELECT * FROM candidates WHERE position_id = ? ORDER BY sort_order').all(positionId);
 }
 
-function updateCandidate({ id, name, position_id, photo_path }, actor) {
+function updateCandidate({ id, name, position_id, photo_path, ballot_number }, actor) {
   const cand = db.get().prepare('SELECT * FROM candidates WHERE id = ?').get(id);
   if (!cand) return { ok: false, error: 'Candidate not found' };
   const e = getElection(cand.election_id);
@@ -638,15 +649,34 @@ function updateCandidate({ id, name, position_id, photo_path }, actor) {
   if (!position) return { ok: false, error: 'Position not found in election' };
 
   const moved = String(targetPositionId) !== String(cand.position_id);
-  // Keep the candidate's ballot number when it stays in its category; when it
-  // moves, assign the next free number so numbers stay unique per category.
-  let ballotNumber = cand.ballot_number;
-  if (moved) {
-    ballotNumber = (db.get().prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(targetPositionId).m || 0) + 1;
+  const explicitNumber = optionalIntInRange(ballot_number, 'Ballot number', { min: 1, max: LIMITS.ballotNumber });
+  if (!explicitNumber.ok) return explicitNumber;
+
+  const d = db.get();
+  // Keep the current number unless the user picks one explicitly (then free the
+  // chosen number so it stays unique in the target category). A move without an
+  // explicit number appends at the end of the new category.
+  let ballotNumber;
+  if (explicitNumber.ok && ballot_number !== undefined && ballot_number !== null && ballot_number !== '') {
+    ballotNumber = Number(ballot_number);
+  } else if (moved) {
+    ballotNumber = (d.prepare('SELECT MAX(ballot_number) AS m FROM candidates WHERE position_id = ?').get(targetPositionId).m || 0) + 1;
+  } else {
+    ballotNumber = cand.ballot_number;
   }
-  db.get().prepare('UPDATE candidates SET name = ?, position_id = ?, photo_path = ?, ballot_number = ? WHERE id = ?')
-    .run(String(name).trim(), targetPositionId, photo_path || null, ballotNumber, id);
-  audit('elections', `Updated candidate "${cand.name}"${moved ? ' (moved to "' + position.title + '")' : ''}`);
+  if (ballotNumber > LIMITS.ballotNumber) return { ok: false, error: `Ballot number must be ${LIMITS.ballotNumber} or fewer` };
+
+  const updateTx = d.transaction(() => {
+    // Make room in the target category (excluding this candidate itself).
+    for (const r of d.prepare('SELECT id, ballot_number FROM candidates WHERE position_id = ? AND ballot_number >= ? AND id != ? ORDER BY ballot_number DESC').all(targetPositionId, ballotNumber, id)) {
+      d.prepare('UPDATE candidates SET ballot_number = ballot_number + 1 WHERE id = ?').run(r.id);
+    }
+    d.prepare('UPDATE candidates SET name = ?, position_id = ?, photo_path = ?, ballot_number = ? WHERE id = ?')
+      .run(String(name).trim(), targetPositionId, photo_path || null, ballotNumber, id);
+  });
+  updateTx();
+
+  audit('elections', `Updated candidate "${cand.name}"${moved ? ' (moved to "' + position.title + '")' : ''} to ballot #${ballotNumber}`);
   return {
     ok: true,
     candidate: {

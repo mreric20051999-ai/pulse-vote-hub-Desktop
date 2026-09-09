@@ -11,6 +11,7 @@ const LIMITS = {
   electionTitle: 300,
   positionTitle: 300,
   candidateName: 300,
+  ballotNumber: 9999,
   stationName: 200,
   stationLocation: 200,
   officerName: 100,
