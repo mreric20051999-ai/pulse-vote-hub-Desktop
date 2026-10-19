@@ -56,6 +56,33 @@ function verifyAuditChain(d) {
   return verifyChain(d, 'audit_log', rows, 'entry_hash', 'prev_hash', auditHashes);
 }
 
+// Check-in records carry a self-hash over their identifying fields (no chain —
+// check-ins are append/update rows, not an ordered ledger). The canonical raw
+// is election_id|voter_id|officer_id|device_id|timestamp; writer and verifier
+// must use this exact function (see lan/sync.js).
+function checkinHash(electionId, voterId, officerId, deviceId, timestamp) {
+  return sha256(`${electionId ?? ''}|${voterId ?? ''}|${officerId ?? ''}|${deviceId ?? ''}|${timestamp ?? ''}`);
+}
+
+// Verify every hashed check-in row. Rows written before hashing existed have a
+// NULL hash and are counted as unhashed — never a failure (same policy as
+// unsigned legacy votes), so upgrading an existing database stays clean.
+function verifyCheckins(d) {
+  const rows = d.prepare(
+    'SELECT id, election_id, voter_id, officer_id, device_id, timestamp, hash FROM checkins ORDER BY id'
+  ).all();
+  let hashed = 0, unhashed = 0;
+  for (const r of rows) {
+    if (!r.hash) { unhashed += 1; continue; }
+    const expected = checkinHash(r.election_id, r.voter_id, r.officer_id, r.device_id, r.timestamp);
+    if (r.hash !== expected) {
+      return { ok: false, at: r.id, reason: 'hash-mismatch', expected, found: r.hash, rows: rows.length, hashed, unhashed };
+    }
+    hashed += 1;
+  }
+  return { ok: true, rows: rows.length, hashed, unhashed };
+}
+
 // Every vote carries an ed25519 signature over the same raw that produced its
 // hash. Verifies each one; rows written before signing existed are counted as
 // unsigned (never a failure) so upgrading an existing database stays clean.
@@ -97,20 +124,22 @@ function verifyPragma(d) {
 function verifyAll() {
   const d = db.get();
   const started = Date.now();
-  let voteChain, auditChain, pragma, signatures;
+  let voteChain, auditChain, pragma, signatures, checkins;
   try { voteChain = verifyVoteChain(d); } catch (e) { voteChain = { ok: false, reason: e.message }; }
   try { auditChain = verifyAuditChain(d); } catch (e) { auditChain = { ok: false, reason: e.message }; }
   try { pragma = verifyPragma(d); } catch (e) { pragma = { ok: false, result: e.message }; }
   try { signatures = verifyVoteSignatures(d); } catch (e) { signatures = { ok: false, reason: e.message }; }
+  try { checkins = verifyCheckins(d); } catch (e) { checkins = { ok: false, reason: e.message }; }
   return {
-    ok: !!(voteChain.ok && auditChain.ok && pragma.ok && signatures.ok),
+    ok: !!(voteChain.ok && auditChain.ok && pragma.ok && signatures.ok && checkins.ok),
     checkedAt: started,
     durationMs: Date.now() - started,
     voteChain,
     auditChain,
     pragma,
     signatures,
+    checkins,
   };
 }
 
-module.exports = { verifyAll, verifyVoteChain, verifyAuditChain, verifyPragma, verifyVoteSignatures };
+module.exports = { verifyAll, verifyVoteChain, verifyAuditChain, verifyCheckins, checkinHash, verifyPragma, verifyVoteSignatures };

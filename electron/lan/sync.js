@@ -8,6 +8,7 @@
 const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const sig = require('../signature');
+const { checkinHash } = require('../integrity');
 
 // ---------- device identity ----------
 
@@ -240,9 +241,9 @@ function recordRemoteCheckin(d, electionId, payload) {
     d.prepare('UPDATE voters SET checked_in = 1, checked_in_at = ?, checked_in_by = ? WHERE id = ?')
       .run(now, officerName || 'Officer', v.id);
     d.prepare(`
-      INSERT INTO checkins (election_id, voter_id, officer_id, device_id, timestamp, synced)
-      VALUES (?, ?, ?, ?, ?, 1)
-    `).run(electionId, v.voter_id, null, deviceId || null, now);
+      INSERT INTO checkins (election_id, voter_id, officer_id, device_id, timestamp, hash, synced)
+      VALUES (?, ?, ?, ?, ?, ?, 1)
+    `).run(electionId, v.voter_id, null, deviceId || null, now, checkinHash(electionId, v.voter_id, null, deviceId || null, now));
   })();
   return { ok: true, ref: { election_id: electionId, voter_id: v.voter_id } };
 }
@@ -306,11 +307,19 @@ function applyRemoteCheckin(d, row) {
       .run(scrubbedNow(row.timestamp), row.officer_name || 'Officer', v.id);
     const hit = d.prepare('SELECT id FROM checkins WHERE election_id = ? AND voter_id = ?').get(row.election_id, v.voter_id);
     if (hit) {
-      d.prepare('UPDATE checkins SET officer_id = ?, device_id = ?, timestamp = ?, synced = 1 WHERE id = ?')
-        .run(row.officer_id || null, row.device_id || null, scrubbedNow(row.timestamp), hit.id);
+      // Fields changed → the self-hash must be recomputed over the new values,
+      // otherwise the integrity check reports a stale hash on the next run.
+      const ts = scrubbedNow(row.timestamp);
+      const officerId = row.officer_id || null;
+      const deviceId = row.device_id || null;
+      d.prepare('UPDATE checkins SET officer_id = ?, device_id = ?, timestamp = ?, hash = ?, synced = 1 WHERE id = ?')
+        .run(officerId, deviceId, ts, checkinHash(row.election_id, v.voter_id, officerId, deviceId, ts), hit.id);
     } else {
-      d.prepare('INSERT INTO checkins (election_id, voter_id, officer_id, device_id, timestamp, synced) VALUES (?, ?, ?, ?, ?, 1)')
-        .run(row.election_id, v.voter_id, row.officer_id || null, row.device_id || null, scrubbedNow(row.timestamp));
+      const ts = scrubbedNow(row.timestamp);
+      const officerId = row.officer_id || null;
+      const deviceId = row.device_id || null;
+      d.prepare('INSERT INTO checkins (election_id, voter_id, officer_id, device_id, timestamp, hash, synced) VALUES (?, ?, ?, ?, ?, ?, 1)')
+        .run(row.election_id, v.voter_id, officerId, deviceId, ts, checkinHash(row.election_id, v.voter_id, officerId, deviceId, ts));
     }
   })();
   return true;

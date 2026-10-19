@@ -153,13 +153,14 @@ function verifyBackupFile(filePath) {
       const checkers = [
         () => integrity.verifyVoteChain(d),
         () => integrity.verifyAuditChain(d),
+        () => integrity.verifyCheckins(d),
         () => integrity.verifyPragma(d),
         () => integrity.verifyVoteSignatures(d),
       ];
       const parts = {};
-      const labels = ['voteChain', 'auditChain', 'pragma', 'signatures'];
+      const labels = ['voteChain', 'auditChain', 'checkins', 'pragma', 'signatures'];
       checkers.forEach((fn, i) => { parts[labels[i]] = fn(); });
-      const ok = ['voteChain', 'auditChain', 'pragma', 'signatures'].every((k) => parts[k].ok);
+      const ok = labels.every((k) => parts[k].ok);
       result = { ok, checkedAt: Date.now(), ...parts };
     } finally {
       try { d.close(); } catch (e) { /* noop */ }
@@ -226,6 +227,7 @@ function summarize(check) {
   return {
     voteChain: check.voteChain,
     auditChain: check.auditChain,
+    checkins: check.checkins,
     pragma: check.pragma,
     signatures: check.signatures,
   };

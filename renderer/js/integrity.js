@@ -19,7 +19,11 @@
     const rows = (label, part) => {
       let body;
       if (part.ok) {
-        const count = typeof part.rows === 'number' ? ` &middot; ${fmt(part.rows)} entries verified` : '';
+        let count = typeof part.rows === 'number' ? ` &middot; ${fmt(part.rows)} entries verified` : '';
+        if (part.hashed != null) {
+          count = ` &middot; ${fmt(part.hashed)} hashed`;
+          if (part.unhashed) count += `, ${fmt(part.unhashed)} pre-hash (not checked)`;
+        }
         body = `<span class="integrity-row-ok">OK${count}</span>`;
       } else {
         const detail = part.at ? ` broken at row #${part.at} (${part.reason})` : ` failed — ${part.reason || part.result || 'unknown'}`;
@@ -38,6 +42,7 @@
     report.innerHTML = `
       ${rows('Vote hash chain', check.voteChain)}
       ${rows('Audit hash chain', check.auditChain)}
+      ${rows('Check-in records', check.checkins)}
       ${signatureRow(check.signatures)}
       ${rows('SQLite integrity check', check.pragma)}
       <div class="integrity-row"><span class="integrity-row-label">Checked at</span>
