@@ -260,11 +260,13 @@ Hub.prototype._mountKiosk = function (app) {
       return;
     }
     // The hub serves the official ballot kiosk for THIS election: the verify-
-    // details screen is the help desk's password-recovery surface and is
-    // expected to hand the voter the password to cast their ballot, so it
-    // reveals the credential exactly like the desktop app does. Guarded by the
-    // same per-IP rate limiter as the other kiosk endpoints.
-    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: true })));
+    // details screen is the help desk's password-recovery surface. The password
+    // itself is NEVER released over the network (electron/voter.js documents
+    // revealPassword must stay false for every network-exposed path — otherwise
+    // voter ID + name becomes an enumeration oracle for credentials). The
+    // matched voter's details still come back so the voter can confirm they
+    // were found; the reveal happens only on the signed-in desktop help desk.
+    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: false })));
   });
 
   // Cast a ballot from a browser. Reuses the desktop castVote (validation,

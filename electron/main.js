@@ -1199,7 +1199,14 @@ ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => {
   if (!vid || !password) return { ok: false, error: 'Missing voter ID or password', code: 'missing' };
   return voter.verifyVoter(electionId, vid, password, `desktop:${_e.sender.id}`);
 });
-ipcMain.handle('voter:verify-details', (_e, electionId, details) => {
+ipcMain.handle('voter:verify-details', (_e, electionId, details, token) => {
+  // Password recovery releases a voter's voting password, so it is a staff
+  // action: it requires a live signed-in session (help desk / ballot desk),
+  // not just the rate limiter. The browser kiosk never reveals (see hub.js).
+  const gate = requireSignedIn(token, _e);
+  if (!gate.ok) {
+    return { ok: false, error: 'Password recovery must be run from a signed-in help-desk session. Sign in and try again.', code: 'forbidden' };
+  }
   const d = Object.assign({}, details || {});
   const base = `${_e.sender.id}|${electionId}|${String(d.voterId || '').toUpperCase()}`;
   const rl = voterRecoverLimit(base);
