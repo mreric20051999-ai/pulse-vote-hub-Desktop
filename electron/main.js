@@ -1499,6 +1499,18 @@ ipcMain.handle('station:ballot-cast', (_e, voterId, opts, officerId) => {
   return guardStation(row.election_id, st ? st.id : null, officerId, _e.sender.id, () => station.markBallotCast(voterId, opts || {}));
 });
 ipcMain.handle('station:dashboard', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, _e.sender.id, () => station.stationDashboard(electionId, stationId)));
+ipcMain.handle('station:incidents', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, _e.sender.id, () => ({ ok: true, incidents: station.listIncidents(electionId, stationId) })));
+ipcMain.handle('station:incident-add', (_e, payload, officerId) => {
+  const p = payload || {};
+  if (!p.electionId || !p.stationId) return { ok: false, error: 'electionId and stationId are required.' };
+  return guardStation(p.electionId, p.stationId, officerId, _e.sender.id, () => station.addIncident(p));
+});
+ipcMain.handle('station:activity', (_e, electionId, stationId, officerId) => guardStation(electionId, stationId, officerId, _e.sender.id, () => ({ ok: true, activity: station.listActivity(electionId, stationId) })));
+ipcMain.handle('station:activity-add', (_e, payload, officerId) => {
+  const p = payload || {};
+  if (!p.electionId || !p.stationId) return { ok: false, error: 'electionId and stationId are required.' };
+  return guardStation(p.electionId, p.stationId, officerId, _e.sender.id, () => station.addActivity(p));
+});
 
 // ---- Secure browser check-in links (coordinator-generated magic link + PIN) ----
 

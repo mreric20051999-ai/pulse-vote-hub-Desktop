@@ -232,6 +232,57 @@ function stationDashboard(electionId, stationId) {
   };
 }
 
+// ---- Station incident reports + activity log (durable) ----
+// These used to live only in renderer memory and disappeared on reload, which
+// made them useless as an audit record. Same row shape the portal renders.
+
+function listIncidents(electionId, stationId, limit = 50) {
+  return db.get().prepare(
+    'SELECT * FROM station_incidents WHERE election_id = ? AND station_id = ? ORDER BY created_at DESC LIMIT ?'
+  ).all(electionId, stationId, limit);
+}
+
+function addIncident({ electionId, stationId, type, message, officerId, byName }) {
+  const row = {
+    id: uuidv4(),
+    election_id: electionId,
+    station_id: stationId,
+    type: String(type || 'other'),
+    message: String(message || '').slice(0, 1000),
+    by_officer_id: officerId || null,
+    by_name: byName || null,
+    created_at: Date.now(),
+  };
+  db.get().prepare(
+    'INSERT INTO station_incidents (id, election_id, station_id, type, message, by_officer_id, by_name, created_at) VALUES (@id, @election_id, @station_id, @type, @message, @by_officer_id, @by_name, @created_at)'
+  ).run(row);
+  electionMod_audit(`Incident logged at station "${stationId}" by ${byName || officerId || 'unknown'}`, `${row.type}: ${row.message}`);
+  return { ok: true, incident: row };
+}
+
+function listActivity(electionId, stationId, limit = 100) {
+  return db.get().prepare(
+    'SELECT * FROM station_activity WHERE election_id = ? AND station_id = ? ORDER BY created_at DESC LIMIT ?'
+  ).all(electionId, stationId, limit);
+}
+
+function addActivity({ electionId, stationId, action, detail, officerId, byName }) {
+  const row = {
+    id: uuidv4(),
+    election_id: electionId,
+    station_id: stationId,
+    action: String(action || 'activity'),
+    detail: String(detail || ''),
+    by_officer_id: officerId || null,
+    by_name: byName || null,
+    created_at: Date.now(),
+  };
+  db.get().prepare(
+    'INSERT INTO station_activity (id, election_id, station_id, action, detail, by_officer_id, by_name, created_at) VALUES (@id, @election_id, @station_id, @action, @detail, @by_officer_id, @by_name, @created_at)'
+  ).run(row);
+  return { ok: true, entry: row };
+}
+
 function electionMod_audit(context, details) {
   // NOTE: callers MUST pass an explicit second argument. An omitted argument
   // leaves `details === undefined`, which hashes as the string "undefined" in
@@ -276,4 +327,8 @@ module.exports = {
   resolveStationRef,
   markBallotCast,
   stationDashboard,
+  listIncidents,
+  addIncident,
+  listActivity,
+  addActivity,
 };

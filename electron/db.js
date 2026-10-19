@@ -322,6 +322,31 @@ CREATE TABLE IF NOT EXISTS activation_codes (
   redeemed_machine TEXT,
   revoked_at INTEGER
 );
+
+-- Station officer incident reports + activity log. Previously these lived
+-- only in renderer memory and vanished on reload; they are now durable so an
+-- audit of a polling station survives an app restart.
+CREATE TABLE IF NOT EXISTS station_incidents (
+  id TEXT PRIMARY KEY,
+  election_id TEXT,
+  station_id TEXT NOT NULL,
+  type TEXT,
+  message TEXT NOT NULL,
+  by_officer_id TEXT,
+  by_name TEXT,
+  created_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS station_activity (
+  id TEXT PRIMARY KEY,
+  election_id TEXT,
+  station_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  detail TEXT,
+  by_officer_id TEXT,
+  by_name TEXT,
+  created_at INTEGER
+);
 `;
 
 function init() {
@@ -347,12 +372,28 @@ function close() {
 }
 
 // Idempotent migrations for existing databases (safe to run every start).
+// Every applied change is written to schema_migrations so the state of an
+// on-disk database is inspectable (SELECT * FROM schema_migrations) instead
+// of being an invisible side effect of app start.
 function migrate() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at INTEGER
+    );
+  `);
+  const record = (name) => db.prepare('INSERT OR IGNORE INTO schema_migrations (name, applied_at) VALUES (?, ?)').run(name, Date.now());
+  // Baseline: record every table that exists at this point, so the ledger
+  // starts as a complete snapshot of the schema rather than an empty file.
+  for (const t of db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()) {
+    record(`table:${t.name}`);
+  }
   const addColumn = (table, column, ddl) => {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (!cols.includes(column)) {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl}`);
     }
+    record(`add-column:${table}.${column}`);
   };
   addColumn('elections', 'election_date', 'INTEGER');
   addColumn('elections', 'start_date', 'INTEGER');
@@ -602,6 +643,12 @@ function migrate() {
   // were only flagged revoked before that rule existed, so revoked licenses
   // never surface again.
   db.prepare('DELETE FROM activation_codes WHERE revoked_at IS NOT NULL').run();
+
+  // Re-record the table list at the end so tables created by this function
+  // (messages, deployments, run tables, rebuilds) also appear in the ledger.
+  for (const t of db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all()) {
+    record(`table:${t.name}`);
+  }
 }
 
 // Assign sequential ballot numbers (per category) to any candidates that

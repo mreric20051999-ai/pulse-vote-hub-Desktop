@@ -38,6 +38,24 @@
   function isOpen() { const s = effectiveStatus(); return s === 'open' || s === 'queuing'; }
   function logEvent(action, detail) {
     logs = [{ id: 'L' + Date.now(), at: new Date().toISOString(), action, detail, byName: session.name }, ...logs];
+    renderLogs();
+    // Persist to the hub-side station_activity table so the log survives a
+    // reload (fire-and-forget; the optimistic local row already rendered).
+    if (window.pvh && session.assigned_election_id) {
+      window.pvh.addStationActivity({
+        electionId: session.assigned_election_id,
+        stationId: STATION_ID,
+        action, detail,
+        byName: session.name,
+      }).then(() => window.pvh.listStationActivity(session.assigned_election_id, STATION_ID))
+        .then((res) => {
+          if (res && res.ok) {
+            logs = (res.activity || []).map((l) => ({ id: l.id, action: l.action, detail: l.detail, at: l.created_at, byName: l.by_name }));
+            renderLogs();
+          }
+        })
+        .catch(() => { /* offline: keep the local row */ });
+    }
   }
   function statusPillClass(s) { return 'st-' + (s || 'not_opened'); }
   function statusDot(s) {
@@ -77,7 +95,30 @@
     station = res.station;
     voters = res.voters || [];
     stats = res.stats || {};
+    await Promise.all([loadIncidents(), loadLogs()]);
     renderAll();
+  }
+
+  // Durable incidents + activity log (fall back to the in-memory rows when
+  // the call is refused, e.g. offline sync-only machines).
+  async function loadIncidents() {
+    try {
+      const res = await window.pvh.listStationIncidents(assignedElectionId(), STATION_ID);
+      if (res && res.ok) {
+        incidents = (res.incidents || []).map((i) => ({ type: i.type, message: i.message, at: i.created_at, byName: i.by_name }));
+      }
+    } catch (e) { /* keep current rows */ }
+  }
+  async function loadLogs() {
+    try {
+      const res = await window.pvh.listStationActivity(assignedElectionId(), STATION_ID);
+      if (res && res.ok) {
+        logs = (res.activity || []).map((l) => ({ id: l.id, action: l.action, detail: l.detail, at: l.created_at, byName: l.by_name }));
+      }
+    } catch (e) { /* keep current rows */ }
+  }
+  function assignedElectionId() {
+    return session.assigned_election_id || (election && election.id) || null;
   }
 
   function renderAll() {
@@ -304,12 +345,22 @@
   };
 
   // ---- Incidents + logs ----
-  $('incSubmit').addEventListener('click', () => {
+  $('incSubmit').addEventListener('click', async () => {
     const message = $('incMessage').value.trim();
     const type = $('incType').value;
     if (!message) { showToast('Describe the incident first.', true); return; }
-    incidents = [{ type, message, at: new Date().toISOString(), byName: session.name }, ...incidents];
     $('incMessage').value = '';
+    const eid = assignedElectionId();
+    try {
+      const res = await window.pvh.addStationIncident({ electionId: eid, stationId: STATION_ID, type, message, byName: session.name });
+      if (res && res.ok) {
+        await loadIncidents();
+      } else {
+        incidents = [{ type, message, at: new Date().toISOString(), byName: session.name }, ...incidents];
+      }
+    } catch (e) {
+      incidents = [{ type, message, at: new Date().toISOString(), byName: session.name }, ...incidents];
+    }
     renderIncidents();
     showToast('Incident logged.');
   });
