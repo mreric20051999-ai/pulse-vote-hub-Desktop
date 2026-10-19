@@ -54,6 +54,46 @@
     UI.reset.style.display = '';
   });
 
+  // ---------- Export an election from THIS machine (admin path) ----------
+  // The guide tells operators "Developer section → Export election JSON", but
+  // regular admins never see the Developer section, so the merge flow used to
+  // dead-end for them. This button sits right next to "Choose election files".
+  $('merge-export-btn').addEventListener('click', async () => {
+    setMsg('');
+    const list = await window.pvh.listElections();
+    if (!list || !list.length) return setMsg('No elections yet — create one first.', false);
+    const rows = list.map((e) => `<option value="${esc(e.id)}">${esc(e.title)} — ${esc(e.status)}</option>`).join('');
+    const modal = window.pvhUI.openModal({
+      title: 'Export election JSON',
+      body: `
+        <p class="text-muted" style="margin-bottom:12px;">Pick the election to export as a portable JSON snapshot (positions, candidates, voters and votes). Bring that file to the machine running the merge.</p>
+        <div class="field">
+          <label class="label" for="mgx-election">Election</label>
+          <select class="select" id="mgx-election">${rows}</select>
+        </div>
+        <p class="auth-error" id="mgx-msg" style="margin-top:10px;"></p>
+        <div class="btn-row" style="margin-top:14px;">
+          <button class="btn btn-primary" id="mgx-go"><span class="icon btn-icon" data-icon="download"></span>Export&hellip;</button>
+        </div>`,
+      onMount: (bodyEl, close) => {
+        const msg = bodyEl.querySelector('#mgx-msg');
+        bodyEl.querySelector('#mgx-go').addEventListener('click', async () => {
+          const id = bodyEl.querySelector('#mgx-election').value;
+          await window.pvhUI.busy(bodyEl.querySelector('#mgx-go'), 'Exporting…', async () => {
+            const res = await window.pvh.exportElection(id);
+            if (res && res.ok) {
+              window.pvhUI.toast(`Exported to ${res.path}`, 'success');
+              close();
+            } else {
+              msg.textContent = (res && res.error) || 'Export failed';
+            }
+          });
+        });
+      },
+    });
+    return modal;
+  });
+
   UI.reset.addEventListener('click', () => {
     state.files = []; state.valid = []; state.groups = []; state.work = null; state.resolutions = {}; state.report = null; state.locations = [];
     UI.filesWrap.style.display = 'none'; UI.filesWrap.innerHTML = '';

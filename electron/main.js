@@ -741,7 +741,10 @@ function buildElectionSnapshot(electionId) {
 
 // Export a single election (its config + all data) as a JSON snapshot.
 ipcMain.handle('backup:election', async (e, electionId, token) => {
-  const r = requireDeveloper(token, e);
+  // The guide and the merge panel both describe this as the snapshot step the
+  // merge operator runs, so admin AND developer can export (requireAdmin
+  // accepts both roles) — not developer only.
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   const eid = electionId;
   if (!eid) return { ok: false, error: 'Election not found' };
@@ -835,7 +838,7 @@ ipcMain.handle('backup:restore-file', async (e, token) => {
 // Creates the election with its positions, candidates and voters in this
 // database. Votes are re-inserted so an exported election is fully recoverable.
 ipcMain.handle('backup:election-import', async (e, token) => {
-  const r = requireDeveloper(token, e);
+  const r = requireAdmin(token, e);
   if (!r.ok) return r;
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Import election snapshot',

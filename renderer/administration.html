@@ -91,9 +91,10 @@
       </div>
 
       <div class="merge-intro">
-        <p>Each location exports the election as JSON (<strong>Developer section &rarr; Export election JSON</strong>). Pick those files here; the tool combines the voter rolls, flags any voter registered or voted at more than one location, and lets you resolve each before tallying.</p>
+        <p>Each location exports the election as JSON (<strong>Export election JSON&hellip;</strong> here, or <strong>Developer section &rarr; Export election JSON</strong>). Pick those files here; the tool combines the voter rolls, flags any voter registered or voted at more than one location, and lets you resolve each before tallying.</p>
         <div class="btn-row">
           <button class="btn btn-primary" id="pick-files-btn"><span class="icon btn-icon" data-icon="upload"></span>Choose election files&hellip;</button>
+          <button class="btn btn-secondary" id="merge-export-btn" title="Export an election from this machine as a JSON snapshot for merging"><span class="icon btn-icon" data-icon="download"></span>Export election JSON&hellip;</button>
           <button class="btn btn-secondary" id="merge-reset-btn" title="Start a fresh merge" style="display:none;"><span class="icon btn-icon" data-icon="x"></span>Reset</button>
         </div>
         <p class="merge-msg" id="merge-msg"></p>
