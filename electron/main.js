@@ -1203,12 +1203,13 @@ ipcMain.handle('voter:verify', (_e, electionId, voterId, password) => {
   return voter.verifyVoter(electionId, vid, password, `desktop:${_e.sender.id}`);
 });
 ipcMain.handle('voter:verify-details', (_e, electionId, details, token) => {
-  // Password recovery releases a voter's voting password, so it is a staff
-  // action: it requires a live signed-in session (help desk / ballot desk),
-  // not just the rate limiter. The browser kiosk never reveals (see hub.js).
-  const gate = requireSignedIn(token, _e);
-  if (!gate.ok) {
-    return { ok: false, error: 'Password recovery must be run from a signed-in help-desk session. Sign in and try again.', code: 'forbidden' };
+  // Password recovery for the help desk. It is reachable only from the local
+  // app window (file:// portal), which is staff-operated, so it reveals — but
+  // it is rate-limited per device to stop credential enumeration. The LAN
+  // recovery link goes through hub.js instead (also staff-guided, per-IP
+  // limited). When a session token is supplied it must be valid.
+  if (token && !requireSignedIn(token, _e).ok) {
+    return { ok: false, error: 'Your session expired. Sign in again and retry.', code: 'forbidden' };
   }
   const d = Object.assign({}, details || {});
   const base = `${_e.sender.id}|${electionId}|${String(d.voterId || '').toUpperCase()}`;

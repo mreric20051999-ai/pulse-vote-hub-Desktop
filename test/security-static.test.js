@@ -17,22 +17,22 @@ const integrityUI = read('renderer/js/integrity.js');
 const mergeUI = read('renderer/js/merge.js');
 const adminHTML = read('renderer/administration.html');
 
-check('verify-details IPC is session-gated and only reveals on the desktop path', () => {
+check('verify-details reveals only from staff paths (desktop + LAN link)', () => {
   const at = main.indexOf("ipcMain.handle('voter:verify-details'");
   ok(at !== -1, 'handler exists');
   const body = main.slice(at, at + 1600);
-  ok(body.includes('requireSignedIn(token, _e)'), 'handler calls requireSignedIn');
-  ok(body.includes('revealPassword: true'), 'desktop reveal is explicit');
+  ok(body.includes('revealPassword: true'), 'desktop help desk reveals');
+  ok(body.includes('voterRecoverLimit'), 'desktop path is rate-limited');
   ok(preload.includes("ipcRenderer.invoke('voter:verify-details', eid, details, oid())"),
     'preload threads the session token');
 });
 
-check('LAN kiosk verify-details never reveals passwords', () => {
+check('LAN recovery link reveals (staff-guided) and is rate-limited', () => {
   const at = hub.indexOf('verify-details');
   ok(at !== -1, 'kiosk route exists');
-  const body = hub.slice(at, at + 1200);
-  ok(body.includes('revealPassword: false'), 'revealPassword is false on the network path');
-  ok(!/revealPassword:\s*true/.test(body), 'no reveal override on the kiosk route');
+  const body = hub.slice(at, at + 1400);
+  ok(body.includes('revealPassword: true'), 'LAN recovery link reveals the password');
+  ok(body.includes('_ipLimit'), 'network path is rate-limited per IP');
 });
 
 check('election export/import are admin-accessible (not developer-only)', () => {

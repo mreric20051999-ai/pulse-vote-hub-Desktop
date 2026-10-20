@@ -58,11 +58,12 @@ check('explicit number within limits is accepted', () => {
 check('voter add + verify-details flows against the same election', () => {
   const v = voter.addVoter({ electionId: eid, voterId: 'V-TEST', name: 'Test Voter' });
   ok(v.ok, 'addVoter must succeed');
-  const res = voter.verifyVoterDetails(eid, { voterId: 'V-TEST', name: 'Test Voter', revealPassword: false });
+  const res = voter.verifyVoterDetails(eid, { voterId: 'V-TEST', name: 'Test Voter' });
   ok(res.ok, 'verifyDetails must match');
-  eq(res.voter.password ?? null, null, 'revealPassword:false must not expose the password');
-  const res2 = voter.verifyVoterDetails(eid, { voterId: 'V-TEST', name: 'Test Voter', revealPassword: true });
-  ok(res2.ok && res2.voter.password, 'revealPassword:true (desktop) must return the password');
+  ok(res.voter.password, 'recovery reveals the password by default (help desk)');
+  const kiosk = voter.verifyVoterDetails(eid, { voterId: 'V-TEST', name: 'Test Voter', revealPassword: false });
+  ok(kiosk.ok, 'kiosk lookup must match');
+  eq(kiosk.voter.password ?? null, null, 'revealPassword:false returns no password');
 });
 
 report('ballot-rules.test.js');

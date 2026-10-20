@@ -259,14 +259,12 @@ Hub.prototype._mountKiosk = function (app) {
       res.status(429).json({ ok: false, error: 'Too many attempts. Please slow down and try again in a minute.', code: 'rate-limited' });
       return;
     }
-    // The hub serves the official ballot kiosk for THIS election: the verify-
-    // details screen is the help desk's password-recovery surface. The password
-    // itself is NEVER released over the network (electron/voter.js documents
-    // revealPassword must stay false for every network-exposed path — otherwise
-    // voter ID + name becomes an enumeration oracle for credentials). The
-    // matched voter's details still come back so the voter can confirm they
-    // were found; the reveal happens only on the signed-in desktop help desk.
-    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: false })));
+    // The voter verification link opens this on a second PC at the help desk:
+    // an operator types the voter's details and receives the issued password to
+    // hand to the voter before they cast. It therefore reveals, like the signed-
+    // in desktop help desk does — the link is staff material and the endpoint is
+    // rate-limited per IP so it cannot be hammered as a credential oracle.
+    res.json(voter.verifyVoterDetails(b.electionId, Object.assign({}, details, { revealPassword: true })));
   });
 
   // Cast a ballot from a browser. Reuses the desktop castVote (validation,

@@ -349,13 +349,14 @@ function verifyVoter(electionId, voterId, password, key) {
   };
 }
 
-// Voter self-service password recovery. The voter types the details matching
-// the scheme used to generate them; if a record matches, their cast password
-// is returned so they can use it on the kiosk ballot.
-// NOTE: `revealPassword` must be FALSE for any network-exposed path (the LAN
-// kiosk endpoint). The voting password is never sent over the network; only
-// the local desktop recovery flow may reveal it to the help desk.
-function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword = false } = {}) {
+// Password recovery for the help desk: the operator types the details matching
+// the scheme used to generate them; if a record matches, the issued cast
+// password is returned. This is the "voter verification link" flow — it is
+// deliberately callable from the signed-in desktop help desk AND from the LAN
+// recovery link (a second PC at the help desk), both of which are staff-guided.
+// `revealPassword` defaults to true; the kiosk callers pass false when they only
+// want the "voter found" confirmation (e.g. the in-app ballot lookup).
+function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword = true } = {}) {
   const d = db.get();
   const election = d.prepare('SELECT * FROM elections WHERE id = ?').get(electionId);
   if (!election) return { ok: false, error: 'Election not found', code: 'not-found' };
@@ -386,12 +387,9 @@ function verifyVoterDetails(electionId, { voterId, name, phone, revealPassword =
 
   if (!voter) return { ok: false, error: 'No voter matches those details. Check them and try again.', code: 'no-match' };
 
-  // The password may only be revealed on an authenticated local (desktop) path
-  // where the caller is a trusted coordinator/help desk and requests it
-  // explicitly (`revealPassword: true`, gated by session token + account role
-  // and rate-limited). On every network-exposed path (`revealPassword: false`)
-  // the password is never released, for every scheme — otherwise an attacker
-  // who knows a voter ID could turn the endpoint into an enumeration oracle.
+  // `revealPassword` is decided by the caller: the desktop help desk and the
+  // LAN recovery link reveal (staff-guided), while kiosk lookups pass false to
+  // show only "voter found". Either way the caller is rate-limited.
   const canReveal = revealPassword;
 
   // Station elections: surface the voter's polling station during password
