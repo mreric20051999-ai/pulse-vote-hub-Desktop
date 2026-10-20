@@ -242,6 +242,71 @@
   background: var(--warning, #f59e0b);
 }
 
+/* Inline lookup result, shown under the recovery form so the operator can hand
+   over one password and immediately look up the next voter. */
+.kiosk-panel .vk-result {
+  margin-top: var(--space-5);
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.kiosk-panel .vk-result-body {
+  padding: var(--space-4);
+}
+.kiosk-panel .vk-result-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 var(--space-4);
+  font-weight: var(--fw-semibold);
+  color: var(--success);
+}
+.kiosk-panel .vk-result-head.vk-result-warn {
+  color: var(--warning, #f59e0b);
+}
+.kiosk-panel .vk-result-field {
+  margin-bottom: var(--space-3);
+}
+.kiosk-panel .vk-result-field label {
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  margin-bottom: 6px;
+}
+.kiosk-panel .vk-recovered-line {
+  justify-content: center;
+  text-align: center;
+}
+.kiosk-panel .vk-result-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 8px 0;
+  border-top: 1px dashed var(--border);
+  font-size: var(--fs-md);
+}
+.kiosk-panel .vk-result-row .vk-recovered-value {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  justify-content: flex-end;
+  text-align: right;
+  font-size: var(--fs-md);
+}
+.kiosk-panel .vk-result-label {
+  color: var(--text-muted);
+  flex: none;
+}
+.kiosk-panel .vk-result-actions {
+  margin-top: var(--space-4);
+}
+.kiosk-panel .vk-result-actions .btn {
+  width: 100%;
+}
+
 
 /* ---------- Kiosk ballot ---------- */
 .candidate-list {

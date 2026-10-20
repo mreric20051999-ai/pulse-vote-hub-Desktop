@@ -250,55 +250,66 @@
   }
 
   // ------------------------------------------------------------
-  // Screen 2b: Voter self-service password recovery
+  // Screen 2b: voter password retrieval (help desk)
+  // One screen, one job: type the voter's details, see the issued password,
+  // then look up the next voter without ever returning to sign-in. The result
+  // renders inline below the form and the form clears itself for the next
+  // lookup.
   // ------------------------------------------------------------
-  function showVerify() {
+  function labelFor(scheme) {
+    if (scheme === 'index-phone') return { id: 'Phone number', ph: 'e.g. 0712345678', type: 'tel' };
+    return { id: 'Full name', ph: 'The name on the voter list', type: 'text' };
+  }
+
+  function showVerify(prefill) {
     const scheme = election.voter_scheme || 'name-index';
     setTitle(election.title);
     setBackVisible(true);
-
-    const fieldFor = (scheme === 'index-phone')
-      ? `<div class="vk-field">
-          <label for="vk-verify-phone">Phone number</label>
-          <input class="input" id="vk-verify-phone" type="tel" placeholder="e.g. 0712345678" autocomplete="off" spellcheck="false">
-        </div>`
-      : `<div class="vk-field">
-          <label for="vk-verify-name">Full name</label>
-          <input class="input" id="vk-verify-name" type="text" placeholder="The name on the voter list" autocomplete="off" spellcheck="false">
-        </div>`;
+    closeResult();
 
     content.innerHTML = `
       <div class="kiosk-panel">
         <div class="icon auth-icon">${ic('key')}</div>
-        <h2>Retrieve your password</h2>
-        <p class="subtitle">Enter your details below to receive the password issued for your voter ID.</p>
+        <h2>Retrieve password</h2>
+        <p class="subtitle">Enter the voter's details to look up their issued password, then hand it over before they cast their ballot.</p>
         <div class="vk-field">
           <label for="vk-verify-id">Voter ID</label>
-          <input class="input" id="vk-verify-id" type="text" placeholder="e.g. STUDENT2026" autocomplete="off" spellcheck="false">
+          <input class="input" id="vk-verify-id" type="text" placeholder="e.g. STUDENT2026" autocomplete="off" spellcheck="false" value="${esc(prefill && prefill.voterId || '')}">
         </div>
-        ${fieldFor}
+        ${extraFieldHTML(scheme, prefill)}
         <button class="btn btn-primary btn-xl" id="vk-verify-submit"><span>Retrieve password</span></button>
         <p class="kiosk-form-error" id="vk-verify-error" style="display:none;color:var(--danger);margin-top:14px;"></p>
+        <div id="vk-verify-result" class="vk-result" style="display:none;"></div>
         <button class="link-btn" id="vk-verify-cancel" type="button" style="margin-top:16px;">← Back to sign in</button>
       </div>`;
 
     const idInput = $('vk-verify-id');
     const extra = scheme === 'index-phone' ? $('vk-verify-phone') : $('vk-verify-name');
     const err = $('vk-verify-error');
+    const btn = $('vk-verify-submit');
 
     async function submit() {
       err.style.display = 'none';
+      closeResult();
       const details = { voterId: idInput.value.trim() };
       if (scheme === 'index-phone') details.phone = extra.value.trim();
       else if (scheme !== 'index-only' && scheme !== 'range') details.name = extra.value.trim();
-      const res = await window.pvh.verifyVoterDetails(election.id, details);
+      btn.disabled = true;
+      btn.textContent = 'Looking up…';
+      let res;
+      try {
+        res = await window.pvh.verifyVoterDetails(election.id, details);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Retrieve password</span>';
+      }
       if (!res.ok) {
         if (window.pvhAudio) window.pvhAudio.playError();
         err.textContent = res.error || 'Could not verify those details.';
         err.style.display = '';
         return;
       }
-      renderRecovered(res);
+      renderResult(res);
     }
 
     $('vk-verify-submit').addEventListener('click', submit);
@@ -306,39 +317,76 @@
       if (e.key === 'Enter') submit();
     }));
     $('vk-verify-cancel').addEventListener('click', showAccess);
-    idInput.focus();
+    (prefill && prefill.keepFocus ? null : idInput.focus());
   }
 
-  function renderRecovered(res) {
+  function extraFieldHTML(scheme, prefill) {
+    if (scheme === 'index-phone') {
+      return `<div class="vk-field">
+          <label for="vk-verify-phone">Phone number</label>
+          <input class="input" id="vk-verify-phone" type="tel" placeholder="e.g. 0712345678" autocomplete="off" spellcheck="false" value="${esc(prefill && prefill.phone || '')}">
+        </div>`;
+    }
+    return `<div class="vk-field">
+          <label for="vk-verify-name">Full name</label>
+          <input class="input" id="vk-verify-name" type="text" placeholder="The name on the voter list" autocomplete="off" spellcheck="false" value="${esc(prefill && prefill.name || '')}">
+        </div>`;
+  }
+
+  function closeResult() {
+    const box = $('vk-verify-result');
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  }
+
+  // Render the found voter's details inline, right under the form. The form
+  // stays put and is cleared so the operator can immediately type the next
+  // voter; a single "Clear & retrieve another" button resets focus to the ID.
+  function renderResult(res) {
     const v = res.voter;
     const st = res.station;
-    if (v.has_voted) { showBlocked('This voter has already cast a ballot in this election.', true); return; }
-    setTitle(election.title);
-    setBackVisible(true);
-    content.innerHTML = `
-      <div class="kiosk-panel">
-        <div class="icon auth-icon">${ic('key')}</div>
-        <h2>Voter found</h2>
-        <p class="subtitle">Use the password below to sign in and cast your ballot.</p>
-        <div class="vk-field">
-          <label>Voter ID</label>
-          <div class="vk-recovered-value">${esc(v.voter_id)}</div>
-        </div>
-        ${v.name ? `<div class="vk-field"><label>Name</label><div class="vk-recovered-value">${esc(v.name)}</div></div>` : ''}
-        ${v.phone ? `<div class="vk-field"><label>Phone</label><div class="vk-recovered-value">${esc(v.phone)}</div></div>` : ''}
-        ${st ? `<div class="vk-field"><label>Polling station</label>
-          <div class="vk-recovered-value">${esc(st.name)}${st.location ? ` <span class="vk-station-loc">(${esc(st.location)})</span>` : ''}
-            <span class="vk-station-status ${st.status}">${st.status === 'queuing' ? 'Grace window — polls closing' : 'Polls open'}</span>
-          </div></div>` : ''}
-        <div class="vk-field">
+    const box = $('vk-verify-result');
+    if (!box) return;
+    if (v.has_voted) {
+      box.innerHTML = `
+        <div class="vk-result-body">
+          <p class="vk-result-head vk-result-warn">${ic('alertTriangle')} This voter has already cast a ballot in this election.</p>
+        </div>`;
+      box.style.display = '';
+      return;
+    }
+    const details = [
+      ['Voter ID', `<span class="vk-recovered-value">${esc(v.voter_id)}</span>`],
+    ];
+    if (v.name) details.push(['Name', `<span class="vk-recovered-value">${esc(v.name)}</span>`]);
+    if (v.phone) details.push(['Phone', `<span class="vk-recovered-value">${esc(v.phone)}</span>`]);
+    if (st) details.push(['Polling station', `<span class="vk-recovered-value">${esc(st.name)}${st.location ? ` <span class="vk-station-loc">(${esc(st.location)})</span>` : ''}<span class="vk-station-status ${st.status}">${st.status === 'queuing' ? 'Grace window — polls closing' : 'Polls open'}</span></span>`]);
+    const passwordHTML = v.password
+      ? `<span class="vk-recovered-password">${esc(v.password)}</span>`
+      : `<span class="vk-no-password">Not available here — look it up on a signed-in help-desk machine.</span>`;
+
+    box.innerHTML = `
+      <div class="vk-result-body">
+        <p class="vk-result-head">${ic('check')} Voter found</p>
+        <div class="vk-result-field">
           <label>Password</label>
-          ${v.password
-            ? `<div class="vk-recovered-value vk-recovered-password">${esc(v.password)}</div>`
-            : `<div class="vk-recovered-value"><span class="vk-no-password">This password is not available here — ask a coordinator at the help desk to look it up for you.</span></div>`}
+          <div class="vk-recovered-value vk-recovered-line">${passwordHTML}</div>
         </div>
-        <button class="btn btn-primary btn-xl" id="vk-recovered-back"><span>Back to sign in</span></button>
+        ${details.map(([label, val]) => `<div class="vk-result-row"><span class="vk-result-label">${esc(label)}</span>${val}</div>`).join('')}
+        <div class="vk-result-actions">
+          <button class="btn btn-primary" id="vk-result-again"><span>Retrieve another</span></button>
+        </div>
       </div>`;
-    $('vk-recovered-back').addEventListener('click', showAccess);
+    box.style.display = '';
+
+    const again = $('vk-result-again');
+    if (again) again.addEventListener('click', () => {
+      const idInput = $('vk-verify-id');
+      const extra = $('vk-verify-name') || $('vk-verify-phone');
+      if (idInput) idInput.value = '';
+      if (extra) extra.value = '';
+      closeResult();
+      if (idInput) idInput.focus();
+    });
   }
 
   // ------------------------------------------------------------
