@@ -181,9 +181,9 @@
                     <option value="name-index">Name + Index</option>
                     <option value="index-only">Index only</option>
                     <option value="index-phone">Index + Phone</option>
-                    <option value="range">Voter ID Range (V0001 → V0050)</option>
+                    <option value="range">Voter ID Range (prefix + numbers)</option>
                   </select>
-                  <input class="input input-narrow" id="autogen-count" type="number" min="1" max="1000" value="10" title="Number of voters">
+                  <input class="input input-narrow" id="autogen-count" type="number" min="1" value="10" title="Number of voters">
                 </div>
               </div>
 
@@ -197,14 +197,19 @@
 
               <div class="row range-row" id="autogen-range" hidden>
                 <div class="field" style="flex:1;margin:0;">
+                  <label class="label hint">Prefix</label>
+                  <input class="input" id="autogen-prefix" type="text" value="V" maxlength="12" placeholder="e.g. V" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="field" style="flex:1;margin:0;">
                   <label class="label hint">From</label>
-                  <input class="input" id="autogen-from" type="number" min="1" value="1">
+                  <input class="input" id="autogen-from" type="number" min="0" value="1">
                 </div>
                 <div class="field" style="flex:1;margin:0;">
                   <label class="label hint">To</label>
-                  <input class="input" id="autogen-to" type="number" min="1" value="50">
+                  <input class="input" id="autogen-to" type="number" min="0" value="50">
                 </div>
               </div>
+              <p class="gen-hint" id="autogen-range-preview" hidden></p>
 
               <div class="gen-field">
                 <label class="label hint" id="autogen-list-label">Paste names — one per line (or CSV: name,index)</label>

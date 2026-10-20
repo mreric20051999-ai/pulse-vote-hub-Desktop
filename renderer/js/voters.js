@@ -301,7 +301,7 @@
     'name-index': 'Paste names — one per line (or CSV: name,index)',
     'index-only': 'Paste index numbers — one per line (or CSV: index)',
     'index-phone': 'Paste rows — one per line: name,index,phone',
-    'range': 'Generate sequential Voter IDs over a numeric range (V0001 → V00nn).',
+    'range': 'Type a prefix and the From/To numbers — e.g. prefix V, From 1, To 50 → V0001 → V0050.',
   };
   function updateAutogenUI() {
     const scheme = autogenSchemeDD.get();
@@ -311,8 +311,31 @@
     $('autogen-count').style.display = isRange ? 'none' : '';
     $('autogen-list').style.display = isRange ? 'none' : '';
     $('autogen-list-label').style.display = isRange ? 'none' : '';
+    $('autogen-range-preview').hidden = !isRange;
+    if (isRange) updateRangePreview();
   }
   updateAutogenUI();
+
+  // Show the operator exactly which Voter IDs will be created, e.g.
+  // "Will create STUDENT0001 → STUDENT0050 (50 voters)".
+  function updateRangePreview() {
+    const el = $('autogen-range-preview');
+    if (!el) return;
+    const prefix = $('autogen-prefix').value.trim().toUpperCase();
+    const from = Math.floor(Number($('autogen-from').value));
+    const to = Math.floor(Number($('autogen-to').value));
+    if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) {
+      el.textContent = 'Enter a valid range: To must be greater than or equal to From.';
+      return;
+    }
+    const pad = Math.max(1, String(to).length);
+    const fmt = (n) => `${prefix}${String(n).padStart(pad, '0')}`;
+    const n = to - from + 1;
+    el.textContent = `Will create ${fmt(from)} → ${fmt(to)} (${n} voter${n === 1 ? '' : 's'}).`;
+  }
+  ['autogen-prefix', 'autogen-from', 'autogen-to'].forEach((id) => {
+    $(id).addEventListener('input', updateRangePreview);
+  });
 
   // Auto-generate button
   $('autogen-btn').addEventListener('click', async () => {
@@ -325,6 +348,7 @@
       count: Number($('autogen-count').value) || 10,
       scheme,
       list: $('autogen-list').value,
+      prefix: $('autogen-prefix').value,
       from: Number($('autogen-from').value),
       to: Number($('autogen-to').value),
       assignedStation: autogenStationDD.get(),
@@ -341,7 +365,7 @@
           .map((c) => `${c.voter_id}\t·\t${c.password}${c.name ? ` (${c.name})` : ''}`).join('\n')
         + (res.created.length > 10 ? `\n… and ${res.created.length - 10} more` : '')
       : '';
-    alert(`Generated ${res.count} voter(s)${res.from != null ? ` (V-range ${res.from} → ${res.to})` : ''}${res.assignedStation ? ` — assigned to ${res.assignedStation}` : ''}. Passwords are required for ballot access:${creds}`);
+    alert(`Generated ${res.count} voter(s)${res.from != null ? ` (${res.prefix || 'V'}-range ${res.from} → ${res.to})` : ''}${res.assignedStation ? ` — assigned to ${res.assignedStation}` : ''}. Passwords are required for ballot access:${creds}`);
     window.pvhUI.toast(`Generated ${res.count} voter(s).`, 'success');
     $('autogen-list').value = '';
     refresh();

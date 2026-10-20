@@ -7,7 +7,7 @@ const { computedStatus } = require('./election');
 const station = require('./station');
 const sig = require('./signature');
 const vault = require('./vault');
-const { requiredString, optionalString, MAX_IMPORT_ROWS, LIMITS } = require('./validate');
+const { requiredString, optionalString, LIMITS } = require('./validate');
 
 // ---- Voter management ----
 
@@ -96,10 +96,6 @@ function importCsv(electionId, csvText) {
     return { ok: false, error: 'Could not parse CSV: ' + e.message };
   }
 
-  if (records.length > MAX_IMPORT_ROWS) {
-    return { ok: false, error: `CSV has ${records.length} rows; the maximum allowed per import is ${MAX_IMPORT_ROWS}` };
-  }
-
   const d = db.get();
   const insert = d.prepare(`
     INSERT INTO voters (id, election_id, voter_id, name, password_hash, password_salt, plain_password, phone, assigned_station, has_voted)
@@ -141,15 +137,16 @@ function importCsv(electionId, csvText) {
 // Auto-generate voters from a pasted list, per scheme.
 // scheme: 'name-index' | 'index-only' | 'index-phone' | 'range'
 // list: newline-separated; each line is "name" or CSV "name,index,phone" parts.
-// range: { from, to } for 'range' scheme -> generates sequential Voter IDs over a numeric range.
-function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = '', from, to, assignedStation } = {}) {
+// range: { prefix, from, to } for 'range' scheme -> sequential Voter IDs
+//   PREFIX + zero-padded number (pad = width of 'to'), e.g. V0001..V0050.
+function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = '', prefix = 'V', from, to, assignedStation } = {}) {
   if (!getElectionRow(electionId)) return { ok: false, error: 'Election not found' };
   const draft = requireDraft(electionId);
   if (!draft.ok) return draft;
   if (!['name-index', 'index-only', 'index-phone', 'range'].includes(scheme)) {
     return { ok: false, error: 'Invalid generation scheme' };
   }
-  count = Math.min(5000, Math.max(0, Number(count) || 0));
+  count = Math.max(0, Number(count) || 0);
   list = String(list || '');
 
   // Parse the pasted list into rows.
@@ -207,26 +204,27 @@ function autoGenerate(electionId, { count = 10, scheme = 'name-index', list = ''
     added++;
   }
 
-  // Range scheme: generate sequential Voter IDs (Vxxxx) across a numeric range.
+  // Range scheme: generate sequential Voter IDs (PREFIX + number) across a
+  // numeric range. The operator types the prefix and the From/To numbers, so
+  // any roll naming (V, STUDENT, A, …) is supported.
   if (scheme === 'range') {
-    const fromN = Math.max(1, Math.floor(Number(from) || 1));
+    const cleanPrefix = String(prefix == null ? 'V' : prefix).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 12) || 'V';
+    const fromN = Math.max(0, Math.floor(Number(from) || 0));
     const toN = Math.floor(Number(to) || fromN);
     if (!Number.isFinite(fromN) || !Number.isFinite(toN) || toN < fromN) {
       return { ok: false, error: 'Range is invalid. To must be greater than or equal to From.' };
     }
-    const cap = Math.max(1, toN - fromN + 1);
-    if (cap > 5000) return { ok: false, error: 'Range is too large (max 5000 voters at once).' };
-    const pad = Math.max(4, String(toN).length);
+    const pad = Math.max(1, String(toN).length);
     for (let num = fromN; num <= toN; num++) {
-      const voterId = `V${String(num).padStart(pad, '0')}`;
+      const voterId = `${cleanPrefix}${String(num).padStart(pad, '0')}`;
       if (existing.has(voterId) || usedIndexes.has(voterId)) { usedIndexes.add(voterId); continue; }
       insertVoter(voterId, null);
     }
     db.get().prepare('UPDATE elections SET voter_scheme = ? WHERE id = ?').run('index-only', electionId);
-    return { ok: true, count: added, from: fromN, to: toN, assignedStation: assignedStation || null, created };
+    return { ok: true, count: added, prefix: cleanPrefix, from: fromN, to: toN, assignedStation: assignedStation || null, created };
   }
 
-  // number of voters wanted; if a list is provided use its length (or count cap)
+  // number of voters wanted; if a list is provided use its length (or count)
   const target = rows.length ? Math.min(rows.length, count || rows.length) : Math.max(1, Number(count) || 1);
 
   for (let i = 0; i < target; i++) {

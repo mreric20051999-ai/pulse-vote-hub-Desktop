@@ -23,9 +23,6 @@ const LIMITS = {
   notes: 2000,
 };
 
-// Max number of rows accepted in a single bulk import (CSV / run pack).
-const MAX_IMPORT_ROWS = 20000;
-
 function isString(v) { return typeof v === 'string'; }
 
 // Require a non-empty (after trim) string within [min, max] length.
@@ -79,7 +76,6 @@ function optionalIntInRange(value, field, opts = {}) {
 
 module.exports = {
   LIMITS,
-  MAX_IMPORT_ROWS,
   requiredString,
   optionalString,
   intInRange,

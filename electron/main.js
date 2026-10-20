@@ -1186,6 +1186,7 @@ ipcMain.handle('voter:import-file', async (_e, electionId, officerId) => {
   return guardElection(electionId, officerId, () => voter.importCsv(electionId, text), _e.sender.id);
 });
 ipcMain.handle('voter:autogen', (_e, electionId, opts, officerId) => guardElection(electionId, officerId, () => voter.autoGenerate(electionId, opts || {}), _e.sender.id));
+
 ipcMain.handle('voter:delete', (_e, electionId, voterId, officerId) => guardElection(electionId, officerId, () => voter.deleteVoter(electionId, voterId), _e.sender.id));
 ipcMain.handle('voter:clear', (_e, electionId, officerId) => guardElection(electionId, officerId, () => voter.clearVoters(electionId), _e.sender.id));
 ipcMain.handle('voter:unvote', (_e, electionId, voterId, officerId) => {
